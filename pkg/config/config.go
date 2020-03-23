@@ -20,11 +20,11 @@ func LoadConfig() {
 	Conf = c
 }
 
-// Config stores zdxsv config.
+// Config stores gdxsv config.
 type Config struct {
 	LobbyAddr        string `env:"GDXSV_LOBBY_ADDR"`
 	LobbyPublicAddr  string `env:"GDXSV_LOBBY_PUBLIC_ADDR"`
 	BattleAddr       string `env:"GDXSV_BATTLE_ADDR"`
 	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR"`
-	DBName           string `env:"ZDXSV_DB_NAME"`
+	DBName           string `env:"GDXSV_DB_NAME"`
 }
