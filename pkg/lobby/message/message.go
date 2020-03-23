@@ -1,4 +1,4 @@
-package main
+package message
 
 import (
 	"bytes"
@@ -272,11 +272,11 @@ func (m *MessageBodyWriter) BodyLen() int {
 	return len(m.msg.Body)
 }
 
-func (m *MessageBodyWriter) Write(v []byte) (int, error) {
-	n, err := m.buf.Write(v)
+func (m *MessageBodyWriter) Write(v []byte) *MessageBodyWriter {
+	m.buf.Write(v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
-	return n, err
+	return m
 }
 
 func (m *MessageBodyWriter) Write8(v byte) *MessageBodyWriter {
