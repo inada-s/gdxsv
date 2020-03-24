@@ -1,4 +1,4 @@
-package lobby
+package main
 
 type symbol struct {
 	No       byte

@@ -1,8 +1,4 @@
-package lobby
-
-import (
-	. "gdxsv/pkg/lobby/message"
-)
+package main
 
 // Login Sequence
 func SendServerHello(p *AppPeer) {

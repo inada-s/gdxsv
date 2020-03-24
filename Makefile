@@ -4,4 +4,4 @@ all: build
 .PHONY: build
 build:
 	mkdir -p bin
-	go build -o ./bin/gdxsv ./src/gdxsv
+	go build -o bin/gdxsv ./gdxsv

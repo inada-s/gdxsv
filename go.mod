@@ -1,4 +1,4 @@
-module gdxsv
+module github.com/inada-s/gdxsv/gdxsv
 
 go 1.14
 
@@ -9,4 +9,5 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/pkg/errors v0.9.1
 	golang.org/x/text v0.3.2
+	google.golang.org/appengine v1.6.5 // indirect
 )

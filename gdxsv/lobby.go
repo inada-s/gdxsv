@@ -1,11 +1,11 @@
-package model
+package main
 
 const roomCount = 5
 
 type Lobby struct {
 	ID         uint16
 	Rule       *Rule
-	Users      map[string]*User
+	Users      map[string]*AppPeer
 	Rooms      map[uint16]*Room
 	EntryUsers []string
 }
@@ -14,7 +14,7 @@ func NewLobby(lobbyID uint16) *Lobby {
 	lobby := &Lobby{
 		ID:         lobbyID,
 		Rule:       NewRule(),
-		Users:      make(map[string]*User),
+		Users:      make(map[string]*AppPeer),
 		Rooms:      make(map[uint16]*Room),
 		EntryUsers: make([]string, 0),
 	}
@@ -28,7 +28,7 @@ func (l *Lobby) RoomCount() uint16 {
 	return uint16(roomCount)
 }
 
-func (l *Lobby) Enter(u *User) {
+func (l *Lobby) Enter(u *AppPeer) {
 	l.Users[u.UserID] = u
 }
 
@@ -45,7 +45,7 @@ func (l *Lobby) Exit(userID string) {
 	}
 }
 
-func (l *Lobby) Entry(u *User, side byte) {
+func (l *Lobby) Entry(u *AppPeer, side byte) {
 	u.Entry = side
 	if side == EntryNone {
 		for i, id := range l.EntryUsers {
@@ -87,10 +87,10 @@ func (l *Lobby) CanBattleStart() bool {
 	return 2 <= a && 2 <= b
 }
 
-func (l *Lobby) StartBattleUsers() []*User {
+func (l *Lobby) StartBattleUsers() []*AppPeer {
 	a := uint16(0)
 	b := uint16(0)
-	ret := []*User{}
+	ret := []*AppPeer{}
 	for _, id := range l.EntryUsers {
 		u, ok := l.Users[id]
 		if ok {

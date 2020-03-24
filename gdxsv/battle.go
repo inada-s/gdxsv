@@ -1,4 +1,4 @@
-package model
+package main
 
 import (
 	"net"
@@ -9,7 +9,7 @@ type Battle struct {
 	BattleCode string
 	ServerIP   net.IP
 	ServerPort uint16
-	Users      []User
+	Users      []*AppPeer
 	AeugIDs    []string
 	TitansIDs  []string
 	UDPUsers   map[string]bool
@@ -22,7 +22,7 @@ type Battle struct {
 
 func NewBattle(lobbyID uint16) *Battle {
 	return &Battle{
-		Users:     make([]User, 0),
+		Users:     make([]*AppPeer, 0),
 		AeugIDs:   make([]string, 0),
 		TitansIDs: make([]string, 0),
 		UDPUsers:  map[string]bool{},
@@ -36,16 +36,12 @@ func (b *Battle) SetRule(rule *Rule) {
 	b.Rule = rule
 }
 
-func (b *Battle) Add(s *User) {
-	cp := *s
-	cp.Battle = nil
-	cp.Lobby = nil
-	cp.Room = nil
-	b.Users = append(b.Users, cp)
-	if s.Entry == EntryAeug {
-		b.AeugIDs = append(b.AeugIDs, cp.UserID)
-	} else if s.Entry == EntryTitans {
-		b.TitansIDs = append(b.TitansIDs, cp.UserID)
+func (b *Battle) Add(peer *AppPeer) {
+	b.Users = append(b.Users, peer)
+	if peer.Entry == EntryAeug {
+		b.AeugIDs = append(b.AeugIDs, peer.UserID)
+	} else if peer.Entry == EntryTitans {
+		b.TitansIDs = append(b.TitansIDs, peer.UserID)
 	}
 }
 
@@ -67,12 +63,12 @@ func (b *Battle) GetPosition(userID string) byte {
 	return 0
 }
 
-func (b *Battle) GetUserByPos(pos byte) *User {
+func (b *Battle) GetUserByPos(pos byte) *AppPeer {
 	pos -= 1
 	if pos < 0 || len(b.Users) < int(pos) {
 		return nil
 	}
-	return &b.Users[pos]
+	return b.Users[pos]
 }
 
 type BattleResult struct {

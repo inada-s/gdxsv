@@ -1,4 +1,4 @@
-package lobby
+package main
 
 import (
 	"fmt"
@@ -6,13 +6,16 @@ import (
 	"net/rpc"
 	"time"
 
-	"gdxsv/pkg/lobby/message"
-	"gdxsv/pkg/lobby/model"
-
 	"github.com/golang/glog"
 )
 
-type MessageHandler func(*AppPeer, *message.Message)
+const (
+	EntryNone   = 0
+	EntryAeug   = 1
+	EntryTitans = 2
+)
+
+type MessageHandler func(*AppPeer, *Message)
 
 type handlerHolder struct {
 	handlers     map[uint16]MessageHandler
@@ -40,7 +43,7 @@ type eventPeerLeave struct {
 
 type eventPeerMessage struct {
 	peer *AppPeer
-	msg  *message.Message
+	msg  *Message
 }
 
 type eventFunc struct {
@@ -49,27 +52,25 @@ type eventFunc struct {
 }
 
 type AppPeer struct {
-	model.User
-	conn              *Conn
-	app               *App
+	DBUser
+
+	conn   *Conn
+	app    *App
+	Room   *Room
+	Lobby  *Lobby
+	Battle *Battle
+
+	Entry byte
+
 	inBattleAfterRoom bool
-
-	proxyIP           net.IP
-	proxyPort         uint16
-	proxyUDPAddrs     []string
-	proxyP2PConnected map[string]struct{}
-
-	proxyRegTime time.Time
-	proxyUseTime time.Time
-
-	lastRecvTime time.Time
+	lastRecvTime      time.Time
 }
 
 func (p *AppPeer) OnOpen() {
 	p.app.chEvent <- eventPeerCome{peer: p}
 }
 
-func (p *AppPeer) OnMessage(msg *message.Message) {
+func (p *AppPeer) OnMessage(msg *Message) {
 	p.app.chEvent <- eventPeerMessage{peer: p, msg: msg}
 }
 
@@ -77,7 +78,7 @@ func (p *AppPeer) OnClose() {
 	p.app.chEvent <- eventPeerLeave{peer: p}
 }
 
-func (p *AppPeer) SendMessage(msg *message.Message) {
+func (p *AppPeer) SendMessage(msg *Message) {
 	p.conn.SendMessage(msg)
 }
 
@@ -85,8 +86,8 @@ type App struct {
 	*handlerHolder
 	battleServer *rpc.Client
 	users        map[string]*AppPeer
-	lobbys       map[uint16]*model.Lobby
-	battles      map[string]*model.Battle
+	lobbys       map[uint16]*Lobby
+	battles      map[string]*Battle
 	chEvent      chan interface{}
 	chQuit       chan interface{}
 }
@@ -95,18 +96,18 @@ func NewApp() *App {
 	app := &App{
 		handlerHolder: defaultHandlers,
 		users:         make(map[string]*AppPeer),
-		lobbys:        make(map[uint16]*model.Lobby),
-		battles:       make(map[string]*model.Battle),
+		lobbys:        make(map[uint16]*Lobby),
+		battles:       make(map[string]*Battle),
 		chEvent:       make(chan interface{}, 64),
 		chQuit:        make(chan interface{}),
 	}
 	for i := 0; i < 26; i++ {
-		app.lobbys[uint16(i)] = model.NewLobby(uint16(i))
+		app.lobbys[uint16(i)] = NewLobby(uint16(i))
 	}
 	return app
 }
 
-func (a *App) NewPeer(conn *Conn) Peer {
+func (a *App) NewPeer(conn *Conn) *AppPeer {
 	return &AppPeer{
 		conn: conn,
 		app:  a,
@@ -139,19 +140,6 @@ func (a *App) AddHandler(id uint16, name string, f MessageHandler) {
 	a.handlerNames[id] = name
 }
 
-func (a *App) connectToBattleServer() {
-	glog.Infoln("TODO: connectToBattleServer")
-	/*
-		client, err := rpc.DialHTTP("tcp", config.Conf.Battle.RPCAddr)
-		if err != nil {
-			glog.Errorln("Faild to connect BattleServer. ", err)
-		} else {
-			glog.Infoln("Succeeded to connect BattleServer")
-			a.battleServer = client
-		}
-	*/
-}
-
 func stripHost(addr string) string {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -162,7 +150,6 @@ func stripHost(addr string) string {
 
 func (a *App) Serve() {
 	aliveCheck := time.Tick(10 * time.Second)
-	a.connectToBattleServer()
 	peers := map[string]*AppPeer{}
 
 	for {
@@ -175,7 +162,7 @@ func (a *App) Serve() {
 				glog.Infoln("eventPeerCome")
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.conn.Address()] = args.peer
-				a.OnOpen(args.peer)
+				SendServerHello(args.peer)
 			case eventPeerMessage:
 				args.peer.lastRecvTime = time.Now()
 				if f, ok := a.handlers[args.msg.Command]; ok {
@@ -188,13 +175,13 @@ func (a *App) Serve() {
 					glog.Errorf("======================================")
 					glog.Errorf("======================================")
 					glog.Errorf("======================================")
-					if args.msg.Category == message.CategoryQuestion {
-						args.peer.SendMessage(message.NewServerAnswer(args.msg))
+					if args.msg.Category == CategoryQuestion {
+						args.peer.SendMessage(NewServerAnswer(args.msg))
 					}
 				}
 			case eventPeerLeave:
 				glog.Infoln("eventPeerLeave")
-				a.OnClose(args.peer)
+				delete(a.users, args.peer.UserID)
 				delete(peers, args.peer.conn.Address())
 			case eventFunc:
 				args.f(a)
@@ -214,19 +201,6 @@ func (a *App) Serve() {
 				if time.Since(battle.StartTime).Hours() >= 1.0 {
 					delete(a.battles, sid)
 					glog.Infoln("Battle user timeout.", sid, battle)
-				}
-			}
-
-			if a.battleServer == nil {
-				a.connectToBattleServer()
-			} else {
-				var reply string
-				err := a.battleServer.Call("Logic.PingPong", "Ping", &reply)
-				if err != nil {
-					glog.Errorln("PingPong failed. ", err)
-					a.battleServer.Close()
-					a.battleServer = nil
-					a.connectToBattleServer()
 				}
 			}
 		}

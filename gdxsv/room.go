@@ -1,4 +1,4 @@
-package model
+package main
 
 import (
 	"time"
@@ -20,7 +20,7 @@ type Room struct {
 	Password  string
 	Owner     string
 	Deadline  time.Time
-	Users     []*User
+	Users     []*AppPeer
 	Status    byte
 	Rule      *Rule
 }
@@ -32,11 +32,11 @@ func NewRoom(lobbyID, roomID uint16) *Room {
 		Name:    "(空き)",
 		Status:  RoomStateEmpty,
 		Rule:    NewRule(),
-		Users:   make([]*User, 0),
+		Users:   make([]*AppPeer, 0),
 	}
 }
 
-func (r *Room) Enter(u *User) {
+func (r *Room) Enter(u *AppPeer) {
 	if len(r.Users) == 0 {
 		r.Owner = u.UserID
 		r.Deadline = time.Now().Add(30 * time.Minute)
@@ -75,7 +75,7 @@ func (r *Room) Remove() {
 	*r = *NewRoom(r.LobbyID, r.ID)
 }
 
-func (r *Room) Entry(u *User, side byte) {
+func (r *Room) Entry(u *AppPeer, side byte) {
 	u.Entry = side
 }
 
@@ -98,7 +98,7 @@ func (r *Room) CanBattleStart() bool {
 	return 0 < a && 0 < b && a <= 2 && b <= 2
 }
 
-func (r *Room) StartBattleUsers() (active []*User, inactive []*User) {
+func (r *Room) StartBattleUsers() (active []*AppPeer, inactive []*AppPeer) {
 	a := uint16(0)
 	b := uint16(0)
 	for _, u := range r.Users {

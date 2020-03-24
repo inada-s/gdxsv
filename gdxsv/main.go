@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"time"
-
-	"gdxsv/pkg/config"
 
 	"github.com/golang/glog"
 )
@@ -36,14 +34,6 @@ func pprofPort(mode string) int {
 	}
 }
 
-func stripHost(addr string) string {
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		glog.FatalDepth(1, "err in splitPort ", addr, err)
-	}
-	return ":" + fmt.Sprint(port)
-}
-
 func printUsage() {
 	log.Println("Usage: ", os.Args[0], "[lobby]")
 }
@@ -63,6 +53,19 @@ func prepareOption(command string) {
 	}
 }
 
+func mainLobby() {
+	app := NewApp()
+	go app.Serve()
+	sv := NewServer(app)
+	go sv.ListenAndServe(stripHost(Conf.LobbyAddr))
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c)
+	s := <-c
+	fmt.Println("Got signal:", s)
+	app.Quit()
+}
+
 func main() {
 	flag.Set("logtostderr", "true")
 	flag.Parse()
@@ -78,7 +81,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	config.LoadConfig()
+	LoadConfig()
 
 	command := args[0]
 	prepareOption(command)

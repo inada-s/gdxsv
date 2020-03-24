@@ -1,4 +1,4 @@
-package db
+package main
 
 import (
 	"bytes"
@@ -49,7 +49,7 @@ type Account struct {
 	System     byte      `db:"system" json:"system,omitempty"`
 }
 
-type User struct {
+type DBUser struct {
 	LoginKey  string `db:"login_key" json:"login_key,omitempty"`
 	SessionID string `db:"session_id" json:"session_id,omitempty"`
 
@@ -114,7 +114,7 @@ type BattleCountResult struct {
 
 type RankingRecord struct {
 	Rank int `db:"rank"`
-	User
+	DBUser
 }
 
 // DB is an interface of database operation.
@@ -140,19 +140,19 @@ type DB interface {
 
 	// RegisterUser creates new user.
 	// An account can hold three users.
-	RegisterUser(loginKey string) (*User, error)
+	RegisterUser(loginKey string) (*DBUser, error)
 
 	// GetUserList returns user list that the account holds.
-	GetUserList(loginKey string) ([]*User, error)
+	GetUserList(loginKey string) ([]*DBUser, error)
 
 	// GetUser retrieves an account by user_id
-	GetUser(userID string) (*User, error)
+	GetUser(userID string) (*DBUser, error)
 
 	// LoginUser updates last login information.
-	LoginUser(user *User) error
+	LoginUser(user *DBUser) error
 
 	// UpdateUser updates all user's mutable information.
-	UpdateUser(user *User) error
+	UpdateUser(user *DBUser) error
 
 	// AddBattleRecord saves new battle record.
 	// This function is used when a battle starts.

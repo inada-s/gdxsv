@@ -1,8 +1,7 @@
-package lobby
+package main
 
 import (
 	"context"
-	"gdxsv/pkg/lobby/message"
 	"net"
 	"sync"
 	"time"
@@ -10,24 +9,14 @@ import (
 	"github.com/golang/glog"
 )
 
-type PeerFactory interface {
-	NewPeer(conn *Conn) Peer
-}
-
-type Peer interface {
-	OnOpen()
-	OnMessage(*message.Message)
-	OnClose()
-}
-
 type Server struct {
+	app  *App
 	conn *net.TCPConn
-	pf   PeerFactory
 }
 
-func NewServer(pf PeerFactory) *Server {
+func NewServer(app *App) *Server {
 	return &Server{
-		pf: pf,
+		app: app,
 	}
 }
 
@@ -48,14 +37,14 @@ func (s *Server) ListenAndServe(addr string) error {
 		}
 		glog.Infoln("A new tcp connection open.", tcpConn.RemoteAddr())
 		conn := NewConn(tcpConn)
-		conn.peer = s.pf.NewPeer(conn)
+		conn.peer = s.app.NewPeer(conn)
 		go conn.serve()
 	}
 }
 
 type Conn struct {
 	conn *net.TCPConn
-	peer Peer
+	peer *AppPeer
 
 	chWrite    chan bool
 	chDispatch chan bool
@@ -92,7 +81,7 @@ func (c *Conn) serve() {
 	<-ctx.Done()
 }
 
-func (c *Conn) SendMessage(msg *message.Message) {
+func (c *Conn) SendMessage(msg *Message) {
 	glog.V(2).Infof("\t->%v %v \n", c.Address(), msg)
 	c.mOutbuf.Lock()
 	c.outbuf = append(c.outbuf, msg.Serialize()...)
@@ -182,8 +171,8 @@ func (c *Conn) dispatchLoop(ctx context.Context, cancel func()) {
 			return
 		case <-c.chDispatch:
 			c.mInbuf.Lock()
-			for len(c.inbuf) >= message.HeaderSize {
-				n, msg := message.Deserialize(c.inbuf)
+			for len(c.inbuf) >= HeaderSize {
+				n, msg := Deserialize(c.inbuf)
 				c.inbuf = c.inbuf[n:]
 
 				if msg != nil {
