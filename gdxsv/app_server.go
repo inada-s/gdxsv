@@ -181,7 +181,7 @@ func (c *Conn) dispatchLoop(ctx context.Context, cancel func()) {
 				}
 				if n == 0 {
 					glog.Errorf("Got zero byte msg %v", c.Address())
-					return
+					break
 				}
 			}
 			c.mInbuf.Unlock()

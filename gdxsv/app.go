@@ -141,6 +141,7 @@ func (a *App) AddHandler(id uint16, name string, f MessageHandler) {
 }
 
 func stripHost(addr string) string {
+	glog.Info(addr)
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		glog.Fatal("err in splitPort", err)
@@ -162,7 +163,7 @@ func (a *App) Serve() {
 				glog.Infoln("eventPeerCome")
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.conn.Address()] = args.peer
-				SendServerHello(args.peer)
+				SendConnectionID(args.peer)
 			case eventPeerMessage:
 				args.peer.lastRecvTime = time.Now()
 				if f, ok := a.handlers[args.msg.Command]; ok {
