@@ -163,7 +163,7 @@ func (a *App) Serve() {
 				glog.Infoln("eventPeerCome")
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.conn.Address()] = args.peer
-				SendConnectionID(args.peer)
+				StartLoginFlow(args.peer)
 			case eventPeerMessage:
 				args.peer.lastRecvTime = time.Now()
 				if f, ok := a.handlers[args.msg.Command]; ok {
