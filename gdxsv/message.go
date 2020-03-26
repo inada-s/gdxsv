@@ -14,6 +14,9 @@ import (
 	"golang.org/x/text/transform"
 )
 
+//go:generate stringer -type=CmdID
+type CmdID uint16
+
 const (
 	HeaderSize       = 12
 	ServerToClient   = 0x18
@@ -42,7 +45,7 @@ func init() {
 type Message struct {
 	Direction byte
 	Category  byte
-	Command   uint16
+	Command   CmdID
 	BodySize  uint16
 	Seq       uint16
 	Status    uint32
@@ -69,7 +72,7 @@ func (m *Message) String() string {
 		b.WriteString(" [C]")
 	}
 
-	fmt.Fprintf(b, " ID:0x%X", m.Command)
+	fmt.Fprintf(b, " %v (ID:0x%X)", m.Command, uint16(m.Command))
 	fmt.Fprintf(b, " Seq:%v", m.Seq)
 	fmt.Fprintf(b, " Body(%d bytes):\n", len(m.Body))
 	b.WriteString(hex.Dump(m.Body))
@@ -112,7 +115,7 @@ func Deserialize(data []byte) (int, *Message) {
 	return int(HeaderSize + m.BodySize), &m
 }
 
-func NewServerQuestion(command uint16) *Message {
+func NewServerQuestion(command CmdID) *Message {
 	return &Message{
 		Direction: ServerToClient,
 		Category:  CategoryQuestion,
@@ -132,7 +135,7 @@ func NewServerAnswer(request *Message) *Message {
 	}
 }
 
-func NewServerNotice(command uint16) *Message {
+func NewServerNotice(command CmdID) *Message {
 	return &Message{
 		Direction: ServerToClient,
 		Category:  CategoryNotice,
@@ -142,7 +145,7 @@ func NewServerNotice(command uint16) *Message {
 	}
 }
 
-func NewClientQuestion(command uint16) *Message {
+func NewClientQuestion(command CmdID) *Message {
 	return &Message{
 		Direction: ClientToServer,
 		Category:  CategoryQuestion,
@@ -162,7 +165,7 @@ func NewClientAnswer(request *Message) *Message {
 	}
 }
 
-func NewClientNotice(command uint16) *Message {
+func NewClientNotice(command CmdID) *Message {
 	return &Message{
 		Direction: ClientToServer,
 		Category:  CategoryNotice,
@@ -216,39 +219,10 @@ func (m *MessageBodyReader) ReadString() string {
 	return string(bytes.Trim(buf, "\x00"))
 }
 
-func (m *MessageBodyReader) ReadEncryptedString() string {
-	if m.r.Len() == 0 {
-		return ""
-	}
+func (m *MessageBodyReader) ReadShiftJISString() string {
 	size := m.Read16()
-	if size <= 2 {
-		return ""
-	}
-	buf := make([]byte, size-2, size-2)
-	chksum := m.Read16()
-	n, err := m.r.Read(buf)
-	if err != nil {
-		glog.Errorln("read encstr faild. read error:", err)
-		return ""
-	}
-	if n != int(size-2) {
-		glog.Errorln("read encstr faild. mismatch read size")
-		return ""
-	}
-	sum := uint16(0)
-	p := byte(m.seq)
-	fixval := [...]byte{21, 23, 10, 17, 23, 19, 6, 13}
-	masks := [...]byte{0x33, 0x30, 0x3c, 0x34, 0x2d, 0x30, 0x3c, 0x34}
-	for j, x := range buf {
-		i := byte(j)
-		buf[i] = x ^ (fixval[i&7] - (i & 0xf8) - p + ((p-9+i)&masks[i&7])*2)
-		sum += uint16(buf[i])
-	}
-	if sum != chksum {
-		glog.Errorln("decrypt faild mismatch checksum")
-		return ""
-	}
-
+	buf := make([]byte, size, size)
+	m.r.Read(buf)
 	ret, err := ioutil.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
 	if err != nil {
 		glog.Errorln(err)

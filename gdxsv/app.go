@@ -18,16 +18,16 @@ const (
 type MessageHandler func(*AppPeer, *Message)
 
 type handlerHolder struct {
-	handlers     map[uint16]MessageHandler
-	handlerNames map[uint16]string
+	handlers     map[CmdID]MessageHandler
+	handlerNames map[CmdID]string
 }
 
 var defaultHandlers = &handlerHolder{
-	handlers:     make(map[uint16]MessageHandler),
-	handlerNames: make(map[uint16]string),
+	handlers:     make(map[CmdID]MessageHandler),
+	handlerNames: make(map[CmdID]string),
 }
 
-func register(id uint16, name string, f MessageHandler) interface{} {
+func register(id CmdID, name string, f MessageHandler) interface{} {
 	defaultHandlers.handlers[id] = f
 	defaultHandlers.handlerNames[id] = name
 	return nil
@@ -125,17 +125,15 @@ func (a *App) Locked(f func(*App)) {
 
 func (a *App) Quit() {
 	a.Locked(func(app *App) {
-		/*
-			for _, p := range app.users {
-				SendServerShutDown(p)
-			}
-		*/
+		for _, p := range app.users {
+			SendServerShutDown(p)
+		}
 	})
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 	close(a.chQuit)
 }
 
-func (a *App) AddHandler(id uint16, name string, f MessageHandler) {
+func (a *App) AddHandler(id CmdID, name string, f MessageHandler) {
 	a.handlers[id] = f
 	a.handlerNames[id] = name
 }
@@ -172,7 +170,7 @@ func (a *App) Serve() {
 					glog.Errorf("======================================")
 					glog.Errorf("======================================")
 					glog.Errorf("======================================")
-					glog.Errorf("Handler not found: name = %v msg = %v", symbolMap[args.msg.Command], args.msg)
+					glog.Errorf("Handler not found: 0x%04x %v msg:%v", uint16(args.msg.Command), args.msg.Command, args.msg)
 					glog.Errorf("======================================")
 					glog.Errorf("======================================")
 					glog.Errorf("======================================")
@@ -194,7 +192,7 @@ func (a *App) Serve() {
 					glog.Infoln("Recv Timeout", p)
 					p.conn.conn.Close()
 				} else {
-					// RequestLineCheck(p)
+					RequestLineCheck(p)
 				}
 			}
 

@@ -176,7 +176,7 @@ func (c *Conn) dispatchLoop(ctx context.Context, cancel func()) {
 				c.inbuf = c.inbuf[n:]
 
 				if msg != nil {
-					glog.V(2).Infof("\t<-%v %v\n", c.Address(), msg)
+					glog.V(2).Infof("%v %v\n", c.Address(), msg)
 					c.peer.OnMessage(msg)
 				}
 				if n == 0 {
