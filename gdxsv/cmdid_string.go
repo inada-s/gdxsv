@@ -12,6 +12,7 @@ func _() {
 	_ = x[CMD_Logout-24578]
 	_ = x[CMD_ShutDown-24579]
 	_ = x[CMD_VSUserLost-24580]
+	_ = x[CMD_SendMail-26372]
 	_ = x[CMD_Mail-26373]
 	_ = x[CMD_ManagerMessage-26374]
 	_ = x[CMD_LoginType-24848]
@@ -50,14 +51,33 @@ func _() {
 	_ = x[CMD_PlazaJoin-25093]
 	_ = x[CMD_PlazaStatus-25094]
 	_ = x[CMD_PlazaExplain-25098]
-	_ = x[CMD_PostChatMessage-26369]
-	_ = x[CMD_ChatMessage-26370]
-	_ = x[CMD_LobbyRemove-25792]
+	_ = x[CMD_PlazaExit-25350]
+	_ = x[CMD_PlazaEntry-25095]
+	_ = x[CMD_LobbyJoin-25347]
+	_ = x[CMD_LobbyEntry-25349]
+	_ = x[CMD_LobbyMatchingJoin-25615]
+	_ = x[CMD_LobbyExit-25608]
 	_ = x[CMD_RoomTitle-25602]
 	_ = x[CMD_RoomStatus-25604]
+	_ = x[CMD_RoomMax-25601]
+	_ = x[CMD_RoomCreate-25607]
+	_ = x[CMD_PutRoomName-26121]
+	_ = x[CMD_EndRoomCreate-26124]
+	_ = x[CMD_PostChatMessage-26369]
+	_ = x[CMD_ChatMessage-26370]
+	_ = x[CMD_UserSite-26371]
+	_ = x[CMD_LobbyRemove-25792]
+	_ = x[CMD_LobbyMatchingEntry-25614]
+	_ = x[CMD_WaitJoin-25862]
+	_ = x[CMD_RoomExit-25857]
+	_ = x[CMD_RoomEntry-25606]
+	_ = x[CMD_MatchingEntry-25860]
+	_ = x[CMD_ReadyBattle-26896]
+	_ = x[CMD_TopRankingSuu-26706]
+	_ = x[CMD_TopRanking-26707]
 }
 
-const _CmdID_name = "CMD_LineCheckCMD_LogoutCMD_ShutDownCMD_VSUserLostCMD_ConnectionIdCMD_AskConnectionIdCMD_WarningMessageCMD_LoginTypeCMD_UserHandleCMD_UserRegistCMD_AskPlatformCodeCMD_AskCountryCodeCMD_AskGameCodeCMD_AskGameVersionCMD_AddProgressCMD_AskBattleResultCMD_StartLobbyCMD_AskKDDIChargesCMD_PostGameParameterCMD_RankRankingCMD_WinLoseCMD_DeviceDataCMD_ServerMoneyCMD_PlazaMaxCMD_PlazaTitleCMD_PlazaJoinCMD_PlazaStatusCMD_PlazaExplainCMD_RoomTitleCMD_RoomStatusCMD_LobbyRemoveCMD_PostChatMessageCMD_ChatMessageCMD_MailCMD_ManagerMessageCMD_AskNewsTagCMD_NewsTextCMD_InvitationTagCMD_RegulationHeaderCMD_RegulationTextCMD_RegulationFooterCMD_TopRankingTagCMD_AskPatchDataCMD_PatchHeaderCMD_PatchData_6863CMD_CalcDownloadChecksumCMD_PatchPing"
+const _CmdID_name = "CMD_LineCheckCMD_LogoutCMD_ShutDownCMD_VSUserLostCMD_ConnectionIdCMD_AskConnectionIdCMD_WarningMessageCMD_LoginTypeCMD_UserHandleCMD_UserRegistCMD_AskPlatformCodeCMD_AskCountryCodeCMD_AskGameCodeCMD_AskGameVersionCMD_AddProgressCMD_AskBattleResultCMD_StartLobbyCMD_AskKDDIChargesCMD_PostGameParameterCMD_RankRankingCMD_WinLoseCMD_DeviceDataCMD_ServerMoneyCMD_PlazaMaxCMD_PlazaTitleCMD_PlazaJoinCMD_PlazaStatusCMD_PlazaEntryCMD_PlazaExplainCMD_LobbyJoinCMD_LobbyEntryCMD_PlazaExitCMD_RoomMaxCMD_RoomTitleCMD_RoomStatusCMD_RoomEntryCMD_RoomCreateCMD_LobbyExitCMD_LobbyMatchingEntryCMD_LobbyMatchingJoinCMD_LobbyRemoveCMD_RoomExitCMD_MatchingEntryCMD_WaitJoinCMD_PutRoomNameCMD_EndRoomCreateCMD_PostChatMessageCMD_ChatMessageCMD_UserSiteCMD_SendMailCMD_MailCMD_ManagerMessageCMD_AskNewsTagCMD_NewsTextCMD_InvitationTagCMD_RegulationHeaderCMD_RegulationTextCMD_RegulationFooterCMD_TopRankingTagCMD_TopRankingSuuCMD_TopRankingCMD_AskPatchDataCMD_PatchHeaderCMD_PatchData_6863CMD_CalcDownloadChecksumCMD_PatchPingCMD_ReadyBattle"
 
 var _CmdID_map = map[CmdID]string{
 	24577: _CmdID_name[0:13],
@@ -87,26 +107,46 @@ var _CmdID_map = map[CmdID]string{
 	25092: _CmdID_name[367:381],
 	25093: _CmdID_name[381:394],
 	25094: _CmdID_name[394:409],
-	25098: _CmdID_name[409:425],
-	25602: _CmdID_name[425:438],
-	25604: _CmdID_name[438:452],
-	25792: _CmdID_name[452:467],
-	26369: _CmdID_name[467:486],
-	26370: _CmdID_name[486:501],
-	26373: _CmdID_name[501:509],
-	26374: _CmdID_name[509:527],
-	26625: _CmdID_name[527:541],
-	26626: _CmdID_name[541:553],
-	26640: _CmdID_name[553:570],
-	26656: _CmdID_name[570:590],
-	26657: _CmdID_name[590:608],
-	26658: _CmdID_name[608:628],
-	26705: _CmdID_name[628:645],
-	26721: _CmdID_name[645:661],
-	26722: _CmdID_name[661:676],
-	26723: _CmdID_name[676:694],
-	26724: _CmdID_name[694:718],
-	26725: _CmdID_name[718:731],
+	25095: _CmdID_name[409:423],
+	25098: _CmdID_name[423:439],
+	25347: _CmdID_name[439:452],
+	25349: _CmdID_name[452:466],
+	25350: _CmdID_name[466:479],
+	25601: _CmdID_name[479:490],
+	25602: _CmdID_name[490:503],
+	25604: _CmdID_name[503:517],
+	25606: _CmdID_name[517:530],
+	25607: _CmdID_name[530:544],
+	25608: _CmdID_name[544:557],
+	25614: _CmdID_name[557:579],
+	25615: _CmdID_name[579:600],
+	25792: _CmdID_name[600:615],
+	25857: _CmdID_name[615:627],
+	25860: _CmdID_name[627:644],
+	25862: _CmdID_name[644:656],
+	26121: _CmdID_name[656:671],
+	26124: _CmdID_name[671:688],
+	26369: _CmdID_name[688:707],
+	26370: _CmdID_name[707:722],
+	26371: _CmdID_name[722:734],
+	26372: _CmdID_name[734:746],
+	26373: _CmdID_name[746:754],
+	26374: _CmdID_name[754:772],
+	26625: _CmdID_name[772:786],
+	26626: _CmdID_name[786:798],
+	26640: _CmdID_name[798:815],
+	26656: _CmdID_name[815:835],
+	26657: _CmdID_name[835:853],
+	26658: _CmdID_name[853:873],
+	26705: _CmdID_name[873:890],
+	26706: _CmdID_name[890:907],
+	26707: _CmdID_name[907:921],
+	26721: _CmdID_name[921:937],
+	26722: _CmdID_name[937:952],
+	26723: _CmdID_name[952:970],
+	26724: _CmdID_name[970:994],
+	26725: _CmdID_name[994:1007],
+	26896: _CmdID_name[1007:1022],
 }
 
 func (i CmdID) String() string {

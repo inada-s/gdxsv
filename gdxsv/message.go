@@ -74,9 +74,7 @@ func (m *Message) String() string {
 
 	fmt.Fprintf(b, " %v (ID:0x%X)", m.Command, uint16(m.Command))
 	fmt.Fprintf(b, " Seq:%v", m.Seq)
-	fmt.Fprintf(b, " Body(%d bytes):\n", len(m.Body))
-	b.WriteString(hex.Dump(m.Body))
-	_ = hex.Dump
+	fmt.Fprintf(b, " Body(%d bytes): %v", len(m.Body), hex.EncodeToString(m.Body))
 	return b.String()
 }
 
