@@ -42,7 +42,7 @@ func (s *Server) ListenAndServe(addr string) error {
 	}
 }
 
-type Conn struct {
+type GameConn struct {
 	conn *net.TCPConn
 	peer *AppPeer
 
@@ -57,8 +57,8 @@ type Conn struct {
 	inbuf  []byte
 }
 
-func NewConn(conn *net.TCPConn) *Conn {
-	return &Conn{
+func NewConn(conn *net.TCPConn) *GameConn {
+	return &GameConn{
 		conn:       conn,
 		chWrite:    make(chan bool, 1),
 		chDispatch: make(chan bool, 1),
@@ -67,7 +67,7 @@ func NewConn(conn *net.TCPConn) *Conn {
 	}
 }
 
-func (c *Conn) serve() {
+func (c *GameConn) serve() {
 	defer c.conn.Close()
 	defer c.peer.OnClose()
 
@@ -81,7 +81,7 @@ func (c *Conn) serve() {
 	<-ctx.Done()
 }
 
-func (c *Conn) SendMessage(msg *Message) {
+func (c *GameConn) SendMessage(msg *Message) {
 	glog.V(2).Infof("\t->%v %v \n", c.Address(), msg)
 	c.mOutbuf.Lock()
 	c.outbuf = append(c.outbuf, msg.Serialize()...)
@@ -92,11 +92,11 @@ func (c *Conn) SendMessage(msg *Message) {
 	}
 }
 
-func (c *Conn) Address() string {
+func (c *GameConn) Address() string {
 	return c.conn.RemoteAddr().String()
 }
 
-func (c *Conn) readLoop(ctx context.Context, cancel func()) {
+func (c *GameConn) readLoop(ctx context.Context, cancel func()) {
 	defer cancel()
 
 	buf := make([]byte, 4096)
@@ -128,7 +128,7 @@ func (c *Conn) readLoop(ctx context.Context, cancel func()) {
 	}
 }
 
-func (c *Conn) writeLoop(ctx context.Context, cancel func()) {
+func (c *GameConn) writeLoop(ctx context.Context, cancel func()) {
 	defer cancel()
 
 	buf := make([]byte, 0, 128)
@@ -162,7 +162,7 @@ func (c *Conn) writeLoop(ctx context.Context, cancel func()) {
 	}
 }
 
-func (c *Conn) dispatchLoop(ctx context.Context, cancel func()) {
+func (c *GameConn) dispatchLoop(ctx context.Context, cancel func()) {
 	defer cancel()
 
 	for {

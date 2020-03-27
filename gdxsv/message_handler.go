@@ -6,6 +6,15 @@ import (
 	"github.com/golang/glog"
 )
 
+type MessageHandler func(*AppPeer, *Message)
+
+var defaultHandlers = map[CmdID]MessageHandler{}
+
+func register(id CmdID, f MessageHandler) interface{} {
+	defaultHandlers[id] = f
+	return nil
+}
+
 // ===========================================
 //          Lobby Server Commands
 // ===========================================
@@ -112,11 +121,11 @@ func RequestLineCheck(p *AppPeer) {
 	p.SendMessage(NewServerQuestion(CMD_LineCheck))
 }
 
-var _ = register(CMD_LineCheck, "LineCheck", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LineCheck, func(p *AppPeer, m *Message) {
 	// the client is alive
 })
 
-var _ = register(CMD_Logout, "Logout", func(p *AppPeer, m *Message) {
+var _ = register(CMD_Logout, func(p *AppPeer, m *Message) {
 	// the client is logging out
 })
 
@@ -133,7 +142,7 @@ func StartLoginFlow(p *AppPeer) {
 	p.SendMessage(NewServerQuestion(CMD_AskConnectionId))
 }
 
-var _ = register(CMD_AskConnectionId, "ConnectionId", func(p *AppPeer, m *Message) {
+var _ = register(CMD_AskConnectionId, func(p *AppPeer, m *Message) {
 	connID := m.Reader().ReadString()
 	glog.Infoln("CMD_AskConnectionId", connID)
 	if connID == "" {
@@ -142,11 +151,11 @@ var _ = register(CMD_AskConnectionId, "ConnectionId", func(p *AppPeer, m *Messag
 	p.SendMessage(NewServerQuestion(CMD_ConnectionId).Writer().WriteString(connID).Msg())
 })
 
-var _ = register(CMD_ConnectionId, "ConnectionId", func(p *AppPeer, m *Message) {
+var _ = register(CMD_ConnectionId, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerNotice(CMD_WarningMessage).Writer().Write8(0).Msg())
 })
 
-var _ = register(CMD_RegulationHeader, "RegurationHeader", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RegulationHeader, func(p *AppPeer, m *Message) {
 	glog.Infoln("RegurationHeader")
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString("1000").WriteString("1000").Msg())
 	p.SendMessage(NewServerNotice(CMD_RegulationText).Writer().WriteString("tag").WriteString("text").Msg())
@@ -154,7 +163,7 @@ var _ = register(CMD_RegulationHeader, "RegurationHeader", func(p *AppPeer, m *M
 	p.SendMessage(NewServerQuestion(CMD_LoginType))
 })
 
-var _ = register(CMD_LoginType, "LoginType", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LoginType, func(p *AppPeer, m *Message) {
 	glog.Infoln("LoginType", m.Reader().Read8())
 
 	// FIXME: I think it is wrong.
@@ -166,7 +175,7 @@ var _ = register(CMD_LoginType, "LoginType", func(p *AppPeer, m *Message) {
 	p.SendMessage(a)
 })
 
-var _ = register(CMD_UserRegist, "UserRegist", func(p *AppPeer, m *Message) {
+var _ = register(CMD_UserRegist, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	userID := r.ReadString() // ******
 	handleName := r.ReadString()
@@ -174,7 +183,7 @@ var _ = register(CMD_UserRegist, "UserRegist", func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString("NEWUSR").Msg()) // right?
 })
 
-var _ = register(0x6113, "StartLogin", func(p *AppPeer, m *Message) {
+var _ = register(0x6113, func(p *AppPeer, m *Message) {
 	userID := m.Reader().ReadString()
 	glog.Infoln("DecideUserId", userID)
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
@@ -182,16 +191,16 @@ var _ = register(0x6113, "StartLogin", func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerNotice(CMD_AddProgress)) // right?
 })
 
-var _ = register(CMD_PostGameParameter, "CMD_PostGameParameter", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PostGameParameter, func(p *AppPeer, m *Message) {
 	// Client sends length-prefixed 640 bytes binary data.
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_AskKDDICharges, "CMD_AskKDDICharges", func(p *AppPeer, m *Message) {
+var _ = register(CMD_AskKDDICharges, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().Write32(123).Msg())
 })
 
-var _ = register(CMD_AskNewsTag, "CMD_AskNewsTag", func(p *AppPeer, m *Message) {
+var _ = register(CMD_AskNewsTag, func(p *AppPeer, m *Message) {
 	a := NewServerAnswer(m)
 	w := a.Writer()
 	w.Write8(0)               // news count
@@ -199,7 +208,7 @@ var _ = register(CMD_AskNewsTag, "CMD_AskNewsTag", func(p *AppPeer, m *Message) 
 	p.SendMessage(a)
 })
 
-var _ = register(CMD_AskPatchData, "CMD_AskPatchData_6861", func(p *AppPeer, m *Message) {
+var _ = register(CMD_AskPatchData, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	platform := r.Read8()
 	crule := r.Read8()
@@ -215,7 +224,7 @@ var _ = register(CMD_AskPatchData, "CMD_AskPatchData_6861", func(p *AppPeer, m *
 	p.SendMessage(a)
 })
 
-var _ = register(CMD_RankRanking, "Ranking", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RankRanking, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
 	_ = nowTopRank
 
@@ -228,7 +237,7 @@ var _ = register(CMD_RankRanking, "Ranking", func(p *AppPeer, m *Message) {
 		Write32(userRankingTotal2).Msg())
 })
 
-var _ = register(CMD_WinLose, "WinLose", func(p *AppPeer, m *Message) {
+var _ = register(CMD_WinLose, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
 	_ = nowTopRank
 
@@ -249,7 +258,7 @@ var _ = register(CMD_WinLose, "WinLose", func(p *AppPeer, m *Message) {
 		Write32(userBattlePoint2).Msg())
 })
 
-var _ = register(CMD_DeviceData, "DeviceData", func(p *AppPeer, m *Message) {
+var _ = register(CMD_DeviceData, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	// Read16 * 8
 	r.Read16()
@@ -264,7 +273,7 @@ var _ = register(CMD_DeviceData, "DeviceData", func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_ServerMoney, "ServerMoney", func(p *AppPeer, m *Message) {
+var _ = register(CMD_ServerMoney, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(1).
 		Write16(2).
@@ -272,62 +281,62 @@ var _ = register(CMD_ServerMoney, "ServerMoney", func(p *AppPeer, m *Message) {
 		Write16(4).Msg())
 })
 
-var _ = register(CMD_StartLobby, "StartLobby", func(p *AppPeer, m *Message) {
+var _ = register(CMD_StartLobby, func(p *AppPeer, m *Message) {
 	// TODO: find recv func
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_InvitationTag, "InvitationTag", func(p *AppPeer, m *Message) {
+var _ = register(CMD_InvitationTag, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		WriteString("tabbuf").
 		WriteString("invitation").
 		Write8(0).Msg())
 })
 
-var _ = register(CMD_PlazaMax, "PlazaMax", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaMax, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(1).Msg())
 })
 
 /*
-var _ = register(CMD_PlazaTitle, "PlazaTitle", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaTitle, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().Write16(lobbyID).WriteString(fmt.Sprint("LobbyTitle", lobbyID)).Msg())
 })
 */
 
-var _ = register(CMD_PlazaJoin, "PlazaJoin", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaJoin, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
 		Write16(lobbyID & 0xFF).Msg())
 })
 
-var _ = register(CMD_PlazaStatus, "PlazaStatus", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaStatus, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
 		Write8(0xFF).Msg())
 })
 
-var _ = register(CMD_PlazaExplain, "PlazaExplain", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaExplain, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
 		WriteString(fmt.Sprintf("<BODY>LobbyExplain %d<END>", lobbyID)).Msg())
 })
 
-var _ = register(CMD_PlazaEntry, "PlazaEntry", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaEntry, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	_ = lobbyID
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_PlazaExit, "PlazaExit", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PlazaExit, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_LobbyJoin, "CMD_LobbyJoin", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LobbyJoin, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	_ = lobbyID
 	p.SendMessage(NewServerAnswer(m).Writer().
@@ -335,13 +344,13 @@ var _ = register(CMD_LobbyJoin, "CMD_LobbyJoin", func(p *AppPeer, m *Message) {
 		Write16(111).Msg())
 })
 
-var _ = register(CMD_LobbyEntry, "LobbyEntry", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LobbyEntry, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	_ = lobbyID
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_LobbyMatchingJoin, "LobbyMatchJoin", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LobbyMatchingJoin, func(p *AppPeer, m *Message) {
 	side := m.Reader().Read16()
 	_ = side
 	p.SendMessage(NewServerAnswer(m).Writer().
@@ -349,14 +358,14 @@ var _ = register(CMD_LobbyMatchingJoin, "LobbyMatchJoin", func(p *AppPeer, m *Me
 		Write16(311).Msg())
 })
 
-var _ = register(CMD_RoomStatus, "RoomStatus", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomStatus, func(p *AppPeer, m *Message) {
 	roomID := m.Reader().Read16() // ?
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(roomID).
 		Write8(1).Msg())
 })
 
-var _ = register(CMD_PostChatMessage, "PostChatMessage", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PostChatMessage, func(p *AppPeer, m *Message) {
 	msg := m.Reader().ReadShiftJISString()
 	n := NewServerNotice(CMD_ChatMessage)
 	w := n.Writer()
@@ -370,30 +379,30 @@ var _ = register(CMD_PostChatMessage, "PostChatMessage", func(p *AppPeer, m *Mes
 	p.SendMessage(n)
 })
 
-var _ = register(CMD_LobbyExit, "LobbyExit", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LobbyExit, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_RoomMax, "RoomMax", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomMax, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(5).Msg())
 })
 
-var _ = register(CMD_RoomTitle, "CMD_RoomTitle", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomTitle, func(p *AppPeer, m *Message) {
 	roomID := m.Reader().Read16()
 	title := "(RoomTitle)"
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(roomID).WriteString(title).Msg())
 })
 
-var _ = register(CMD_RoomStatus, "RoomStatus", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomStatus, func(p *AppPeer, m *Message) {
 	roomID := m.Reader().Read16()
 	status := uint8(roomID)
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(roomID).Write8(status).Msg())
 })
 
-var _ = register(CMD_RoomCreate, "RoomCreate", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomCreate, func(p *AppPeer, m *Message) {
 	roomID := m.Reader().Read16()
 	_ = roomID
 	p.SendMessage(NewServerAnswer(m).Writer().
@@ -406,24 +415,24 @@ var _ = register(CMD_RoomCreate, "RoomCreate", func(p *AppPeer, m *Message) {
 		WriteString("usersite").Msg())
 })
 
-var _ = register(CMD_PutRoomName, "PutRoomName", func(p *AppPeer, m *Message) {
+var _ = register(CMD_PutRoomName, func(p *AppPeer, m *Message) {
 	roomName := m.Reader().ReadShiftJISString()
 	_ = roomName
 	glog.Infoln("roomname", roomName)
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_EndRoomCreate, "EndRoomCreate", func(p *AppPeer, m *Message) {
+var _ = register(CMD_EndRoomCreate, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_LobbyMatchingEntry, "LobbyMatchingEntry", func(p *AppPeer, m *Message) {
+var _ = register(CMD_LobbyMatchingEntry, func(p *AppPeer, m *Message) {
 	side := m.Reader().Read8()
 	_ = side
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_SendMail, "SendMail", func(p *AppPeer, m *Message) {
+var _ = register(CMD_SendMail, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	userID := r.ReadString()
 	comment1 := r.ReadShiftJISString()
@@ -434,7 +443,7 @@ var _ = register(CMD_SendMail, "SendMail", func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m)) // TODO: find reading place
 })
 
-var _ = register(CMD_UserSite, "UserSite", func(p *AppPeer, m *Message) {
+var _ = register(CMD_UserSite, func(p *AppPeer, m *Message) {
 	userID := m.Reader().ReadString()
 	_ = userID
 	p.SendMessage(NewServerAnswer(m).Writer().
@@ -447,24 +456,24 @@ var _ = register(CMD_UserSite, "UserSite", func(p *AppPeer, m *Message) {
 		WriteString("usersite").Msg())
 })
 
-var _ = register(CMD_WaitJoin, "WaitJoin", func(p *AppPeer, m *Message) {
+var _ = register(CMD_WaitJoin, func(p *AppPeer, m *Message) {
 	unk := uint16(1)
 	p.SendMessage(NewServerAnswer(m).Writer().Write16(unk).Msg())
 })
 
-var _ = register(CMD_RoomExit, "RoomExit", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomExit, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m))
 	// RoomLeaver
 })
 
-var _ = register(CMD_RoomEntry, "RoomEntry", func(p *AppPeer, m *Message) {
+var _ = register(CMD_RoomEntry, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	roomID := r.Read16()
 	unk := r.Read16()
 	glog.Infoln("room entry", roomID, unk)
 })
 
-var _ = register(CMD_MatchingEntry, "MatchingEntry", func(p *AppPeer, m *Message) {
+var _ = register(CMD_MatchingEntry, func(p *AppPeer, m *Message) {
 	entry := m.Reader().Read8()
 	if entry == 1 {
 		glog.Infoln("MatchingEntry")
@@ -474,7 +483,7 @@ var _ = register(CMD_MatchingEntry, "MatchingEntry", func(p *AppPeer, m *Message
 	p.SendMessage(NewServerAnswer(m))
 })
 
-var _ = register(CMD_TopRankingTag, "TopRankingTag", func(p *AppPeer, m *Message) {
+var _ = register(CMD_TopRankingTag, func(p *AppPeer, m *Message) {
 	topRankSuu := uint8(1)
 	topRankTag := "<BODY>RankingTitle<END>"
 	p.SendMessage(NewServerAnswer(m).Writer().
@@ -482,14 +491,14 @@ var _ = register(CMD_TopRankingTag, "TopRankingTag", func(p *AppPeer, m *Message
 		WriteString(topRankTag).Msg())
 })
 
-var _ = register(CMD_TopRankingSuu, "TopRankingSuu", func(p *AppPeer, m *Message) {
+var _ = register(CMD_TopRankingSuu, func(p *AppPeer, m *Message) {
 	page := m.Reader().Read8()
 	glog.Infoln("page", page)
 	topRunkSuu := uint16(20)
 	p.SendMessage(NewServerAnswer(m).Writer().Write16(topRunkSuu).Msg())
 })
 
-var _ = register(CMD_TopRanking, "TopRanking", func(p *AppPeer, m *Message) {
+var _ = register(CMD_TopRanking, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	num1 := r.Read8()
 	num2 := r.Read16()

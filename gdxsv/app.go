@@ -15,24 +15,6 @@ const (
 	EntryTitans = 2
 )
 
-type MessageHandler func(*AppPeer, *Message)
-
-type handlerHolder struct {
-	handlers     map[CmdID]MessageHandler
-	handlerNames map[CmdID]string
-}
-
-var defaultHandlers = &handlerHolder{
-	handlers:     make(map[CmdID]MessageHandler),
-	handlerNames: make(map[CmdID]string),
-}
-
-func register(id CmdID, name string, f MessageHandler) interface{} {
-	defaultHandlers.handlers[id] = f
-	defaultHandlers.handlerNames[id] = name
-	return nil
-}
-
 type eventPeerCome struct {
 	peer *AppPeer
 }
@@ -54,7 +36,7 @@ type eventFunc struct {
 type AppPeer struct {
 	DBUser
 
-	conn   *Conn
+	conn   *GameConn
 	app    *App
 	Room   *Room
 	Lobby  *Lobby
@@ -83,7 +65,7 @@ func (p *AppPeer) SendMessage(msg *Message) {
 }
 
 type App struct {
-	*handlerHolder
+	handlers     map[CmdID]MessageHandler
 	battleServer *rpc.Client
 	users        map[string]*AppPeer
 	lobbys       map[uint16]*Lobby
@@ -94,12 +76,12 @@ type App struct {
 
 func NewApp() *App {
 	app := &App{
-		handlerHolder: defaultHandlers,
-		users:         make(map[string]*AppPeer),
-		lobbys:        make(map[uint16]*Lobby),
-		battles:       make(map[string]*Battle),
-		chEvent:       make(chan interface{}, 64),
-		chQuit:        make(chan interface{}),
+		handlers: defaultHandlers,
+		users:    make(map[string]*AppPeer),
+		lobbys:   make(map[uint16]*Lobby),
+		battles:  make(map[string]*Battle),
+		chEvent:  make(chan interface{}, 64),
+		chQuit:   make(chan interface{}),
 	}
 	for i := 0; i < 26; i++ {
 		app.lobbys[uint16(i)] = NewLobby(uint16(i))
@@ -107,7 +89,7 @@ func NewApp() *App {
 	return app
 }
 
-func (a *App) NewPeer(conn *Conn) *AppPeer {
+func (a *App) NewPeer(conn *GameConn) *AppPeer {
 	return &AppPeer{
 		conn: conn,
 		app:  a,
@@ -131,11 +113,6 @@ func (a *App) Quit() {
 	})
 	time.Sleep(1000 * time.Millisecond)
 	close(a.chQuit)
-}
-
-func (a *App) AddHandler(id CmdID, name string, f MessageHandler) {
-	a.handlers[id] = f
-	a.handlerNames[id] = name
 }
 
 func stripHost(addr string) string {
