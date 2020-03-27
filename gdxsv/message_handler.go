@@ -104,15 +104,17 @@ const (
 	CMD_RoomCreate         CmdID = 0x6407
 	CMD_PutRoomName        CmdID = 0x6609
 	CMD_EndRoomCreate      CmdID = 0x660C
+	CMD_RoomEntry          CmdID = 0x6406
+	CMD_RoomExit           CmdID = 0x6501
+	CMD_RoomRemove         CmdID = 0x6505
 	CMD_PostChatMessage    CmdID = 0x6701
 	CMD_ChatMessage        CmdID = 0x6702
 	CMD_UserSite           CmdID = 0x6703
 	CMD_LobbyRemove        CmdID = 0x64C0
 	CMD_LobbyMatchingEntry CmdID = 0x640E
 	CMD_WaitJoin           CmdID = 0x6506
-	CMD_RoomExit           CmdID = 0x6501
-	CMD_RoomEntry          CmdID = 0x6406
 	CMD_MatchingEntry      CmdID = 0x6504
+	CMD_GoToTop            CmdID = 0x6208
 
 	CMD_ReadyBattle CmdID = 0x6910
 )
@@ -184,7 +186,7 @@ var _ = register(CMD_LoginType, func(p *AppPeer, m *Message) {
 var _ = register(CMD_UserRegist, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	userID := r.ReadString() // ******
-	handleName := r.ReadString()
+	handleName := r.ReadShiftJISString()
 	glog.Infoln("UserRegist", userID, handleName)
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString("NEWUSR").Msg()) // right?
 })
@@ -267,14 +269,16 @@ var _ = register(CMD_WinLose, func(p *AppPeer, m *Message) {
 var _ = register(CMD_DeviceData, func(p *AppPeer, m *Message) {
 	r := m.Reader()
 	// Read16 * 8
-	r.Read16()
-	r.Read16()
-	r.Read16()
-	r.Read16()
-	r.Read16()
-	r.Read16()
-	r.Read16()
-	r.Read16()
+	data1 := r.Read16()
+	data2 := r.Read16()
+	data3 := r.Read16()
+	data4 := r.Read16()
+	data5 := r.Read16()
+	data6 := r.Read16()
+	data7 := r.Read16()
+	data8 := r.Read16()
+	glog.Info("DeviceData",
+		data1, data2, data3, data4, data5, data6, data7, data8)
 
 	p.SendMessage(NewServerAnswer(m))
 })
@@ -389,7 +393,7 @@ var _ = register(CMD_LobbyExit, func(p *AppPeer, m *Message) {
 
 var _ = register(CMD_RoomMax, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(5).Msg())
+		Write16(10).Msg())
 })
 
 var _ = register(CMD_RoomTitle, func(p *AppPeer, m *Message) {
@@ -457,7 +461,7 @@ var _ = register(CMD_UserSite, func(p *AppPeer, m *Message) {
 		Write8(3).
 		Write8(4).
 		Write8(5).
-		WriteString("usersite").Msg())
+		WriteString("<BODY>usersite<END>").Msg())
 })
 
 var _ = register(CMD_WaitJoin, func(p *AppPeer, m *Message) {
@@ -475,16 +479,23 @@ var _ = register(CMD_RoomEntry, func(p *AppPeer, m *Message) {
 	roomID := r.Read16()
 	unk := r.Read16()
 	glog.Infoln("room entry", roomID, unk)
+
+	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(CMD_MatchingEntry, func(p *AppPeer, m *Message) {
 	entry := m.Reader().Read8()
 	if entry == 1 {
+		p.SendMessage(NewServerAnswer(m))
 		glog.Infoln("MatchingEntry")
 	} else {
 		glog.Infoln("MatchingEntryCancel")
+		// Buggy
+		a := NewServerAnswer(m)
+		a.Status = StatusError
+		p.SendMessage(a)
+		p.SendMessage(NewServerNotice(CMD_RoomRemove).Writer().WriteString("Leaving..").Msg())
 	}
-	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(CMD_TopRankingTag, func(p *AppPeer, m *Message) {
@@ -514,4 +525,8 @@ var _ = register(CMD_TopRanking, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(topRankerNum).
 		WriteString(topRankStr).Msg())
+})
+
+var _ = register(CMD_GoToTop, func(p *AppPeer, m *Message) {
+	p.SendMessage(NewServerAnswer(m))
 })

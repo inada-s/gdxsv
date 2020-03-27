@@ -5,11 +5,10 @@ import (
 )
 
 const (
-	RoomStateUnavailable = 0
-	RoomStateEmpty       = 1
-	RoomStatePrepare     = 2
-	RoomStateRecruit     = 3
-	RoomStateFull        = 4
+	RoomStateBusy       = 1 // BUSY
+	RoomStateRecruiting = 2 // 募集中
+	RoomStatePrepare    = 3 // 準備中
+	RoomStateFull       = 4 // 出撃中
 )
 
 type Room struct {
@@ -29,8 +28,8 @@ func NewRoom(lobbyID, roomID uint16) *Room {
 	return &Room{
 		ID:      roomID,
 		LobbyID: lobbyID,
-		Name:    "(空き)",
-		Status:  RoomStateEmpty,
+		Name:    "",
+		Status:  RoomStateBusy,
 		Rule:    NewRule(),
 		Users:   make([]*AppPeer, 0),
 	}
@@ -48,7 +47,7 @@ func (r *Room) Enter(u *AppPeer) {
 	if len(r.Users) == int(r.MaxPlayer) {
 		r.Status = RoomStateFull
 	} else {
-		r.Status = RoomStateRecruit
+		r.Status = RoomStateRecruiting
 	}
 }
 
@@ -63,7 +62,7 @@ func (r *Room) Exit(userID string) {
 	if len(r.Users) == int(r.MaxPlayer) {
 		r.Status = RoomStateFull
 	} else {
-		r.Status = RoomStateRecruit
+		r.Status = RoomStateRecruiting
 	}
 
 	if len(r.Users) == 0 {

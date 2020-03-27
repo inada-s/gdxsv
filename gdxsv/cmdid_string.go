@@ -65,19 +65,21 @@ func _() {
 	_ = x[CMD_RoomCreate-25607]
 	_ = x[CMD_PutRoomName-26121]
 	_ = x[CMD_EndRoomCreate-26124]
+	_ = x[CMD_RoomEntry-25606]
+	_ = x[CMD_RoomExit-25857]
+	_ = x[CMD_RoomRemove-25861]
 	_ = x[CMD_PostChatMessage-26369]
 	_ = x[CMD_ChatMessage-26370]
 	_ = x[CMD_UserSite-26371]
 	_ = x[CMD_LobbyRemove-25792]
 	_ = x[CMD_LobbyMatchingEntry-25614]
 	_ = x[CMD_WaitJoin-25862]
-	_ = x[CMD_RoomExit-25857]
-	_ = x[CMD_RoomEntry-25606]
 	_ = x[CMD_MatchingEntry-25860]
+	_ = x[CMD_GoToTop-25096]
 	_ = x[CMD_ReadyBattle-26896]
 }
 
-const _CmdID_name = "CMD_LineCheckCMD_LogoutCMD_ShutDownCMD_VSUserLostCMD_ConnectionIdCMD_AskConnectionIdCMD_WarningMessageCMD_LoginTypeCMD_UserHandleCMD_UserRegistCMD_AskPlatformCodeCMD_AskCountryCodeCMD_AskGameCodeCMD_AskGameVersionCMD_AddProgressCMD_AskBattleResultCMD_StartLobbyCMD_AskKDDIChargesCMD_PostGameParameterCMD_RankRankingCMD_WinLoseCMD_DeviceDataCMD_ServerMoneyCMD_PlazaMaxCMD_PlazaTitleCMD_PlazaJoinCMD_PlazaStatusCMD_PlazaEntryCMD_PlazaExplainCMD_LobbyJoinCMD_LobbyEntryCMD_PlazaExitCMD_RoomMaxCMD_RoomTitleCMD_RoomStatusCMD_RoomEntryCMD_RoomCreateCMD_LobbyExitCMD_LobbyMatchingEntryCMD_LobbyMatchingJoinCMD_LobbyRemoveCMD_RoomExitCMD_MatchingEntryCMD_WaitJoinCMD_PutRoomNameCMD_EndRoomCreateCMD_PostChatMessageCMD_ChatMessageCMD_UserSiteCMD_SendMailCMD_MailCMD_ManagerMessageCMD_AskNewsTagCMD_NewsTextCMD_InvitationTagCMD_RegulationHeaderCMD_RegulationTextCMD_RegulationFooterCMD_TopRankingTagCMD_TopRankingSuuCMD_TopRankingCMD_AskPatchDataCMD_PatchHeaderCMD_PatchData_6863CMD_CalcDownloadChecksumCMD_PatchPingCMD_ReadyBattle"
+const _CmdID_name = "CMD_LineCheckCMD_LogoutCMD_ShutDownCMD_VSUserLostCMD_ConnectionIdCMD_AskConnectionIdCMD_WarningMessageCMD_LoginTypeCMD_UserHandleCMD_UserRegistCMD_AskPlatformCodeCMD_AskCountryCodeCMD_AskGameCodeCMD_AskGameVersionCMD_AddProgressCMD_AskBattleResultCMD_StartLobbyCMD_AskKDDIChargesCMD_PostGameParameterCMD_RankRankingCMD_WinLoseCMD_DeviceDataCMD_ServerMoneyCMD_PlazaMaxCMD_PlazaTitleCMD_PlazaJoinCMD_PlazaStatusCMD_PlazaEntryCMD_GoToTopCMD_PlazaExplainCMD_LobbyJoinCMD_LobbyEntryCMD_PlazaExitCMD_RoomMaxCMD_RoomTitleCMD_RoomStatusCMD_RoomEntryCMD_RoomCreateCMD_LobbyExitCMD_LobbyMatchingEntryCMD_LobbyMatchingJoinCMD_LobbyRemoveCMD_RoomExitCMD_MatchingEntryCMD_RoomRemoveCMD_WaitJoinCMD_PutRoomNameCMD_EndRoomCreateCMD_PostChatMessageCMD_ChatMessageCMD_UserSiteCMD_SendMailCMD_MailCMD_ManagerMessageCMD_AskNewsTagCMD_NewsTextCMD_InvitationTagCMD_RegulationHeaderCMD_RegulationTextCMD_RegulationFooterCMD_TopRankingTagCMD_TopRankingSuuCMD_TopRankingCMD_AskPatchDataCMD_PatchHeaderCMD_PatchData_6863CMD_CalcDownloadChecksumCMD_PatchPingCMD_ReadyBattle"
 
 var _CmdID_map = map[CmdID]string{
 	24577: _CmdID_name[0:13],
@@ -108,45 +110,47 @@ var _CmdID_map = map[CmdID]string{
 	25093: _CmdID_name[381:394],
 	25094: _CmdID_name[394:409],
 	25095: _CmdID_name[409:423],
-	25098: _CmdID_name[423:439],
-	25347: _CmdID_name[439:452],
-	25349: _CmdID_name[452:466],
-	25350: _CmdID_name[466:479],
-	25601: _CmdID_name[479:490],
-	25602: _CmdID_name[490:503],
-	25604: _CmdID_name[503:517],
-	25606: _CmdID_name[517:530],
-	25607: _CmdID_name[530:544],
-	25608: _CmdID_name[544:557],
-	25614: _CmdID_name[557:579],
-	25615: _CmdID_name[579:600],
-	25792: _CmdID_name[600:615],
-	25857: _CmdID_name[615:627],
-	25860: _CmdID_name[627:644],
-	25862: _CmdID_name[644:656],
-	26121: _CmdID_name[656:671],
-	26124: _CmdID_name[671:688],
-	26369: _CmdID_name[688:707],
-	26370: _CmdID_name[707:722],
-	26371: _CmdID_name[722:734],
-	26372: _CmdID_name[734:746],
-	26373: _CmdID_name[746:754],
-	26374: _CmdID_name[754:772],
-	26625: _CmdID_name[772:786],
-	26626: _CmdID_name[786:798],
-	26640: _CmdID_name[798:815],
-	26656: _CmdID_name[815:835],
-	26657: _CmdID_name[835:853],
-	26658: _CmdID_name[853:873],
-	26705: _CmdID_name[873:890],
-	26706: _CmdID_name[890:907],
-	26707: _CmdID_name[907:921],
-	26721: _CmdID_name[921:937],
-	26722: _CmdID_name[937:952],
-	26723: _CmdID_name[952:970],
-	26724: _CmdID_name[970:994],
-	26725: _CmdID_name[994:1007],
-	26896: _CmdID_name[1007:1022],
+	25096: _CmdID_name[423:434],
+	25098: _CmdID_name[434:450],
+	25347: _CmdID_name[450:463],
+	25349: _CmdID_name[463:477],
+	25350: _CmdID_name[477:490],
+	25601: _CmdID_name[490:501],
+	25602: _CmdID_name[501:514],
+	25604: _CmdID_name[514:528],
+	25606: _CmdID_name[528:541],
+	25607: _CmdID_name[541:555],
+	25608: _CmdID_name[555:568],
+	25614: _CmdID_name[568:590],
+	25615: _CmdID_name[590:611],
+	25792: _CmdID_name[611:626],
+	25857: _CmdID_name[626:638],
+	25860: _CmdID_name[638:655],
+	25861: _CmdID_name[655:669],
+	25862: _CmdID_name[669:681],
+	26121: _CmdID_name[681:696],
+	26124: _CmdID_name[696:713],
+	26369: _CmdID_name[713:732],
+	26370: _CmdID_name[732:747],
+	26371: _CmdID_name[747:759],
+	26372: _CmdID_name[759:771],
+	26373: _CmdID_name[771:779],
+	26374: _CmdID_name[779:797],
+	26625: _CmdID_name[797:811],
+	26626: _CmdID_name[811:823],
+	26640: _CmdID_name[823:840],
+	26656: _CmdID_name[840:860],
+	26657: _CmdID_name[860:878],
+	26658: _CmdID_name[878:898],
+	26705: _CmdID_name[898:915],
+	26706: _CmdID_name[915:932],
+	26707: _CmdID_name[932:946],
+	26721: _CmdID_name[946:962],
+	26722: _CmdID_name[962:977],
+	26723: _CmdID_name[977:995],
+	26724: _CmdID_name[995:1019],
+	26725: _CmdID_name[1019:1032],
+	26896: _CmdID_name[1032:1047],
 }
 
 func (i CmdID) String() string {
