@@ -148,17 +148,23 @@ var _ = register(CMD_AskConnectionId, func(p *AppPeer, m *Message) {
 	if connID == "" {
 		connID = "abc123"
 	}
-	p.SendMessage(NewServerQuestion(CMD_ConnectionId).Writer().WriteString(connID).Msg())
+	p.SendMessage(NewServerQuestion(CMD_ConnectionId).Writer().
+		WriteString(connID).Msg())
 })
 
 var _ = register(CMD_ConnectionId, func(p *AppPeer, m *Message) {
-	p.SendMessage(NewServerNotice(CMD_WarningMessage).Writer().Write8(0).Msg())
+	p.SendMessage(NewServerNotice(CMD_WarningMessage).Writer().
+		Write8(0).Msg())
 })
 
 var _ = register(CMD_RegulationHeader, func(p *AppPeer, m *Message) {
 	glog.Infoln("RegurationHeader")
-	p.SendMessage(NewServerAnswer(m).Writer().WriteString("1000").WriteString("1000").Msg())
-	p.SendMessage(NewServerNotice(CMD_RegulationText).Writer().WriteString("tag").WriteString("text").Msg())
+	p.SendMessage(NewServerAnswer(m).Writer().
+		WriteString("1000").
+		WriteString("1000").Msg())
+	p.SendMessage(NewServerNotice(CMD_RegulationText).Writer().
+		WriteString("tag").
+		WriteString("text").Msg())
 	p.SendMessage(NewServerNotice(CMD_RegulationFooter))
 	p.SendMessage(NewServerQuestion(CMD_LoginType))
 })
@@ -367,16 +373,14 @@ var _ = register(CMD_RoomStatus, func(p *AppPeer, m *Message) {
 
 var _ = register(CMD_PostChatMessage, func(p *AppPeer, m *Message) {
 	msg := m.Reader().ReadShiftJISString()
-	n := NewServerNotice(CMD_ChatMessage)
-	w := n.Writer()
-	w.WriteString("USERID")
-	w.WriteString("HANDLE_NAME")
-	w.WriteString(msg)
-	w.Write8(0) // chat_type
-	w.Write8(0) // id color
-	w.Write8(0) // handle color
-	w.Write8(0) // msg color
-	p.SendMessage(n)
+	p.SendMessage(NewServerNotice(CMD_ChatMessage).Writer().
+		WriteString("USERID").
+		WriteString("HANDLE_NAME").
+		WriteString(msg).
+		Write8(0).       // chat_type
+		Write8(0).       // id color
+		Write8(0).       // handle color
+		Write8(0).Msg()) // msg color
 })
 
 var _ = register(CMD_LobbyExit, func(p *AppPeer, m *Message) {
