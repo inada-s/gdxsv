@@ -152,7 +152,7 @@ var _ = register(0x6113, "StartLogin", func(p *AppPeer, m *Message) {
 	glog.Infoln("DecideUserId", userID)
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 
-	// p.SendMessage(NewServerNotice(CMD_AddProgress)) // right?
+	p.SendMessage(NewServerNotice(CMD_AddProgress)) // right?
 })
 
 var _ = register(CMD_PostGameParameter, "CMD_PostGameParameter", func(p *AppPeer, m *Message) {
