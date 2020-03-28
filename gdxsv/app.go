@@ -10,6 +10,11 @@ import (
 )
 
 const (
+	maxLobbyCount = 3
+	maxRoomCount  = 3
+)
+
+const (
 	EntryNone  = 0
 	EntryRenpo = 1
 	EntryZeon  = 2
@@ -83,7 +88,7 @@ func NewApp() *App {
 		chEvent:  make(chan interface{}, 64),
 		chQuit:   make(chan interface{}),
 	}
-	for i := 0; i < 26; i++ {
+	for i := 1; i <= maxLobbyCount; i++ {
 		app.lobbys[uint16(i)] = NewLobby(uint16(i))
 	}
 	return app
@@ -179,6 +184,25 @@ func (a *App) Serve() {
 					glog.Infoln("Battle user timeout.", sid, battle)
 				}
 			}
+		}
+	}
+}
+
+func (a *App) BroadcastLobbyUserCount(lobbyID uint16) {
+	lobby, ok := a.lobbys[lobbyID]
+	if ok {
+		cnt1 := uint16(len(lobby.Users))
+		cnt2 := uint16(0)
+		for _, u := range lobby.Users {
+			if u.Entry != EntryNone {
+				cnt2++
+			}
+		}
+		msg1 := NewServerNotice(lbsPlazaEntry).Writer().Write16(lobbyID).Write16(cnt1).Msg()
+		msg2 := NewServerNotice(lbsLobbyEntry).Writer().Write16(lobbyID).Write16(cnt2).Msg()
+		for _, u := range a.users {
+			u.SendMessage(msg1)
+			u.SendMessage(msg2)
 		}
 	}
 }

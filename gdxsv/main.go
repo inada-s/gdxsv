@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -11,10 +12,12 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 	"github.com/jmoiron/sqlx"
 )
 
+var dump = flag.Bool("dump", false, "enable var dump to dump.txt")
 var cpu = flag.Int("cpu", 2, "setting GOMAXPROCS")
 var profile = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
 
@@ -80,6 +83,20 @@ func mainLobby() {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c)
+	if *dump {
+		dumper := spew.NewDefaultConfig()
+		dumper.MaxDepth = 4
+		dumper.SortKeys = true
+		dumper.DisableMethods = true
+		dumper.DisablePointerMethods = true
+		dumper.DisablePointerAddresses = true
+		go func() {
+			for {
+				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(app)), 0644)
+				time.Sleep(time.Second)
+			}
+		}()
+	}
 	s := <-c
 	fmt.Println("Got signal:", s)
 	app.Quit()

@@ -78,6 +78,11 @@ func (m *Message) String() string {
 	return b.String()
 }
 
+func (m *Message) SetErr() *Message {
+	m.Status = StatusError
+	return m
+}
+
 func (m *Message) Serialize() []byte {
 	w := new(bytes.Buffer)
 	m.BodySize = uint16(len(m.Body))

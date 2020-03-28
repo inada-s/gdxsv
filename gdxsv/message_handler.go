@@ -288,6 +288,8 @@ var _ = register(lbsUserRegist, func(p *AppPeer, m *Message) {
 		return
 	}
 
+	p.DBUser = *u
+	p.app.users[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 })
 
@@ -317,6 +319,7 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 		return
 	}
 
+	p.DBUser = *u
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 	p.SendMessage(NewServerNotice(lbsAddProgress)) // right?
 })
@@ -327,7 +330,8 @@ var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsAskKDDICharges, func(p *AppPeer, m *Message) {
-	p.SendMessage(NewServerAnswer(m).Writer().Write32(123).Msg())
+	// 課金予測情報 (円)
+	p.SendMessage(NewServerAnswer(m).Writer().Write32(0).Msg())
 })
 
 var _ = register(lbsAskNewsTag, func(p *AppPeer, m *Message) {
@@ -407,10 +411,7 @@ var _ = register(lbsDeviceData, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsServerMoney, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(1).
-		Write16(2).
-		Write16(3).
-		Write16(4).Msg())
+		Write16(0).Write16(0).Write16(0).Write16(0).Msg())
 })
 
 var _ = register(lbsStartLobby, func(p *AppPeer, m *Message) {
@@ -427,7 +428,7 @@ var _ = register(lbsInvitationTag, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsPlazaMax, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(1).Msg())
+		Write16(maxLobbyCount).Msg())
 })
 
 /*
@@ -439,77 +440,124 @@ var _ = register(lbsPlazaTitle, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsPlazaJoin, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
+	lobby := p.app.lobbys[lobbyID]
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
-		Write16(lobbyID & 0xFF).Msg())
+		Write16(uint16(len(lobby.Users))).Msg())
 })
 
 var _ = register(lbsPlazaStatus, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
-		Write8(0xFF).Msg())
+		Write8(1).Msg())
 })
 
 var _ = register(lbsPlazaExplain, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
-		WriteString(fmt.Sprintf("<BODY>LobbyExplain %d<END>", lobbyID)).Msg())
+		WriteString(fmt.Sprintf("<BODY>Lobby %d<END>", lobbyID)).Msg())
 })
 
 var _ = register(lbsPlazaEntry, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
-	_ = lobbyID
+	lobby := p.app.lobbys[lobbyID]
+	p.Lobby = lobby
+	lobby.Enter(p)
+	p.app.BroadcastLobbyUserCount(lobbyID)
 	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(lbsPlazaExit, func(p *AppPeer, m *Message) {
+	if p.Lobby != nil {
+		p.Lobby.Exit(p.UserID)
+		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+	}
+	p.Lobby = nil
 	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(lbsLobbyJoin, func(p *AppPeer, m *Message) {
-	lobbyID := m.Reader().Read16()
-	_ = lobbyID
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(1).
-		Write16(111).Msg())
+	side := m.Reader().Read16()
+	if p.Lobby != nil {
+		if p.Entry == EntryNone {
+			// the user is in side select scene
+			renpo, zeon := p.Lobby.GetUserCountBySide()
+			if side == 0 {
+				p.SendMessage(NewServerAnswer(m).Writer().
+					Write16(side).
+					Write16(renpo).Msg())
+			} else {
+				p.SendMessage(NewServerAnswer(m).Writer().
+					Write16(side).
+					Write16(zeon).Msg())
+			}
+		} else {
+			p.SendMessage(NewServerAnswer(m).Writer().
+				Write16(side).
+				Write16(uint16(len(p.Lobby.Users))).Msg())
+		}
+	} else {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+	}
 })
 
 var _ = register(lbsLobbyEntry, func(p *AppPeer, m *Message) {
-	lobbyID := m.Reader().Read16()
-	_ = lobbyID
 	p.SendMessage(NewServerAnswer(m))
+	if p.Lobby != nil {
+		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+	}
 })
 
 var _ = register(lbsLobbyMatchingJoin, func(p *AppPeer, m *Message) {
 	side := m.Reader().Read16()
-	_ = side
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(side).
-		Write16(10 + side).Msg())
+	renpo, zeon := p.Lobby.GetUserCountBySide()
+	if side == 1 {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(side).
+			Write16(renpo).Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(side).
+			Write16(zeon).Msg())
+	}
 })
 
 var _ = register(lbsRoomStatus, func(p *AppPeer, m *Message) {
-	roomID := m.Reader().Read16() // ?
+	roomID := m.Reader().Read16()
+	room := p.Lobby.Rooms[roomID]
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(roomID).
-		Write8(1).Msg())
+		Write8(room.Status).Msg())
 })
 
 var _ = register(lbsPostChatMessage, func(p *AppPeer, m *Message) {
-	msg := m.Reader().ReadShiftJISString()
-	p.SendMessage(NewServerNotice(lbsChatMessage).Writer().
-		WriteString("USERID").
-		WriteString("HANDLE_NAME").
-		WriteString(msg).
-		Write8(0).       // chat_type
-		Write8(0).       // id color
-		Write8(0).       // handle color
-		Write8(0).Msg()) // msg color
+	text := m.Reader().ReadShiftJISString()
+	msg := NewServerNotice(lbsChatMessage).Writer().
+		WriteString(p.UserID).
+		WriteString(p.Name).
+		WriteString(text).
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
+		Write8(0).Msg() // msg color
+
+	if p.Room != nil {
+		for _, u := range p.Room.Users {
+			u.SendMessage(msg)
+		}
+	} else if p.Lobby != nil {
+		for _, u := range p.Lobby.Users {
+			u.SendMessage(msg)
+		}
+	}
 })
 
 var _ = register(lbsLobbyExit, func(p *AppPeer, m *Message) {
+	if p.Lobby != nil {
+		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+	}
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -557,12 +605,18 @@ var _ = register(lbsEndRoomCreate, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
-	side := m.Reader().Read8()
-	_ = side
+	enable := m.Reader().Read8()
+	if p.Lobby != nil {
+		if enable == 1 {
+			p.Lobby.Entry(p)
+		} else {
+			p.Lobby.EntryCancel(p)
+		}
+	}
 	p.SendMessage(NewServerAnswer(m))
 
 	// Debug
-	NotifyReadyBattle(p)
+	// NotifyReadyBattle(p)
 })
 
 var _ = register(lbsSendMail, func(p *AppPeer, m *Message) {
@@ -656,6 +710,20 @@ var _ = register(lbsTopRanking, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsGoToTop, func(p *AppPeer, m *Message) {
+	p.Battle = nil
+
+	if p.Room != nil {
+		p.Room.Exit(p.UserID)
+		p.Room = nil
+	}
+
+	if p.Lobby != nil {
+		p.Lobby.Exit(p.UserID)
+		p.Lobby = nil
+	}
+
+	p.Entry = EntryNone
+
 	p.SendMessage(NewServerAnswer(m))
 })
 

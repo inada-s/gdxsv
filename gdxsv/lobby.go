@@ -1,7 +1,5 @@
 package main
 
-const roomCount = 5
-
 type Lobby struct {
 	ID         uint16
 	Rule       *Rule
@@ -18,14 +16,7 @@ func NewLobby(lobbyID uint16) *Lobby {
 		Rooms:      make(map[uint16]*Room),
 		EntryUsers: make([]string, 0),
 	}
-	for i := uint16(0); i <= roomCount; i++ {
-		lobby.Rooms[i] = NewRoom(lobbyID, i)
-	}
 	return lobby
-}
-
-func (l *Lobby) RoomCount() uint16 {
-	return uint16(roomCount)
 }
 
 func (l *Lobby) Enter(u *AppPeer) {
@@ -45,21 +36,34 @@ func (l *Lobby) Exit(userID string) {
 	}
 }
 
-func (l *Lobby) Entry(u *AppPeer, side byte) {
-	u.Entry = side
-	if side == EntryNone {
-		for i, id := range l.EntryUsers {
-			if id == u.UserID {
-				l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
-				break
-			}
+func (l *Lobby) Entry(u *AppPeer) {
+	l.EntryUsers = append(l.EntryUsers, u.UserID)
+}
+
+func (l *Lobby) EntryCancel(u *AppPeer) {
+	for i, id := range l.EntryUsers {
+		if id == u.UserID {
+			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
+			break
 		}
-	} else {
-		l.EntryUsers = append(l.EntryUsers, u.UserID)
 	}
 }
 
-func (l *Lobby) GetEntryUserCount() (uint16, uint16) {
+func (l *Lobby) GetUserCountBySide() (uint16, uint16) {
+	a := uint16(0)
+	b := uint16(0)
+	for _, u := range l.Users {
+		switch u.Entry {
+		case EntryRenpo:
+			a++
+		case EntryZeon:
+			b++
+		}
+	}
+	return a, b
+}
+
+func (l *Lobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
 	for _, id := range l.EntryUsers {
@@ -77,7 +81,7 @@ func (l *Lobby) GetEntryUserCount() (uint16, uint16) {
 }
 
 func (l *Lobby) CanBattleStart() bool {
-	a, b := l.GetEntryUserCount()
+	a, b := l.GetLobbyMatchEntryUserCount()
 	if l.ID == uint16(2) {
 		return 1 <= a && 1 <= b
 	}
