@@ -58,16 +58,16 @@ CREATE TABLE IF NOT EXISTS user (
 	lose_count integer default 0,
 	kill_count integer default 0,
 	death_count integer default 0,
-	aeug_battle_count integer default 0,
-	aeug_win_count integer default 0,
-	aeug_lose_count integer default 0,
-	aeug_kill_count integer default 0,
-	aeug_death_count integer default 0,
-	titans_battle_count integer default 0,
-	titans_win_count integer default 0,
-	titans_lose_count integer default 0,
-	titans_kill_count integer default 0,
-	titans_death_count integer default 0,
+	renpo_battle_count integer default 0,
+	renpo_win_count integer default 0,
+	renpo_lose_count integer default 0,
+	renpo_kill_count integer default 0,
+	renpo_death_count integer default 0,
+	zeon_battle_count integer default 0,
+	zeon_win_count integer default 0,
+	zeon_lose_count integer default 0,
+	zeon_kill_count integer default 0,
+	zeon_death_count integer default 0,
 	daily_battle_count integer default 0,
 	daily_win_count integer default 0,
 	daily_lose_count integer default 0,
@@ -221,6 +221,15 @@ func (db SQLiteDB) GetAccountByLoginKey(key string) (*Account, error) {
 	return a, nil
 }
 
+func (db SQLiteDB) GetAccountBySessionID(sid string) (*Account, error) {
+	a := &Account{}
+	err := db.QueryRowx("SELECT * FROM account WHERE session_id = ?", sid).StructScan(a)
+	if err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
 func (db SQLiteDB) LoginAccount(a *Account) error {
 	a.SessionID = genSessionID()
 	a.LastLogin = time.Now()
@@ -305,16 +314,16 @@ SET
 	lose_count = :lose_count,
 	kill_count = :kill_count,
 	death_count = :death_count,
-	aeug_battle_count = :aeug_battle_count,
-	aeug_win_count = :aeug_win_count,
-	aeug_lose_count = :aeug_lose_count,
-	aeug_kill_count = :aeug_kill_count,
-	aeug_death_count = :aeug_death_count,
-	titans_battle_count = :titans_battle_count,
-	titans_win_count = :titans_win_count,
-	titans_lose_count = :titans_lose_count,
-	titans_kill_count = :titans_kill_count,
-	titans_death_count = :titans_death_count,
+	renpo_battle_count = :renpo_battle_count,
+	renpo_win_count = :renpo_win_count,
+	renpo_lose_count = :renpo_lose_count,
+	renpo_kill_count = :renpo_kill_count,
+	renpo_death_count = :renpo_death_count,
+	zeon_battle_count = :zeon_battle_count,
+	zeon_win_count = :zeon_win_count,
+	zeon_lose_count = :zeon_lose_count,
+	zeon_kill_count = :zeon_kill_count,
+	zeon_death_count = :zeon_death_count,
 	daily_battle_count = :daily_battle_count,
 	daily_win_count = :daily_win_count,
 	daily_lose_count = :daily_lose_count,
@@ -405,17 +414,17 @@ func (db SQLiteDB) GetWinCountRanking(side byte) ([]*RankingRecord, error) {
 
 	target := "win_count"
 	if side == 1 {
-		target = "aeug_win_count"
+		target = "renpo_win_count"
 	} else if side == 2 {
-		target = "titans_win_count"
+		target = "zeon_win_count"
 	}
 
 	rows, err = db.Queryx(`
 		SELECT RANK() OVER(ORDER BY `+target+` DESC) as rank,
 		user_id, name, team,
 		battle_count, win_count, lose_count, kill_count, death_count,
-		aeug_battle_count, aeug_win_count, aeug_lose_count, aeug_kill_count, aeug_death_count,
-		titans_battle_count, titans_win_count, titans_lose_count, titans_kill_count, titans_death_count
+		renpo_battle_count, renpo_win_count, renpo_lose_count, renpo_kill_count, renpo_death_count,
+		zeon_battle_count, zeon_win_count, zeon_lose_count, zeon_kill_count, zeon_death_count
 		FROM user ORDER BY rank LIMIT ?`, 100)
 	if err != nil {
 		return nil, err
@@ -459,17 +468,17 @@ func (db SQLiteDB) GetKillCountRanking(side byte) ([]*RankingRecord, error) {
 
 	target := "kill_count"
 	if side == 1 {
-		target = "aeug_kill_count"
+		target = "renpo_kill_count"
 	} else if side == 2 {
-		target = "titans_kill_count"
+		target = "zeon_kill_count"
 	}
 
 	rows, err = db.Queryx(`
 		SELECT RANK() OVER(ORDER BY `+target+` DESC) as rank,
 		user_id, name, team,
 		battle_count, win_count, lose_count, kill_count, death_count,
-		aeug_battle_count, aeug_win_count, aeug_lose_count, aeug_kill_count, aeug_death_count,
-		titans_battle_count, titans_win_count, titans_lose_count, titans_kill_count, titans_death_count
+		renpo_battle_count, renpo_win_count, renpo_lose_count, renpo_kill_count, renpo_death_count,
+		zeon_battle_count, zeon_win_count, zeon_lose_count, zeon_kill_count, zeon_death_count
 		FROM user ORDER BY rank LIMIT ?`, 100)
 	if err != nil {
 		return nil, err

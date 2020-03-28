@@ -154,12 +154,38 @@ func StartLoginFlow(p *AppPeer) {
 
 var _ = register(CMD_AskConnectionId, func(p *AppPeer, m *Message) {
 	connID := m.Reader().ReadString()
-	glog.Infoln("CMD_AskConnectionId", connID)
-	if connID == "" {
-		connID = "abc123"
+
+	// We use initial connID to identify a user.
+	// The value should be written by patch.
+	if len(connID) != 8 {
+		glog.Warning("invalid connection id: ", connID)
+		p.OnClose()
+		return
 	}
+
+	glog.Info("connID", connID)
+	account, err := getDB().GetAccountBySessionID(connID)
+	if err != nil {
+		// We use initial connID as loginKey
+		loginKey := connID
+		account, err = getDB().GetAccountByLoginKey(loginKey)
+		if err != nil {
+			glog.Info("register account")
+			account, err = getDB().RegisterAccountWithLoginKey(p.conn.Address(), loginKey)
+			if err != nil {
+				glog.Error("failed to create account", err)
+				p.OnClose()
+				return
+			}
+		}
+	}
+
+	getDB().LoginAccount(account)
+	p.SessionID = account.SessionID // generated session id
+
+	// TODO: should use temporary connection id
 	p.SendMessage(NewServerQuestion(CMD_ConnectionId).Writer().
-		WriteString(connID).Msg())
+		WriteString(p.SessionID).Msg())
 })
 
 var _ = register(CMD_ConnectionId, func(p *AppPeer, m *Message) {
@@ -182,18 +208,35 @@ var _ = register(CMD_RegulationHeader, func(p *AppPeer, m *Message) {
 var _ = register(CMD_LoginType, func(p *AppPeer, m *Message) {
 	loginType := m.Reader().Read8()
 
+	// loginType == 0 means the user have an account.
 	if loginType == 0 {
-		// FIXME: I think it is wrong.
-		a := NewServerNotice(CMD_UserHandle)
-		w := a.Writer()
-		w.Write8(1) // number of user id
-		w.WriteString("GDXSV_")
-		w.WriteString("ハンドルネーム")
-		p.SendMessage(a)
+		account, err := getDB().GetAccountBySessionID(p.SessionID)
+		if err != nil {
+			glog.Warning("failed to account : ", p.SessionID)
+			p.OnClose()
+			return
+		}
+
+		users, err := getDB().GetUserList(account.LoginKey)
+		if err != nil {
+			glog.Warning("failed to get user list", account.SessionID)
+			p.OnClose()
+			return
+		}
+
+		n := NewServerNotice(CMD_UserHandle)
+		w := n.Writer()
+		w.Write8(uint8(len(users)))
+		for _, u := range users {
+			w.WriteString(u.UserID)
+			w.WriteString(u.Name)
+		}
+		p.SendMessage(n)
 	} else {
-		// TODO: Consider to support other login type.
-		glog.Warning("unsupported login type")
-		p.OnClose() // force remove
+		// The original user registration flow uses real personal information.
+		// We don't implement this because we don't want to collect personal information.
+		glog.Warning("UNSUPPORTED LOGIN TYPE", loginType)
+		p.OnClose()
 	}
 })
 
@@ -202,7 +245,42 @@ var _ = register(CMD_UserRegist, func(p *AppPeer, m *Message) {
 	userID := r.ReadString() // ******
 	handleName := r.ReadShiftJISString()
 	glog.Infoln("UserRegist", userID, handleName)
-	p.SendMessage(NewServerAnswer(m).Writer().WriteString("NEWUSR").Msg()) // right?
+
+	account, err := getDB().GetAccountBySessionID(p.SessionID)
+	if err != nil {
+		glog.Errorln("failed to get account :", err, p.SessionID)
+		p.OnClose()
+		return
+	}
+
+	if userID == "******" {
+		// The peer wants to create new user.
+		glog.Info("register new user :", err, account.SessionID)
+		u, err := getDB().RegisterUser(account.LoginKey)
+		if err != nil {
+			glog.Errorln("failed to register user :", err, account.SessionID)
+			p.OnClose()
+			return
+		}
+		userID = u.UserID
+	}
+
+	u, err := getDB().GetUser(userID)
+	if err != nil {
+		glog.Errorln("failed to get user :", err, userID)
+		p.OnClose()
+		return
+	}
+
+	u.SessionID = p.SessionID
+	err = getDB().LoginUser(u)
+	if err != nil {
+		glog.Errorln("failed to login user :", err, userID)
+		p.OnClose()
+		return
+	}
+
+	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 })
 
 var _ = register(0x6113, func(p *AppPeer, m *Message) {

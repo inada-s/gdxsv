@@ -16,15 +16,14 @@ func LoadConfig() {
 	if err := env.Parse(&c); err != nil {
 		log.Fatal(err)
 	}
+
 	glog.Infof("%+v", c)
 	Conf = c
 }
 
 // Config stores gdxsv config.
 type Config struct {
-	LobbyAddr        string `env:"GDXSV_LOBBY_ADDR"`
-	LobbyPublicAddr  string `env:"GDXSV_LOBBY_PUBLIC_ADDR"`
-	BattleAddr       string `env:"GDXSV_BATTLE_ADDR"`
-	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR"`
-	DBName           string `env:"GDXSV_DB_NAME"`
+	LobbyAddr       string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost"`
+	LobbyPublicAddr string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"localhost:3333"`
+	DBName          string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }

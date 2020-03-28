@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-var DefaultDB DB
-
 func randomString(length int, source string) string {
 	var result bytes.Buffer
 	for i := 0; i < length; i++ {
@@ -134,6 +132,9 @@ type DB interface {
 
 	// GetAccountByLoginKey retrieves an account by login-key.
 	GetAccountByLoginKey(key string) (*Account, error)
+
+	// GetAccountBySessionID retrieves an account by session-id.
+	GetAccountBySessionID(sessionID string) (*Account, error)
 
 	// LoginAccount updates last login information.
 	LoginAccount(*Account) error

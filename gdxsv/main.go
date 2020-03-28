@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/jmoiron/sqlx"
 )
 
 var cpu = flag.Int("cpu", 2, "setting GOMAXPROCS")
@@ -53,6 +54,24 @@ func prepareOption(command string) {
 	}
 }
 
+var defaultdb DB
+
+func getDB() DB {
+	return defaultdb
+}
+
+func prepareDB() {
+	conn, err := sqlx.Open("sqlite3", Conf.DBName)
+	if err != nil {
+		glog.Fatal(err)
+	}
+
+	defaultdb = SQLiteDB{
+		DB:          conn,
+		SQLiteCache: NewSQLiteCache(),
+	}
+}
+
 func mainLobby() {
 	app := NewApp()
 	go app.Serve()
@@ -88,8 +107,12 @@ func main() {
 
 	switch command {
 	case "lobby":
-		// prepareDB()
+		prepareDB()
 		mainLobby()
+	case "initdb":
+		os.Remove(Conf.DBName)
+		prepareDB()
+		getDB().Init()
 	default:
 		printUsage()
 		os.Exit(1)
