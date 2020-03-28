@@ -8,167 +8,167 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[CMD_LineCheck-24577]
-	_ = x[CMD_Logout-24578]
-	_ = x[CMD_ShutDown-24579]
-	_ = x[CMD_VSUserLost-24580]
-	_ = x[CMD_SendMail-26372]
-	_ = x[CMD_Mail-26373]
-	_ = x[CMD_ManagerMessage-26374]
-	_ = x[CMD_LoginType-24848]
-	_ = x[CMD_ConnectionId-24833]
-	_ = x[CMD_AskConnectionId-24834]
-	_ = x[CMD_WarningMessage-24835]
-	_ = x[CMD_RegulationHeader-26656]
-	_ = x[CMD_RegulationText-26657]
-	_ = x[CMD_RegulationFooter-26658]
-	_ = x[CMD_UserHandle-24849]
-	_ = x[CMD_UserRegist-24850]
-	_ = x[CMD_UserDecide-24851]
-	_ = x[CMD_AddProgress-24856]
-	_ = x[CMD_AskBattleResult-24864]
-	_ = x[CMD_AskGameVersion-24855]
-	_ = x[CMD_AskGameCode-24854]
-	_ = x[CMD_AskCountryCode-24853]
-	_ = x[CMD_AskPlatformCode-24852]
-	_ = x[CMD_AskKDDICharges-24898]
-	_ = x[CMD_PostGameParameter-24899]
-	_ = x[CMD_WinLose-24901]
-	_ = x[CMD_RankRanking-24900]
-	_ = x[CMD_DeviceData-24904]
-	_ = x[CMD_ServerMoney-24905]
-	_ = x[CMD_AskNewsTag-26625]
-	_ = x[CMD_NewsText-26626]
-	_ = x[CMD_InvitationTag-26640]
-	_ = x[CMD_TopRankingTag-26705]
-	_ = x[CMD_TopRankingSuu-26706]
-	_ = x[CMD_TopRanking-26707]
-	_ = x[CMD_AskPatchData-26721]
-	_ = x[CMD_PatchHeader-26722]
-	_ = x[CMD_PatchData_6863-26723]
-	_ = x[CMD_CalcDownloadChecksum-26724]
-	_ = x[CMD_PatchPing-26725]
-	_ = x[CMD_StartLobby-24897]
-	_ = x[CMD_PlazaMax-25091]
-	_ = x[CMD_PlazaTitle-25092]
-	_ = x[CMD_PlazaJoin-25093]
-	_ = x[CMD_PlazaStatus-25094]
-	_ = x[CMD_PlazaExplain-25098]
-	_ = x[CMD_PlazaEntry-25095]
-	_ = x[CMD_PlazaExit-25350]
-	_ = x[CMD_LobbyJoin-25347]
-	_ = x[CMD_LobbyEntry-25349]
-	_ = x[CMD_LobbyMatchingJoin-25615]
-	_ = x[CMD_LobbyExit-25608]
-	_ = x[CMD_RoomMax-25601]
-	_ = x[CMD_RoomTitle-25602]
-	_ = x[CMD_RoomStatus-25604]
-	_ = x[CMD_RoomCreate-25607]
-	_ = x[CMD_PutRoomName-26121]
-	_ = x[CMD_EndRoomCreate-26124]
-	_ = x[CMD_RoomEntry-25606]
-	_ = x[CMD_RoomExit-25857]
-	_ = x[CMD_RoomRemove-25861]
-	_ = x[CMD_PostChatMessage-26369]
-	_ = x[CMD_ChatMessage-26370]
-	_ = x[CMD_UserSite-26371]
-	_ = x[CMD_LobbyRemove-25792]
-	_ = x[CMD_LobbyMatchingEntry-25614]
-	_ = x[CMD_WaitJoin-25862]
-	_ = x[CMD_MatchingEntry-25860]
-	_ = x[CMD_GoToTop-25096]
-	_ = x[CMD_ReadyBattle-26896]
-	_ = x[CMD_AskMatchingJoin-26897]
-	_ = x[CMD_AskPlayerSide-26898]
-	_ = x[CMD_AskPlayerInfo-26899]
-	_ = x[CMD_AskRuleData-26900]
-	_ = x[CMD_AskBattleCode-26901]
-	_ = x[CMD_AskMcsAddress-26902]
-	_ = x[CMD_AskMcsVersion-26903]
-	_ = x[CMD_MatchingCancel-24581]
+	_ = x[lbsLineCheck-24577]
+	_ = x[lbsLogout-24578]
+	_ = x[lbsShutDown-24579]
+	_ = x[lbsVSUserLost-24580]
+	_ = x[lbsSendMail-26372]
+	_ = x[lbsMail-26373]
+	_ = x[lbsManagerMessage-26374]
+	_ = x[lbsLoginType-24848]
+	_ = x[lbsConnectionID-24833]
+	_ = x[lbsAskConnectionID-24834]
+	_ = x[lbsWarningMessage-24835]
+	_ = x[lbsRegulationHeader-26656]
+	_ = x[lbsRegulationText-26657]
+	_ = x[lbsRegulationFooter-26658]
+	_ = x[lbsUserHandle-24849]
+	_ = x[lbsUserRegist-24850]
+	_ = x[lbsUserDecide-24851]
+	_ = x[lbsAddProgress-24856]
+	_ = x[lbsAskBattleResult-24864]
+	_ = x[lbsAskGameVersion-24855]
+	_ = x[lbsAskGameCode-24854]
+	_ = x[lbsAskCountryCode-24853]
+	_ = x[lbsAskPlatformCode-24852]
+	_ = x[lbsAskKDDICharges-24898]
+	_ = x[lbsPostGameParameter-24899]
+	_ = x[lbsWinLose-24901]
+	_ = x[lbsRankRanking-24900]
+	_ = x[lbsDeviceData-24904]
+	_ = x[lbsServerMoney-24905]
+	_ = x[lbsAskNewsTag-26625]
+	_ = x[lbsNewsText-26626]
+	_ = x[lbsInvitationTag-26640]
+	_ = x[lbsTopRankingTag-26705]
+	_ = x[lbsTopRankingSuu-26706]
+	_ = x[lbsTopRanking-26707]
+	_ = x[lbsAskPatchData-26721]
+	_ = x[lbsPatchHeader-26722]
+	_ = x[lbsPatchData6863-26723]
+	_ = x[lbsCalcDownloadChecksum-26724]
+	_ = x[lbsPatchPing-26725]
+	_ = x[lbsStartLobby-24897]
+	_ = x[lbsPlazaMax-25091]
+	_ = x[lbsPlazaTitle-25092]
+	_ = x[lbsPlazaJoin-25093]
+	_ = x[lbsPlazaStatus-25094]
+	_ = x[lbsPlazaExplain-25098]
+	_ = x[lbsPlazaEntry-25095]
+	_ = x[lbsPlazaExit-25350]
+	_ = x[lbsLobbyJoin-25347]
+	_ = x[lbsLobbyEntry-25349]
+	_ = x[lbsLobbyMatchingJoin-25615]
+	_ = x[lbsLobbyExit-25608]
+	_ = x[lbsRoomMax-25601]
+	_ = x[lbsRoomTitle-25602]
+	_ = x[lbsRoomStatus-25604]
+	_ = x[lbsRoomCreate-25607]
+	_ = x[lbsPutRoomName-26121]
+	_ = x[lbsEndRoomCreate-26124]
+	_ = x[lbsRoomEntry-25606]
+	_ = x[lbsRoomExit-25857]
+	_ = x[lbsRoomRemove-25861]
+	_ = x[lbsPostChatMessage-26369]
+	_ = x[lbsChatMessage-26370]
+	_ = x[lbsUserSite-26371]
+	_ = x[lbsLobbyRemove-25792]
+	_ = x[lbsLobbyMatchingEntry-25614]
+	_ = x[lbsWaitJoin-25862]
+	_ = x[lbsMatchingEntry-25860]
+	_ = x[lbsGoToTop-25096]
+	_ = x[lbsReadyBattle-26896]
+	_ = x[lbsAskMatchingJoin-26897]
+	_ = x[lbsAskPlayerSide-26898]
+	_ = x[lbsAskPlayerInfo-26899]
+	_ = x[lbsAskRuleData-26900]
+	_ = x[lbsAskBattleCode-26901]
+	_ = x[lbsAskMcsAddress-26902]
+	_ = x[lbsAskMcsVersion-26903]
+	_ = x[lbsMatchingCancel-24581]
 }
 
-const _CmdID_name = "CMD_LineCheckCMD_LogoutCMD_ShutDownCMD_VSUserLostCMD_MatchingCancelCMD_ConnectionIdCMD_AskConnectionIdCMD_WarningMessageCMD_LoginTypeCMD_UserHandleCMD_UserRegistCMD_UserDecideCMD_AskPlatformCodeCMD_AskCountryCodeCMD_AskGameCodeCMD_AskGameVersionCMD_AddProgressCMD_AskBattleResultCMD_StartLobbyCMD_AskKDDIChargesCMD_PostGameParameterCMD_RankRankingCMD_WinLoseCMD_DeviceDataCMD_ServerMoneyCMD_PlazaMaxCMD_PlazaTitleCMD_PlazaJoinCMD_PlazaStatusCMD_PlazaEntryCMD_GoToTopCMD_PlazaExplainCMD_LobbyJoinCMD_LobbyEntryCMD_PlazaExitCMD_RoomMaxCMD_RoomTitleCMD_RoomStatusCMD_RoomEntryCMD_RoomCreateCMD_LobbyExitCMD_LobbyMatchingEntryCMD_LobbyMatchingJoinCMD_LobbyRemoveCMD_RoomExitCMD_MatchingEntryCMD_RoomRemoveCMD_WaitJoinCMD_PutRoomNameCMD_EndRoomCreateCMD_PostChatMessageCMD_ChatMessageCMD_UserSiteCMD_SendMailCMD_MailCMD_ManagerMessageCMD_AskNewsTagCMD_NewsTextCMD_InvitationTagCMD_RegulationHeaderCMD_RegulationTextCMD_RegulationFooterCMD_TopRankingTagCMD_TopRankingSuuCMD_TopRankingCMD_AskPatchDataCMD_PatchHeaderCMD_PatchData_6863CMD_CalcDownloadChecksumCMD_PatchPingCMD_ReadyBattleCMD_AskMatchingJoinCMD_AskPlayerSideCMD_AskPlayerInfoCMD_AskRuleDataCMD_AskBattleCodeCMD_AskMcsAddressCMD_AskMcsVersion"
+const _CmdID_name = "lbsLineChecklbsLogoutlbsShutDownlbsVSUserLostlbsMatchingCancellbsConnectionIDlbsAskConnectionIDlbsWarningMessagelbsLoginTypelbsUserHandlelbsUserRegistlbsUserDecidelbsAskPlatformCodelbsAskCountryCodelbsAskGameCodelbsAskGameVersionlbsAddProgresslbsAskBattleResultlbsStartLobbylbsAskKDDIChargeslbsPostGameParameterlbsRankRankinglbsWinLoselbsDeviceDatalbsServerMoneylbsPlazaMaxlbsPlazaTitlelbsPlazaJoinlbsPlazaStatuslbsPlazaEntrylbsGoToToplbsPlazaExplainlbsLobbyJoinlbsLobbyEntrylbsPlazaExitlbsRoomMaxlbsRoomTitlelbsRoomStatuslbsRoomEntrylbsRoomCreatelbsLobbyExitlbsLobbyMatchingEntrylbsLobbyMatchingJoinlbsLobbyRemovelbsRoomExitlbsMatchingEntrylbsRoomRemovelbsWaitJoinlbsPutRoomNamelbsEndRoomCreatelbsPostChatMessagelbsChatMessagelbsUserSitelbsSendMaillbsMaillbsManagerMessagelbsAskNewsTaglbsNewsTextlbsInvitationTaglbsRegulationHeaderlbsRegulationTextlbsRegulationFooterlbsTopRankingTaglbsTopRankingSuulbsTopRankinglbsAskPatchDatalbsPatchHeaderlbsPatchData6863lbsCalcDownloadChecksumlbsPatchPinglbsReadyBattlelbsAskMatchingJoinlbsAskPlayerSidelbsAskPlayerInfolbsAskRuleDatalbsAskBattleCodelbsAskMcsAddresslbsAskMcsVersion"
 
 var _CmdID_map = map[CmdID]string{
-	24577: _CmdID_name[0:13],
-	24578: _CmdID_name[13:23],
-	24579: _CmdID_name[23:35],
-	24580: _CmdID_name[35:49],
-	24581: _CmdID_name[49:67],
-	24833: _CmdID_name[67:83],
-	24834: _CmdID_name[83:102],
-	24835: _CmdID_name[102:120],
-	24848: _CmdID_name[120:133],
-	24849: _CmdID_name[133:147],
-	24850: _CmdID_name[147:161],
-	24851: _CmdID_name[161:175],
-	24852: _CmdID_name[175:194],
-	24853: _CmdID_name[194:212],
-	24854: _CmdID_name[212:227],
-	24855: _CmdID_name[227:245],
-	24856: _CmdID_name[245:260],
-	24864: _CmdID_name[260:279],
-	24897: _CmdID_name[279:293],
-	24898: _CmdID_name[293:311],
-	24899: _CmdID_name[311:332],
-	24900: _CmdID_name[332:347],
-	24901: _CmdID_name[347:358],
-	24904: _CmdID_name[358:372],
-	24905: _CmdID_name[372:387],
-	25091: _CmdID_name[387:399],
-	25092: _CmdID_name[399:413],
-	25093: _CmdID_name[413:426],
-	25094: _CmdID_name[426:441],
-	25095: _CmdID_name[441:455],
-	25096: _CmdID_name[455:466],
-	25098: _CmdID_name[466:482],
-	25347: _CmdID_name[482:495],
-	25349: _CmdID_name[495:509],
-	25350: _CmdID_name[509:522],
-	25601: _CmdID_name[522:533],
-	25602: _CmdID_name[533:546],
-	25604: _CmdID_name[546:560],
-	25606: _CmdID_name[560:573],
-	25607: _CmdID_name[573:587],
-	25608: _CmdID_name[587:600],
-	25614: _CmdID_name[600:622],
-	25615: _CmdID_name[622:643],
-	25792: _CmdID_name[643:658],
-	25857: _CmdID_name[658:670],
-	25860: _CmdID_name[670:687],
-	25861: _CmdID_name[687:701],
-	25862: _CmdID_name[701:713],
-	26121: _CmdID_name[713:728],
-	26124: _CmdID_name[728:745],
-	26369: _CmdID_name[745:764],
-	26370: _CmdID_name[764:779],
-	26371: _CmdID_name[779:791],
-	26372: _CmdID_name[791:803],
-	26373: _CmdID_name[803:811],
-	26374: _CmdID_name[811:829],
-	26625: _CmdID_name[829:843],
-	26626: _CmdID_name[843:855],
-	26640: _CmdID_name[855:872],
-	26656: _CmdID_name[872:892],
-	26657: _CmdID_name[892:910],
-	26658: _CmdID_name[910:930],
-	26705: _CmdID_name[930:947],
-	26706: _CmdID_name[947:964],
-	26707: _CmdID_name[964:978],
-	26721: _CmdID_name[978:994],
-	26722: _CmdID_name[994:1009],
-	26723: _CmdID_name[1009:1027],
-	26724: _CmdID_name[1027:1051],
-	26725: _CmdID_name[1051:1064],
-	26896: _CmdID_name[1064:1079],
-	26897: _CmdID_name[1079:1098],
-	26898: _CmdID_name[1098:1115],
-	26899: _CmdID_name[1115:1132],
-	26900: _CmdID_name[1132:1147],
-	26901: _CmdID_name[1147:1164],
-	26902: _CmdID_name[1164:1181],
-	26903: _CmdID_name[1181:1198],
+	24577: _CmdID_name[0:12],
+	24578: _CmdID_name[12:21],
+	24579: _CmdID_name[21:32],
+	24580: _CmdID_name[32:45],
+	24581: _CmdID_name[45:62],
+	24833: _CmdID_name[62:77],
+	24834: _CmdID_name[77:95],
+	24835: _CmdID_name[95:112],
+	24848: _CmdID_name[112:124],
+	24849: _CmdID_name[124:137],
+	24850: _CmdID_name[137:150],
+	24851: _CmdID_name[150:163],
+	24852: _CmdID_name[163:181],
+	24853: _CmdID_name[181:198],
+	24854: _CmdID_name[198:212],
+	24855: _CmdID_name[212:229],
+	24856: _CmdID_name[229:243],
+	24864: _CmdID_name[243:261],
+	24897: _CmdID_name[261:274],
+	24898: _CmdID_name[274:291],
+	24899: _CmdID_name[291:311],
+	24900: _CmdID_name[311:325],
+	24901: _CmdID_name[325:335],
+	24904: _CmdID_name[335:348],
+	24905: _CmdID_name[348:362],
+	25091: _CmdID_name[362:373],
+	25092: _CmdID_name[373:386],
+	25093: _CmdID_name[386:398],
+	25094: _CmdID_name[398:412],
+	25095: _CmdID_name[412:425],
+	25096: _CmdID_name[425:435],
+	25098: _CmdID_name[435:450],
+	25347: _CmdID_name[450:462],
+	25349: _CmdID_name[462:475],
+	25350: _CmdID_name[475:487],
+	25601: _CmdID_name[487:497],
+	25602: _CmdID_name[497:509],
+	25604: _CmdID_name[509:522],
+	25606: _CmdID_name[522:534],
+	25607: _CmdID_name[534:547],
+	25608: _CmdID_name[547:559],
+	25614: _CmdID_name[559:580],
+	25615: _CmdID_name[580:600],
+	25792: _CmdID_name[600:614],
+	25857: _CmdID_name[614:625],
+	25860: _CmdID_name[625:641],
+	25861: _CmdID_name[641:654],
+	25862: _CmdID_name[654:665],
+	26121: _CmdID_name[665:679],
+	26124: _CmdID_name[679:695],
+	26369: _CmdID_name[695:713],
+	26370: _CmdID_name[713:727],
+	26371: _CmdID_name[727:738],
+	26372: _CmdID_name[738:749],
+	26373: _CmdID_name[749:756],
+	26374: _CmdID_name[756:773],
+	26625: _CmdID_name[773:786],
+	26626: _CmdID_name[786:797],
+	26640: _CmdID_name[797:813],
+	26656: _CmdID_name[813:832],
+	26657: _CmdID_name[832:849],
+	26658: _CmdID_name[849:868],
+	26705: _CmdID_name[868:884],
+	26706: _CmdID_name[884:900],
+	26707: _CmdID_name[900:913],
+	26721: _CmdID_name[913:928],
+	26722: _CmdID_name[928:942],
+	26723: _CmdID_name[942:958],
+	26724: _CmdID_name[958:981],
+	26725: _CmdID_name[981:993],
+	26896: _CmdID_name[993:1007],
+	26897: _CmdID_name[1007:1025],
+	26898: _CmdID_name[1025:1041],
+	26899: _CmdID_name[1041:1057],
+	26900: _CmdID_name[1057:1071],
+	26901: _CmdID_name[1071:1087],
+	26902: _CmdID_name[1087:1103],
+	26903: _CmdID_name[1103:1119],
 }
 
 func (i CmdID) String() string {
