@@ -66,9 +66,9 @@ func (l *Lobby) GetEntryUserCount() (uint16, uint16) {
 		u, ok := l.Users[id]
 		if ok {
 			switch u.Entry {
-			case EntryAeug:
+			case EntryRenpo:
 				a++
-			case EntryTitans:
+			case EntryZeon:
 				b++
 			}
 		}
@@ -95,12 +95,12 @@ func (l *Lobby) StartBattleUsers() []*AppPeer {
 		u, ok := l.Users[id]
 		if ok {
 			switch u.Entry {
-			case EntryAeug:
+			case EntryRenpo:
 				if a < 2 {
 					ret = append(ret, u)
 				}
 				a++
-			case EntryTitans:
+			case EntryZeon:
 				if b < 2 {
 					ret = append(ret, u)
 				}

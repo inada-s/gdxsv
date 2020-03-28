@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	EntryNone   = 0
-	EntryAeug   = 1
-	EntryTitans = 2
+	EntryNone  = 0
+	EntryRenpo = 1
+	EntryZeon  = 2
 )
 
 type eventPeerCome struct {

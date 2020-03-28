@@ -83,9 +83,9 @@ func (r *Room) GetEntryUserCount() (uint16, uint16) {
 	b := uint16(0)
 	for _, u := range r.Users {
 		switch u.Entry {
-		case EntryAeug:
+		case EntryRenpo:
 			a++
-		case EntryTitans:
+		case EntryZeon:
 			b++
 		}
 	}
@@ -102,14 +102,14 @@ func (r *Room) StartBattleUsers() (active []*AppPeer, inactive []*AppPeer) {
 	b := uint16(0)
 	for _, u := range r.Users {
 		switch u.Entry {
-		case EntryAeug:
+		case EntryRenpo:
 			if a < 2 {
 				active = append(active, u)
 			} else {
 				inactive = append(inactive, u)
 			}
 			a++
-		case EntryTitans:
+		case EntryZeon:
 			if b < 2 {
 				active = append(active, u)
 			} else {

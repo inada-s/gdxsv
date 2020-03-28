@@ -57,21 +57,21 @@ type DBUser struct {
 	Name   string `db:"name" json:"name,omitempty"`
 	Team   string `db:"team" json:"team,omitempty"`
 
-	BattleCount       int `db:"battle_count" json:"battle_count,omitempty"`
-	WinCount          int `db:"win_count" json:"win_count,omitempty"`
-	LoseCount         int `db:"lose_count" json:"lose_count,omitempty"`
-	KillCount         int `db:"kill_count" json:"kill_count,omitempty"`
-	DeathCount        int `db:"death_count" json:"death_count,omitempty"`
-	AeugBattleCount   int `db:"aeug_battle_count" json:"aeug_battle_count,omitempty"`
-	AeugWinCount      int `db:"aeug_win_count" json:"aeug_win_count,omitempty"`
-	AeugLoseCount     int `db:"aeug_lose_count" json:"aeug_lose_count,omitempty"`
-	AeugKillCount     int `db:"aeug_kill_count" json:"aeug_kill_count,omitempty"`
-	AeugDeathCount    int `db:"aeug_death_count" json:"aeug_death_count,omitempty"`
-	TitansBattleCount int `db:"titans_battle_count" json:"titans_battle_count,omitempty"`
-	TitansWinCount    int `db:"titans_win_count" json:"titans_win_count,omitempty"`
-	TitansLoseCount   int `db:"titans_lose_count" json:"titans_lose_count,omitempty"`
-	TitansKillCount   int `db:"titans_kill_count" json:"titans_kill_count,omitempty"`
-	TitansDeathCount  int `db:"titans_death_count" json:"titans_death_count,omitempty"`
+	BattleCount      int `db:"battle_count" json:"battle_count,omitempty"`
+	WinCount         int `db:"win_count" json:"win_count,omitempty"`
+	LoseCount        int `db:"lose_count" json:"lose_count,omitempty"`
+	KillCount        int `db:"kill_count" json:"kill_count,omitempty"`
+	DeathCount       int `db:"death_count" json:"death_count,omitempty"`
+	RenpoBattleCount int `db:"renpo_battle_count" json:"renpo_battle_count,omitempty"`
+	RenpoWinCount    int `db:"renpo_win_count" json:"renpo_win_count,omitempty"`
+	RenpoLoseCount   int `db:"renpo_lose_count" json:"renpo_lose_count,omitempty"`
+	RenpoKillCount   int `db:"renpo_kill_count" json:"renpo_kill_count,omitempty"`
+	RenpoDeathCount  int `db:"renpo_death_count" json:"renpo_death_count,omitempty"`
+	ZeonBattleCount  int `db:"zeon_battle_count" json:"zeon_battle_count,omitempty"`
+	ZeonWinCount     int `db:"zeon_win_count" json:"zeon_win_count,omitempty"`
+	ZeonLoseCount    int `db:"zeon_lose_count" json:"zeon_lose_count,omitempty"`
+	ZeonKillCount    int `db:"zeon_kill_count" json:"zeon_kill_count,omitempty"`
+	ZeonDeathCount   int `db:"zeon_death_count" json:"zeon_death_count,omitempty"`
 
 	DailyBattleCount int `db:"daily_battle_count" json:"daily_battle_count,omitempty"`
 	DailyWinCount    int `db:"daily_win_count" json:"daily_win_count,omitempty"`

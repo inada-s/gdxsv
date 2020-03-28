@@ -10,8 +10,8 @@ type Battle struct {
 	ServerIP   net.IP
 	ServerPort uint16
 	Users      []*AppPeer
-	AeugIDs    []string
-	TitansIDs  []string
+	RenpoIDs   []string
+	ZeonIDs    []string
 	UDPUsers   map[string]bool
 	P2PMap     map[string]map[string]struct{}
 	Rule       *Rule
@@ -22,13 +22,13 @@ type Battle struct {
 
 func NewBattle(lobbyID uint16) *Battle {
 	return &Battle{
-		Users:     make([]*AppPeer, 0),
-		AeugIDs:   make([]string, 0),
-		TitansIDs: make([]string, 0),
-		UDPUsers:  map[string]bool{},
-		P2PMap:    map[string]map[string]struct{}{},
-		Rule:      NewRule(),
-		LobbyID:   lobbyID,
+		Users:    make([]*AppPeer, 0),
+		RenpoIDs: make([]string, 0),
+		ZeonIDs:  make([]string, 0),
+		UDPUsers: map[string]bool{},
+		P2PMap:   map[string]map[string]struct{}{},
+		Rule:     NewRule(),
+		LobbyID:  lobbyID,
 	}
 }
 
@@ -38,15 +38,15 @@ func (b *Battle) SetRule(rule *Rule) {
 
 func (b *Battle) Add(peer *AppPeer) {
 	b.Users = append(b.Users, peer)
-	if peer.Entry == EntryAeug {
-		b.AeugIDs = append(b.AeugIDs, peer.UserID)
-	} else if peer.Entry == EntryTitans {
-		b.TitansIDs = append(b.TitansIDs, peer.UserID)
+	if peer.Entry == EntryRenpo {
+		b.RenpoIDs = append(b.RenpoIDs, peer.UserID)
+	} else if peer.Entry == EntryZeon {
+		b.ZeonIDs = append(b.ZeonIDs, peer.UserID)
 	}
 }
 
 func (b *Battle) NumOfEntryUsers() uint16 {
-	return uint16(len(b.AeugIDs) + len(b.TitansIDs))
+	return uint16(len(b.RenpoIDs) + len(b.ZeonIDs))
 }
 
 func (b *Battle) SetBattleServer(ip net.IP, port uint16) {
