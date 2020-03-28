@@ -116,7 +116,15 @@ const (
 	CMD_MatchingEntry      CmdID = 0x6504
 	CMD_GoToTop            CmdID = 0x6208
 
-	CMD_ReadyBattle CmdID = 0x6910
+	CMD_ReadyBattle     CmdID = 0x6910
+	CMD_AskMatchingJoin CmdID = 0x6911
+	CMD_AskPlayerSide   CmdID = 0x6912
+	CMD_AskPlayerInfo   CmdID = 0x6913
+	CMD_AskRuleData     CmdID = 0x6914
+	CMD_AskBattleCode   CmdID = 0x6915
+	CMD_AskMcsAddress   CmdID = 0x6916
+	CMD_AskMcsVersion   CmdID = 0x6917
+	CMD_MatchingCancel  CmdID = 0x6005
 )
 
 func RequestLineCheck(p *AppPeer) {
@@ -370,8 +378,8 @@ var _ = register(CMD_LobbyMatchingJoin, func(p *AppPeer, m *Message) {
 	side := m.Reader().Read16()
 	_ = side
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(1).
-		Write16(311).Msg())
+		Write16(side).
+		Write16(10 + side).Msg())
 })
 
 var _ = register(CMD_RoomStatus, func(p *AppPeer, m *Message) {
@@ -444,6 +452,9 @@ var _ = register(CMD_LobbyMatchingEntry, func(p *AppPeer, m *Message) {
 	side := m.Reader().Read8()
 	_ = side
 	p.SendMessage(NewServerAnswer(m))
+
+	// Debug
+	NotifyReadyBattle(p)
 })
 
 var _ = register(CMD_SendMail, func(p *AppPeer, m *Message) {
@@ -538,4 +549,61 @@ var _ = register(CMD_TopRanking, func(p *AppPeer, m *Message) {
 
 var _ = register(CMD_GoToTop, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m))
+})
+
+func NotifyReadyBattle(p *AppPeer) {
+	p.SendMessage(NewServerNotice(CMD_ReadyBattle))
+}
+
+var _ = register(CMD_AskMatchingJoin, func(p *AppPeer, m *Message) {
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(4).Msg())
+})
+
+var _ = register(CMD_AskPlayerSide, func(p *AppPeer, m *Message) {
+	_ = m.Reader().Read8() // always 1
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(1).Msg())
+})
+
+var _ = register(CMD_AskPlayerInfo, func(p *AppPeer, m *Message) {
+	pos := m.Reader().Read8()
+	p.SendMessage(NewServerAnswer(m).Writer().
+		Write8(pos).
+		WriteString("USERID").
+		WriteString("部隊名").
+		WriteString("パイロット名").
+		Write16(0).
+		Write16(0).
+		Write16(0).
+		Write16(0).
+		Write16(0).
+		Write16(0).
+		Write16(0).
+		Write16(0).Msg())
+})
+
+var _ = register(CMD_AskRuleData, func(p *AppPeer, m *Message) {
+	// Binary rule data
+	// TODO: investigate the format.
+	p.SendMessage(NewServerAnswer(m).Writer().
+		Write16(0x00).
+		Msg())
+})
+
+var _ = register(CMD_AskBattleCode, func(p *AppPeer, m *Message) {
+	p.SendMessage(NewServerAnswer(m).Writer().WriteString("12345").Msg())
+})
+
+var _ = register(CMD_AskMcsAddress, func(p *AppPeer, m *Message) {
+	// Unused
+	mcsHost := "mcssv"
+	mcsPort := "1234"
+	p.SendMessage(NewServerAnswer(m).Writer().
+		WriteString(mcsHost).
+		WriteString(mcsPort).Msg())
+})
+
+var _ = register(CMD_AskMcsVersion, func(p *AppPeer, m *Message) {
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
+
+	// -> crash at 00376d70
 })
