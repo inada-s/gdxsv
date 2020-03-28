@@ -556,7 +556,8 @@ func NotifyReadyBattle(p *AppPeer) {
 }
 
 var _ = register(CMD_AskMatchingJoin, func(p *AppPeer, m *Message) {
-	p.SendMessage(NewServerAnswer(m).Writer().Write8(4).Msg())
+	// how many players in the game
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(1).Msg())
 })
 
 var _ = register(CMD_AskPlayerSide, func(p *AppPeer, m *Message) {
@@ -571,21 +572,23 @@ var _ = register(CMD_AskPlayerInfo, func(p *AppPeer, m *Message) {
 		WriteString("USERID").
 		WriteString("部隊名").
 		WriteString("パイロット名").
-		Write16(0).
-		Write16(0).
-		Write16(0).
-		Write16(0).
-		Write16(0).
-		Write16(0).
-		Write16(0).
-		Write16(0).Msg())
+		Write16(1).
+		Write16(1).
+		Write16(1).
+		Write16(1).
+		Write16(1).
+		Write16(1).
+		Write16(1).
+		Write16(1).Msg())
 })
 
 var _ = register(CMD_AskRuleData, func(p *AppPeer, m *Message) {
 	// Binary rule data
 	// TODO: investigate the format.
+	// 001e2980: NetRecvHeyaBinDef default values
+	// 001e2830: NetHeyaDataSet    overwrite ?
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(0x00).
+		Write32(0x0000).
 		Msg())
 })
 
@@ -594,16 +597,16 @@ var _ = register(CMD_AskBattleCode, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(CMD_AskMcsAddress, func(p *AppPeer, m *Message) {
-	// Unused
-	mcsHost := "mcssv"
-	mcsPort := "1234"
+	mcsAddr1 := "0011"
+	mcsAddr2 := "0022"
 	p.SendMessage(NewServerAnswer(m).Writer().
-		WriteString(mcsHost).
-		WriteString(mcsPort).Msg())
+		WriteString(mcsAddr1).
+		WriteString(mcsAddr2).Msg())
 })
 
 var _ = register(CMD_AskMcsVersion, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
 
-	// -> crash at 00376d70
+	// 00557fe0 sw_set_jump_tbl
+	// ReflectMsg
 })
