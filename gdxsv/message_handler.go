@@ -172,15 +172,21 @@ var _ = register(CMD_RegulationHeader, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(CMD_LoginType, func(p *AppPeer, m *Message) {
-	glog.Infoln("LoginType", m.Reader().Read8())
+	loginType := m.Reader().Read8()
 
-	// FIXME: I think it is wrong.
-	a := NewServerNotice(CMD_UserHandle)
-	w := a.Writer()
-	w.Write8(1) // number of user id
-	w.WriteString("GDXSV_")
-	w.WriteString("ハンドルネーム")
-	p.SendMessage(a)
+	if loginType == 0 {
+		// FIXME: I think it is wrong.
+		a := NewServerNotice(CMD_UserHandle)
+		w := a.Writer()
+		w.Write8(1) // number of user id
+		w.WriteString("GDXSV_")
+		w.WriteString("ハンドルネーム")
+		p.SendMessage(a)
+	} else {
+		// TODO: Consider to support other login type.
+		glog.Warning("unsupported login type")
+		p.OnClose() // force remove
+	}
 })
 
 var _ = register(CMD_UserRegist, func(p *AppPeer, m *Message) {
@@ -490,11 +496,14 @@ var _ = register(CMD_MatchingEntry, func(p *AppPeer, m *Message) {
 		glog.Infoln("MatchingEntry")
 	} else {
 		glog.Infoln("MatchingEntryCancel")
-		// Buggy
+		// FIXME: workaround
+		// Only reply this request, client does not leave the room,
+		// so notify RoomRemove command to drive out.
 		a := NewServerAnswer(m)
 		a.Status = StatusError
 		p.SendMessage(a)
-		p.SendMessage(NewServerNotice(CMD_RoomRemove).Writer().WriteString("Leaving..").Msg())
+		p.SendMessage(NewServerNotice(CMD_RoomRemove).Writer().
+			WriteString("").Msg())
 	}
 })
 
