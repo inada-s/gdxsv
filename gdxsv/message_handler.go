@@ -62,6 +62,7 @@ const (
 	CMD_RegulationFooter     CmdID = 0x6822
 	CMD_UserHandle           CmdID = 0x6111
 	CMD_UserRegist           CmdID = 0x6112
+	CMD_UserDecide           CmdID = 0x6113
 	CMD_AddProgress          CmdID = 0x6118
 	CMD_AskBattleResult      CmdID = 0x6120
 	CMD_AskGameVersion       CmdID = 0x6117
@@ -272,7 +273,6 @@ var _ = register(CMD_UserRegist, func(p *AppPeer, m *Message) {
 		return
 	}
 
-	u.SessionID = p.SessionID
 	err = getDB().LoginUser(u)
 	if err != nil {
 		glog.Errorln("failed to login user :", err, userID)
@@ -280,14 +280,45 @@ var _ = register(CMD_UserRegist, func(p *AppPeer, m *Message) {
 		return
 	}
 
+	u.Name = handleName
+	u.SessionID = p.SessionID
+	err = getDB().UpdateUser(u)
+	if err != nil {
+		glog.Errorln("failed to save user :", err, userID)
+		p.OnClose()
+		return
+	}
+
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 })
 
-var _ = register(0x6113, func(p *AppPeer, m *Message) {
+var _ = register(CMD_UserDecide, func(p *AppPeer, m *Message) {
 	userID := m.Reader().ReadString()
 	glog.Infoln("DecideUserId", userID)
-	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 
+	u, err := getDB().GetUser(userID)
+	if err != nil {
+		glog.Errorln("failed to get user :", err, userID)
+		p.OnClose()
+		return
+	}
+
+	err = getDB().LoginUser(u)
+	if err != nil {
+		glog.Errorln("failed to login user :", err, userID)
+		p.OnClose()
+		return
+	}
+
+	u.SessionID = p.SessionID
+	err = getDB().UpdateUser(u)
+	if err != nil {
+		glog.Errorln("failed to save user :", err, userID)
+		p.OnClose()
+		return
+	}
+
+	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 	p.SendMessage(NewServerNotice(CMD_AddProgress)) // right?
 })
 
