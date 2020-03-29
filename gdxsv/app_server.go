@@ -173,15 +173,15 @@ func (c *GameConn) dispatchLoop(ctx context.Context, cancel func()) {
 			c.mInbuf.Lock()
 			for len(c.inbuf) >= HeaderSize {
 				n, msg := Deserialize(c.inbuf)
-				c.inbuf = c.inbuf[n:]
+				if n == 0 {
+					// not enough data comming
+					break
+				}
 
+				c.inbuf = c.inbuf[n:]
 				if msg != nil {
 					glog.V(2).Infof("%v %v\n", c.Address(), msg)
 					c.peer.OnMessage(msg)
-				}
-				if n == 0 {
-					glog.Errorf("Got zero byte msg %v", c.Address())
-					break
 				}
 			}
 			c.mInbuf.Unlock()

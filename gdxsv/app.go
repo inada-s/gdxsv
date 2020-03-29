@@ -47,10 +47,12 @@ type AppPeer struct {
 	Lobby  *Lobby
 	Battle *Battle
 
-	Entry byte
+	Entry uint16
 
+	inLobbyChat       bool
 	inBattleAfterRoom bool
-	lastRecvTime      time.Time
+
+	lastRecvTime time.Time
 }
 
 func (p *AppPeer) OnOpen() {
@@ -191,16 +193,36 @@ func (a *App) Serve() {
 func (a *App) BroadcastLobbyUserCount(lobbyID uint16) {
 	lobby, ok := a.lobbys[lobbyID]
 	if ok {
-		cnt1 := uint16(len(lobby.Users))
-		cnt2 := uint16(0)
+		plaza := uint16(len(lobby.Users))
+		msg := NewServerNotice(lbsPlazaJoin).Writer().Write16(lobbyID).Write16(plaza).Msg()
+		for _, u := range a.users {
+			u.SendMessage(msg)
+		}
+
+		renpo, zeon := lobby.GetUserCountBySide()
+		msgSum1 := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryRenpo).Write16(renpo + zeon).Msg()
+		msgSum2 := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryZeon).Write16(renpo + zeon).Msg()
+		msgRenpo := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryRenpo).Write16(renpo).Msg()
+		msgZeon := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryZeon).Write16(zeon).Msg()
 		for _, u := range lobby.Users {
-			if u.Entry != EntryNone {
-				cnt2++
+			if u.inLobbyChat {
+				u.SendMessage(msgSum1)
+				u.SendMessage(msgSum2)
+			} else {
+				u.SendMessage(msgRenpo)
+				u.SendMessage(msgZeon)
 			}
 		}
-		msg1 := NewServerNotice(lbsPlazaEntry).Writer().Write16(lobbyID).Write16(cnt1).Msg()
-		msg2 := NewServerNotice(lbsLobbyEntry).Writer().Write16(lobbyID).Write16(cnt2).Msg()
-		for _, u := range a.users {
+	}
+}
+
+func (a *App) BroadcastLobbyMatchEntryUserCount(lobbyID uint16) {
+	lobby, ok := a.lobbys[lobbyID]
+	if ok {
+		renpo, zeon := lobby.GetLobbyMatchEntryUserCount()
+		msg1 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(EntryRenpo).Write16(renpo).Msg()
+		msg2 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(EntryZeon).Write16(zeon).Msg()
+		for _, u := range lobby.Users {
 			u.SendMessage(msg1)
 			u.SendMessage(msg2)
 		}

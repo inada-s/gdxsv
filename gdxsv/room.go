@@ -74,7 +74,7 @@ func (r *Room) Remove() {
 	*r = *NewRoom(r.LobbyID, r.ID)
 }
 
-func (r *Room) Entry(u *AppPeer, side byte) {
+func (r *Room) Entry(u *AppPeer, side uint16) {
 	u.Entry = side
 }
 
