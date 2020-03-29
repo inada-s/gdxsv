@@ -12,14 +12,34 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/caarlos0/env"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 	"github.com/jmoiron/sqlx"
 )
 
-var dump = flag.Bool("dump", false, "enable var dump to dump.txt")
-var cpu = flag.Int("cpu", 2, "setting GOMAXPROCS")
-var profile = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
+var (
+	conf    Config
+	dump    = flag.Bool("dump", false, "enable var dump to dump.txt")
+	cpu     = flag.Int("cpu", 2, "setting GOMAXPROCS")
+	profile = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
+)
+
+type Config struct {
+	LobbyAddr       string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost"`
+	LobbyPublicAddr string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"localhost:3333"`
+	DBName          string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
+}
+
+func loadConfig() {
+	var c Config
+	if err := env.Parse(&c); err != nil {
+		log.Fatal(err)
+	}
+
+	glog.Infof("%+v", c)
+	conf = c
+}
 
 func pprofPort(mode string) int {
 	switch mode {
@@ -64,7 +84,7 @@ func getDB() DB {
 }
 
 func prepareDB() {
-	conn, err := sqlx.Open("sqlite3", Conf.DBName)
+	conn, err := sqlx.Open("sqlite3", conf.DBName)
 	if err != nil {
 		glog.Fatal(err)
 	}
@@ -77,9 +97,7 @@ func prepareDB() {
 
 func mainLobby() {
 	app := NewApp()
-	go app.Serve()
-	sv := NewServer(app)
-	go sv.ListenAndServe(stripHost(Conf.LobbyAddr))
+	go app.ListenAndServe(stripHost(conf.LobbyAddr))
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c)
@@ -117,7 +135,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	LoadConfig()
+	loadConfig()
 
 	command := args[0]
 	prepareOption(command)
@@ -127,7 +145,7 @@ func main() {
 		prepareDB()
 		mainLobby()
 	case "initdb":
-		os.Remove(Conf.DBName)
+		os.Remove(conf.DBName)
 		prepareDB()
 		getDB().Init()
 	default:

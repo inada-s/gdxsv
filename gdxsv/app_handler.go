@@ -50,7 +50,7 @@ const (
 	lbsShutDown       CmdID = 0x6003
 	lbsVSUserLost     CmdID = 0x6004
 	lbsSendMail       CmdID = 0x6704
-	lbsMail           CmdID = 0x6705
+	lbsRecvMail       CmdID = 0x6705
 	lbsManagerMessage CmdID = 0x6706
 
 	lbsLoginType            CmdID = 0x6110
@@ -162,7 +162,7 @@ var _ = register(lbsAskConnectionID, func(p *AppPeer, m *Message) {
 	// The value should be written by patch.
 	if len(connID) != 8 {
 		glog.Warning("invalid connection id: ", connID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
@@ -174,10 +174,10 @@ var _ = register(lbsAskConnectionID, func(p *AppPeer, m *Message) {
 		account, err = getDB().GetAccountByLoginKey(loginKey)
 		if err != nil {
 			glog.Info("register account")
-			account, err = getDB().RegisterAccountWithLoginKey(p.conn.Address(), loginKey)
+			account, err = getDB().RegisterAccountWithLoginKey(p.Address(), loginKey)
 			if err != nil {
 				glog.Error("failed to create account", err)
-				p.OnClose()
+				p.conn.Close()
 				return
 			}
 		}
@@ -214,14 +214,14 @@ var _ = register(lbsLoginType, func(p *AppPeer, m *Message) {
 		account, err := getDB().GetAccountBySessionID(p.SessionID)
 		if err != nil {
 			glog.Warning("failed to account : ", p.SessionID)
-			p.OnClose()
+			p.conn.Close()
 			return
 		}
 
 		users, err := getDB().GetUserList(account.LoginKey)
 		if err != nil {
 			glog.Warning("failed to get user list", account.SessionID)
-			p.OnClose()
+			p.conn.Close()
 			return
 		}
 
@@ -237,7 +237,7 @@ var _ = register(lbsLoginType, func(p *AppPeer, m *Message) {
 		// The original user registration flow uses real personal information.
 		// We don't implement this because we don't want to collect personal information.
 		glog.Warning("UNSUPPORTED LOGIN TYPE", loginType)
-		p.OnClose()
+		p.conn.Close()
 	}
 })
 
@@ -250,7 +250,7 @@ var _ = register(lbsUserRegist, func(p *AppPeer, m *Message) {
 	account, err := getDB().GetAccountBySessionID(p.SessionID)
 	if err != nil {
 		glog.Errorln("failed to get account :", err, p.SessionID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
@@ -260,7 +260,7 @@ var _ = register(lbsUserRegist, func(p *AppPeer, m *Message) {
 		u, err := getDB().RegisterUser(account.LoginKey)
 		if err != nil {
 			glog.Errorln("failed to register user :", err, account.SessionID)
-			p.OnClose()
+			p.conn.Close()
 			return
 		}
 		userID = u.UserID
@@ -269,14 +269,14 @@ var _ = register(lbsUserRegist, func(p *AppPeer, m *Message) {
 	u, err := getDB().GetUser(userID)
 	if err != nil {
 		glog.Errorln("failed to get user :", err, userID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
 	err = getDB().LoginUser(u)
 	if err != nil {
 		glog.Errorln("failed to login user :", err, userID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
@@ -285,7 +285,7 @@ var _ = register(lbsUserRegist, func(p *AppPeer, m *Message) {
 	err = getDB().UpdateUser(u)
 	if err != nil {
 		glog.Errorln("failed to save user :", err, userID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
@@ -301,14 +301,14 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 	u, err := getDB().GetUser(userID)
 	if err != nil {
 		glog.Errorln("failed to get user :", err, userID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
 	err = getDB().LoginUser(u)
 	if err != nil {
 		glog.Errorln("failed to login user :", err, userID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
@@ -316,7 +316,7 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 	err = getDB().UpdateUser(u)
 	if err != nil {
 		glog.Errorln("failed to save user :", err, userID)
-		p.OnClose()
+		p.conn.Close()
 		return
 	}
 
@@ -649,7 +649,17 @@ var _ = register(lbsSendMail, func(p *AppPeer, m *Message) {
 	glog.Infoln("UserID", userID)
 	glog.Infoln("com1", comment1)
 	glog.Infoln("com2", comment2)
-	p.SendMessage(NewServerAnswer(m)) // TODO: find reading place
+
+	if u, ok := p.app.users[userID]; ok {
+		u.SendMessage(NewServerNotice(lbsRecvMail).Writer().
+			WriteString(p.UserID).
+			WriteString(p.Name).
+			WriteString(comment1).Msg())
+		p.SendMessage(NewServerAnswer(m))
+	} else {
+		p.SendMessage(NewServerAnswer(m).SetErr().Writer().
+			WriteString("<BODY><CENTER>THE USER IS NOT IN LOBBY<END>").Msg())
+	}
 })
 
 var _ = register(lbsUserSite, func(p *AppPeer, m *Message) {
@@ -662,7 +672,7 @@ var _ = register(lbsUserSite, func(p *AppPeer, m *Message) {
 		Write8(3).
 		Write8(4).
 		Write8(5).
-		WriteString("<BODY>usersite<END>").Msg())
+		WriteString("<BODY><CENTER>UNDER CONSTRUCTION<END>").Msg())
 })
 
 var _ = register(lbsWaitJoin, func(p *AppPeer, m *Message) {
@@ -762,16 +772,14 @@ var _ = register(lbsPostChatMessage, func(p *AppPeer, m *Message) {
 		}
 	} else if p.Lobby != nil {
 		for _, u := range p.Lobby.Users {
-			if u.Room != nil {
-				u.SendMessage(msg)
-			}
+			u.SendMessage(msg)
 		}
 	}
 })
 
 var _ = register(lbsTopRankingTag, func(p *AppPeer, m *Message) {
 	topRankSuu := uint8(1)
-	topRankTag := "<BODY>RankingTitle<END>"
+	topRankTag := "UNDER CONSTRUCTION"
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(topRankSuu).
 		WriteString(topRankTag).Msg())
@@ -780,7 +788,7 @@ var _ = register(lbsTopRankingTag, func(p *AppPeer, m *Message) {
 var _ = register(lbsTopRankingSuu, func(p *AppPeer, m *Message) {
 	page := m.Reader().Read8()
 	glog.Infoln("page", page)
-	topRunkSuu := uint16(20)
+	topRunkSuu := uint16(1)
 	p.SendMessage(NewServerAnswer(m).Writer().Write16(topRunkSuu).Msg())
 })
 
@@ -791,8 +799,8 @@ var _ = register(lbsTopRanking, func(p *AppPeer, m *Message) {
 	num3 := r.Read16()
 	glog.Infoln("TopRanking", num1, num2, num3)
 
-	topRankerNum := uint16(2)
-	topRankStr := "<BODY>hoge<END>"
+	topRankerNum := uint16(1)
+	topRankStr := "UNDER CONSTRUCTION"
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(topRankerNum).
 		WriteString(topRankStr).Msg())
