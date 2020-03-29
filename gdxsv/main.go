@@ -85,14 +85,14 @@ func mainLobby() {
 	signal.Notify(c)
 	if *dump {
 		dumper := spew.NewDefaultConfig()
-		dumper.MaxDepth = 4
+		dumper.MaxDepth = 5
 		dumper.SortKeys = true
 		dumper.DisableMethods = true
 		dumper.DisablePointerMethods = true
 		dumper.DisablePointerAddresses = true
 		go func() {
 			for {
-				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(app)), 0644)
+				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(app.users)), 0644)
 				time.Sleep(time.Second)
 			}
 		}()

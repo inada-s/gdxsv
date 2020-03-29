@@ -11,7 +11,7 @@ import (
 
 const (
 	maxLobbyCount = 3
-	maxRoomCount  = 3
+	maxRoomCount  = 0
 )
 
 const (
@@ -226,5 +226,23 @@ func (a *App) BroadcastLobbyMatchEntryUserCount(lobbyID uint16) {
 			u.SendMessage(msg1)
 			u.SendMessage(msg2)
 		}
+	}
+}
+
+func (a *App) BroadcastRoomState(room *Room) {
+	if room == nil {
+		return
+	}
+
+	lobby, ok := a.lobbys[room.LobbyID]
+	if !ok {
+		return
+	}
+
+	msg1 := NewServerNotice(lbsRoomStatus).Writer().Write16(room.ID).Write8(room.Status).Msg()
+	msg2 := NewServerNotice(lbsRoomTitle).Writer().Write16(room.ID).WriteString(room.Name).Msg()
+	for _, u := range lobby.Users {
+		u.SendMessage(msg1)
+		u.SendMessage(msg2)
 	}
 }

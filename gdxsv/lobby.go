@@ -16,6 +16,10 @@ func NewLobby(lobbyID uint16) *Lobby {
 		Rooms:      make(map[uint16]*Room),
 		EntryUsers: make([]string, 0),
 	}
+	for i := 1; i <= maxRoomCount; i++ {
+		roomID := uint16(i)
+		lobby.Rooms[roomID] = NewRoom(lobbyID, roomID)
+	}
 	return lobby
 }
 
