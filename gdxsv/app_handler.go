@@ -330,6 +330,7 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
 	// Client sends length-prefixed 640 bytes binary data.
+	p.gameParam = m.Reader().ReadBytes()
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -845,7 +846,7 @@ func NotifyReadyBattle(p *AppPeer) {
 
 var _ = register(lbsAskMatchingJoin, func(p *AppPeer, m *Message) {
 	// how many players in the game
-	p.SendMessage(NewServerAnswer(m).Writer().Write8(1).Msg())
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(4).Msg())
 })
 
 var _ = register(lbsAskPlayerSide, func(p *AppPeer, m *Message) {
@@ -855,19 +856,16 @@ var _ = register(lbsAskPlayerSide, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	pos := m.Reader().Read8()
+	userID := fmt.Sprintf("USER%02d", pos)
+	if pos == 1 {
+		userID = p.UserID
+	}
+
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
-		WriteString("USERID").
-		WriteString("部隊名").
-		WriteString("パイロット名").
-		Write16(1).
-		Write16(1).
-		Write16(1).
-		Write16(1).
-		Write16(1).
-		Write16(1).
-		Write16(1).
-		Write16(1).Msg())
+		WriteString(userID).
+		WriteString(fmt.Sprintf("HANDLE%02d", pos)).
+		WriteBytes(p.gameParam).Msg())
 })
 
 var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
@@ -875,9 +873,12 @@ var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
 	// TODO: investigate the format.
 	// 001e2980: NetRecvHeyaBinDef default values
 	// 001e2830: NetHeyaDataSet    overwrite ?
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write32(0x0000).
-		Msg())
+	a := NewServerAnswer(m)
+	w := a.Writer()
+	bin := DefaultRule.Serialize()
+	w.Write16(uint16(len(bin)))
+	w.Write(bin)
+	p.SendMessage(a)
 })
 
 var _ = register(lbsAskBattleCode, func(p *AppPeer, m *Message) {

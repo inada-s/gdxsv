@@ -39,7 +39,7 @@ func (r *Room) Enter(u *AppPeer) {
 	if len(r.Users) == 0 {
 		r.Owner = u.UserID
 		r.Deadline = time.Now().Add(30 * time.Minute)
-		r.MaxPlayer = r.Rule.playerCount
+		// r.MaxPlayer = r.Rule.playerCount
 	}
 
 	userAlreadyExists := false

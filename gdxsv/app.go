@@ -253,14 +253,14 @@ func (a *App) BroadcastRoomState(room *Room) {
 type AppPeer struct {
 	DBUser
 
-	conn *net.TCPConn
-
+	conn   *net.TCPConn
 	app    *App
 	Room   *Room
 	Lobby  *Lobby
 	Battle *Battle
 
 	Entry             uint16
+	gameParam         []byte
 	inLobbyChat       bool
 	inBattleAfterRoom bool
 

@@ -212,14 +212,20 @@ func (m *MessageBodyReader) Read32() uint32 {
 	return ret
 }
 
-func (m *MessageBodyReader) ReadString() string {
+// Read length-prefixed byte data
+func (m *MessageBodyReader) ReadBytes() []byte {
 	if m.r.Len() == 0 {
-		return ""
+		return nil
 	}
 	size := m.Read16()
 	buf := make([]byte, size, size)
 	m.r.Read(buf)
-	return string(bytes.Trim(buf, "\x00"))
+	return buf
+}
+
+// Read length-prefixed string
+func (m *MessageBodyReader) ReadString() string {
+	return string(bytes.Trim(m.ReadBytes(), "\x00"))
 }
 
 func (m *MessageBodyReader) ReadShiftJISString() string {
@@ -293,6 +299,14 @@ func (m *MessageBodyWriter) Write32(v uint32) *MessageBodyWriter {
 
 func (m *MessageBodyWriter) Write32LE(v uint32) *MessageBodyWriter {
 	binary.Write(m.buf, binary.LittleEndian, v)
+	m.msg.Body = m.buf.Bytes()
+	m.msg.BodySize = uint16(len(m.msg.Body))
+	return m
+}
+
+func (m *MessageBodyWriter) WriteBytes(bin []byte) *MessageBodyWriter {
+	binary.Write(m.buf, binary.BigEndian, uint16(len(bin)))
+	m.buf.Write(bin)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
