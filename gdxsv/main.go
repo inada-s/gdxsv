@@ -26,9 +26,11 @@ var (
 )
 
 type Config struct {
-	LobbyAddr       string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost"`
-	LobbyPublicAddr string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"localhost:3333"`
-	DBName          string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
+	LobbyAddr        string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost:3333"`
+	LobbyPublicAddr  string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"127.0.0.1:3333"`
+	BattleAddr       string `env:"GDXSV_BATTLE_ADDR" envDefault:"localhost:3334"`
+	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
+	DBName           string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }
 
 func loadConfig() {
@@ -98,6 +100,7 @@ func prepareDB() {
 func mainLobby() {
 	app := NewApp()
 	go app.ListenAndServe(stripHost(conf.LobbyAddr))
+	go app.ListenAndServeBattle(stripHost(conf.BattleAddr))
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c)

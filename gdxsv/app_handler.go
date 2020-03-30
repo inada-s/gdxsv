@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
 
 	"github.com/golang/glog"
 )
@@ -143,10 +146,9 @@ var _ = register(lbsLogout, func(p *AppPeer, m *Message) {
 })
 
 func SendServerShutDown(p *AppPeer) {
-	// FIXME: doesnt work
 	n := NewServerNotice(lbsShutDown)
 	w := n.Writer()
-	w.WriteString("<BODY>サーバがシャットダウンしました<END>")
+	w.WriteString("サーバがシャットダウンしました") // FIXME: the message not be shown.
 	p.SendMessage(n)
 	glog.Infoln("Sending ShutDown")
 }
@@ -560,12 +562,13 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		}
 		p.SendMessage(NewServerAnswer(m))
 		p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby.ID)
+
+		// Debug
+		NotifyReadyBattle(p)
 		return
 	}
 	p.SendMessage(NewServerAnswer(m).SetErr())
 
-	// Debug
-	// NotifyReadyBattle(p)
 })
 
 var _ = register(lbsRoomStatus, func(p *AppPeer, m *Message) {
@@ -882,11 +885,45 @@ var _ = register(lbsAskBattleCode, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsAskMcsAddress, func(p *AppPeer, m *Message) {
-	mcsAddr1 := "0011"
-	mcsAddr2 := "0022"
-	p.SendMessage(NewServerAnswer(m).Writer().
-		WriteString(mcsAddr1).
-		WriteString(mcsAddr2).Msg())
+	host, portStr, err := net.SplitHostPort(conf.BattlePublicAddr)
+	if err != nil {
+		glog.Errorln(err)
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	portNum, err := strconv.Atoi(portStr)
+	if err != nil {
+		glog.Errorln(err)
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	ip, port := net.ParseIP(host), uint16(portNum)
+	glog.Infoln(ip, port)
+	if ip == nil || ip.To4() == nil || port == 0 {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	a := NewServerAnswer(m)
+	w := a.Writer()
+
+	bits := strings.Split(ip.String(), ".")
+	b0, _ := strconv.Atoi(bits[0])
+	b1, _ := strconv.Atoi(bits[1])
+	b2, _ := strconv.Atoi(bits[2])
+	b3, _ := strconv.Atoi(bits[3])
+
+	w.Write16(4)
+	w.Write8(byte(b0))
+	w.Write8(byte(b1))
+	w.Write8(byte(b2))
+	w.Write8(byte(b3))
+	w.Write16(4)
+	w.Write16LE(port)
+
+	p.SendMessage(a)
 })
 
 var _ = register(lbsAskMcsVersion, func(p *AppPeer, m *Message) {

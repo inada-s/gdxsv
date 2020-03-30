@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+
+	"gdxsv/gdxsv/battle"
 )
 
 const (
@@ -63,6 +65,12 @@ func NewApp() *App {
 		app.lobbys[uint16(i)] = NewLobby(uint16(i))
 	}
 	return app
+}
+
+func (s *App) ListenAndServeBattle(addr string) error {
+	hub := battle.NewLogic()
+	tcpSv := battle.NewTCPServer(hub)
+	return tcpSv.ListenAndServe(addr)
 }
 
 func (s *App) ListenAndServe(addr string) error {
