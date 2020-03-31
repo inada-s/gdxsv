@@ -73,7 +73,14 @@ func NewLogic() *Logic {
 	return l
 }
 
+var dummyRoom = newRoom(123)
+
 func (m *Logic) Join(p Peer, sessionID string) *Room {
+	r := dummyRoom
+	p.SetUserID(sessionID[:6])
+	p.SetSessionID(sessionID)
+	r.Join(p)
+	return r
 	/*
 		user, ok := m.FindWaitingUser(sessionID)
 		if !ok {

@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/golang/glog"
 	pb "github.com/golang/protobuf/proto"
@@ -36,7 +35,11 @@ func (u *TCPPeer) Close() error {
 func (u *TCPPeer) Serve(logic *Logic) {
 	glog.Infoln("[TCP]", u.Address(), "Serve Start")
 	defer glog.Infoln("[TCP]", u.Address(), "Serve End")
-	data, _ := hex.DecodeString("280110310000000100ffffff")
+	// c.f. ReflectMsg
+	// 6X := category?
+	// 1031 := request connection ID
+	// nn6XXXXX1031XXXXXXXXXXXXXXXX
+	data, _ := hex.DecodeString("0c610022103166778899aabbccdd")
 	u.AddSendData(data)
 	u.readLoop(logic)
 	if u.room != nil {
@@ -72,7 +75,7 @@ func (u *TCPPeer) readLoop(logic *Logic) {
 	inbuf := make([]byte, 0, 128)
 
 	for {
-		u.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+		// u.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 		n, err := u.conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
@@ -87,12 +90,12 @@ func (u *TCPPeer) readLoop(logic *Logic) {
 
 		if u.room == nil {
 			glog.Infoln("room nil: ", u.Address())
-			if len(inbuf) < 22 {
+			if len(inbuf) < 20 {
 				continue
 			}
-			value := string(inbuf[12:22])
+			// 14 30 00 00 00 08 99 88 00 ff ff ff 35 39 31 32 39 32 36 39
+			sessionID := string(inbuf[12:20])
 			inbuf = inbuf[:0]
-			sessionID, err := ParseSessionID(value)
 			glog.Infoln("[TCP] SessionID", sessionID, err)
 			u.room = logic.Join(u, sessionID)
 			if u.room == nil {

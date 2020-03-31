@@ -561,11 +561,27 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		} else {
 			p.Lobby.EntryCancel(p)
 		}
+
+		// Debug
+		renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
+		if 2 == renpo && 2 == zeon {
+			battle := NewBattle(p.Lobby.ID)
+			for _, u := range p.Lobby.Users {
+				if u.Entry != EntryNone {
+					battle.Add(u)
+					u.Battle = battle
+				}
+			}
+			for _, u := range p.Lobby.Users {
+				if u.Entry != EntryNone {
+					NotifyReadyBattle(u)
+				}
+			}
+		}
+
 		p.SendMessage(NewServerAnswer(m))
 		p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby.ID)
 
-		// Debug
-		NotifyReadyBattle(p)
 		return
 	}
 	p.SendMessage(NewServerAnswer(m).SetErr())
@@ -846,26 +862,26 @@ func NotifyReadyBattle(p *AppPeer) {
 
 var _ = register(lbsAskMatchingJoin, func(p *AppPeer, m *Message) {
 	// how many players in the game
-	p.SendMessage(NewServerAnswer(m).Writer().Write8(4).Msg())
+	n := p.Battle.NumOfEntryUsers()
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(uint8(n)).Msg())
 })
 
 var _ = register(lbsAskPlayerSide, func(p *AppPeer, m *Message) {
-	_ = m.Reader().Read8() // always 1
-	p.SendMessage(NewServerAnswer(m).Writer().Write8(1).Msg())
+	side := m.Reader().Read8() // always 1
+	glog.Infoln("side?", side)
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(p.Battle.GetPosition(p.UserID)).Msg())
 })
 
 var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	pos := m.Reader().Read8()
-	userID := fmt.Sprintf("USER%02d", pos)
-	if pos == 1 {
-		userID = p.UserID
-	}
+	u := p.Battle.GetUserByPos(pos)
+	userID := u.UserID
 
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
 		WriteString(userID).
-		WriteString(fmt.Sprintf("HANDLE%02d", pos)).
-		WriteBytes(p.gameParam).Msg())
+		WriteString(u.Name).
+		WriteBytes(u.gameParam).Msg())
 })
 
 var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
@@ -875,7 +891,8 @@ var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
 	// 001e2830: NetHeyaDataSet    overwrite ?
 	a := NewServerAnswer(m)
 	w := a.Writer()
-	bin := DefaultRule.Serialize()
+	rule := DefaultRule
+	bin := rule.Serialize()
 	w.Write16(uint16(len(bin)))
 	w.Write(bin)
 	p.SendMessage(a)
