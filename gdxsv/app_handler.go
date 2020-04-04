@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -148,7 +149,7 @@ var _ = register(lbsLogout, func(p *AppPeer, m *Message) {
 func SendServerShutDown(p *AppPeer) {
 	n := NewServerNotice(lbsShutDown)
 	w := n.Writer()
-	w.WriteString("サーバがシャットダウンしました") // FIXME: the message not be shown.
+	w.WriteString("<LF=6><BODY><CENTER>サーバがシャットダウンしました<END>")
 	p.SendMessage(n)
 	glog.Infoln("Sending ShutDown")
 }
@@ -326,7 +327,50 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 	p.DBUser = *u
 	p.app.users[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
-	p.SendMessage(NewServerNotice(lbsAddProgress)) // right?
+	p.SendMessage(NewServerNotice(lbsAskBattleResult))
+	p.SendMessage(NewServerNotice(lbsAddProgress))
+})
+
+var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
+	// 000e3132333435000000000000000000000100000000000000000000000000010000000000000000000000000000000d0000000f0008000a0007000403e7
+	r := m.Reader()
+	unk1 := r.ReadString()
+	unk2 := r.Read8()
+	unk3 := r.Read8()
+	unk4 := r.Read8()
+	unk5 := r.Read8()
+	unk6 := r.Read8()
+	unk7 := r.Read8()
+	unk8 := r.Read32()
+	unk9 := r.Read8()
+	unk10 := r.Read8()
+	unk11 := r.Read8()
+	unk12 := r.Read8()
+	unk13 := r.Read16()
+	unk14 := r.Read16()
+	unk15 := r.Read16()
+	unk16 := r.Read16()
+	unk17 := r.Read16()
+	unk18 := r.Read16()
+	unk19 := r.Read16()
+	unk20 := r.Read16()
+	unk21 := r.Read16()
+	unk22 := r.Read16()
+	unk23 := r.Read16()
+	unk24 := r.Read16()
+	unk25 := r.Read16()
+	unk26 := r.Read16()
+	unk27 := r.Read16()
+	unk28 := r.Read16()
+	result := BattleResult{
+		unk1, unk2, unk3, unk4, unk5, unk6,
+		unk7, unk8, unk9, unk10, unk11, unk12,
+		unk13, unk14, unk15, unk16, unk17, unk18,
+		unk19, unk20, unk21, unk22, unk23, unk24,
+		unk25, unk26, unk27, unk28,
+	}
+	bin, _ := json.MarshalIndent(result, "", "  ")
+	glog.Info(string(bin))
 })
 
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
@@ -381,13 +425,13 @@ var _ = register(lbsWinLose, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
 	_ = nowTopRank
 
-	userBattle := uint16(1001)
-	userWin := uint16(1002)
-	userLose := uint16(1003)
-	userDraw := uint16(1004)
-	userInvalid := uint16(1005)
-	userBattlePoint1 := uint32(1006)
-	userBattlePoint2 := uint32(1007)
+	userBattle := uint16(300)
+	userWin := uint16(200)
+	userLose := uint16(100)
+	userDraw := uint16(0)
+	userInvalid := uint16(0)
+	userBattlePoint1 := uint32(1)
+	userBattlePoint2 := uint32(1)
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(userBattle).
 		Write16(userWin).
@@ -567,16 +611,15 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
 		if renpo == 2 && zeon == 2 {
 			battle := NewBattle(p.Lobby.ID)
+			battle.BattleCode = GenBattleCode()
 			for _, u := range p.Lobby.Users {
 				if u.Entry != EntryNone {
 					battle.Add(u)
 					u.Battle = battle
 				}
 			}
-			for _, u := range p.Lobby.Users {
-				if u.Entry != EntryNone {
-					NotifyReadyBattle(u)
-				}
+			for _, u := range battle.Users {
+				NotifyReadyBattle(u)
 			}
 		}
 
@@ -638,7 +681,7 @@ var _ = register(lbsRoomCreate, func(p *AppPeer, m *Message) {
 		}
 	}
 	p.SendMessage(NewServerAnswer(m).SetErr().Writer().
-		WriteString("<BODY>Failed to create room<END>").Msg())
+		WriteString("<LF=6><BODY>Failed to create room<END>").Msg())
 })
 
 var _ = register(lbsPutRoomName, func(p *AppPeer, m *Message) {
@@ -679,7 +722,7 @@ var _ = register(lbsSendMail, func(p *AppPeer, m *Message) {
 		p.SendMessage(NewServerAnswer(m))
 	} else {
 		p.SendMessage(NewServerAnswer(m).SetErr().Writer().
-			WriteString("<BODY><CENTER>THE USER IS NOT IN LOBBY<END>").Msg())
+			WriteString("<LF=6><BODY><CENTER>THE USER IS NOT IN LOBBY<END>").Msg())
 	}
 })
 
@@ -693,7 +736,7 @@ var _ = register(lbsUserSite, func(p *AppPeer, m *Message) {
 		Write8(3).
 		Write8(4).
 		Write8(5).
-		WriteString("<BODY><CENTER>UNDER CONSTRUCTION<END>").Msg())
+		WriteString("<LF=6><BODY><CENTER>UNDER CONSTRUCTION<END>").Msg())
 })
 
 var _ = register(lbsWaitJoin, func(p *AppPeer, m *Message) {
@@ -740,7 +783,7 @@ var _ = register(lbsRoomExit, func(p *AppPeer, m *Message) {
 		for _, u := range r.Users {
 			if r.Owner != u.UserID {
 				u.SendMessage(NewServerNotice(lbsRoomRemove).Writer().
-					WriteString("<BODY><LF=6><CENTER>部屋が解散になりました。<END>").Msg())
+					WriteString("<LF=6><BODY><CENTER>部屋が解散になりました。<END>").Msg())
 				u.Room = nil
 			}
 		}
@@ -868,7 +911,7 @@ var _ = register(lbsAskMatchingJoin, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsAskPlayerSide, func(p *AppPeer, m *Message) {
-	side := m.Reader().Read8() // always 1
+	side := m.Reader().Read8() // always 0
 	glog.Infoln("side?", side)
 	p.SendMessage(NewServerAnswer(m).Writer().Write8(p.Battle.GetPosition(p.UserID)).Msg())
 })
@@ -878,6 +921,7 @@ var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	glog.Infoln("lbsAskPlayerInfo", pos)
 	u := p.Battle.GetUserByPos(pos)
 	userID := u.UserID
+	glog.Infoln(pos, userID, u.Name)
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
 		WriteString(userID).
@@ -887,7 +931,6 @@ var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
 	// Binary rule data
-	// TODO: investigate the format.
 	// 001e2980: NetRecvHeyaBinDef default values
 	// 001e2830: NetHeyaDataSet    overwrite ?
 	a := NewServerAnswer(m)
@@ -947,7 +990,4 @@ var _ = register(lbsAskMcsAddress, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsAskMcsVersion, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
-
-	// 00557fe0 sw_set_jump_tbl
-	// ReflectMsg
 })

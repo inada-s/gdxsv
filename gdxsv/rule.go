@@ -22,7 +22,7 @@ type Rule struct {
 	Onematch     byte
 	RenpoMask    uint32
 	ZeonMask     uint32
-	AtuoRebattle byte
+	AutoRebattle byte
 	NoRanking    byte
 	CPUFlag      byte
 	SelectLook   byte
@@ -40,32 +40,32 @@ type Rule struct {
 var DefaultRule = Rule{
 	Difficulty:   3,
 	DamageLevel:  2,
-	Timer:        2,
-	TeamFlag:     1,
-	StageFlag:    3,
-	MsFlag:       11,
-	RenpoVital:   600,
-	ZeonVital:    600,
-	MaFlag:       1,
-	ReloadFlag:   0,
-	BoostKeep:    0,
-	RedarFlag:    0,
-	LockonFlag:   0,
+	Timer:        2,   // 2:180sec
+	TeamFlag:     1,   // 1:side select (buggy)
+	StageFlag:    3,   // 1:ground 2:space 3:ground and space
+	MsFlag:       1,   // 1:opponent side MS available
+	RenpoVital:   600, // renpo total cost
+	ZeonVital:    600, // zeon total cost
+	MaFlag:       1,   // 1:opponent side MA available
+	ReloadFlag:   0,   // 1:unlimited ammo
+	BoostKeep:    0,   // unknown
+	RedarFlag:    0,   // 1:no rader
+	LockonFlag:   0,   // 1:disable lockon warning
 	Onematch:     0,
-	RenpoMask:    0x00fffa0f,
-	ZeonMask:     0x00fffa0f,
-	AtuoRebattle: 0,
-	NoRanking:    0,
-	CPUFlag:      1,
-	SelectLook:   0xff,
+	RenpoMask:    0xffffffff,
+	ZeonMask:     0xffffffff,
+	AutoRebattle: 0,
+	NoRanking:    0, // 1:no battle record
+	CPUFlag:      0, // unknown
+	SelectLook:   0, // 1:can see enemy's choice of MS
 	Unused1:      0,
 	Unused2:      0,
 	Unused3:      0,
 	Unused4:      0,
-	TeamType0:    0,
-	TeamType1:    0,
-	TeamType2:    1,
-	TeamType3:    1,
+	TeamType0:    0, // unknown
+	TeamType1:    0, // unknown
+	TeamType2:    1, // unknown
+	TeamType3:    1, // unknown
 	StageNo:      0,
 }
 
@@ -92,7 +92,7 @@ func (r *Rule) Serialize() []byte {
 	binary.Write(b, binary.LittleEndian, r.Onematch)
 	binary.Write(b, binary.LittleEndian, r.RenpoMask)
 	binary.Write(b, binary.LittleEndian, r.ZeonMask)
-	binary.Write(b, binary.LittleEndian, r.AtuoRebattle)
+	binary.Write(b, binary.LittleEndian, r.AutoRebattle)
 	binary.Write(b, binary.LittleEndian, r.NoRanking)
 	binary.Write(b, binary.LittleEndian, r.CPUFlag)
 	binary.Write(b, binary.LittleEndian, r.SelectLook)
