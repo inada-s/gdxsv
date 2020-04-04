@@ -13,21 +13,40 @@ u32 gdx_injection __attribute__((section("gdx.inject"))) = 0x0c03ffc0;
 #define OP_NOP 0
 #define OP_JR_RA 0x03e00008
 
+enum {
+  RPC_TCP_OPEN = 1,
+  RPC_TCP_CLOSE = 2,
+};
+
+struct gdx_rpc_t {
+  char tag[4];
+  u32 request;
+  u32 response;
+
+  u32 param1;
+  u32 param2;
+  u32 param3;
+  u32 param4;
+  u8 name1[128];
+  u8 name2[128];
+};
+
 struct gdx_queue {
-  char name[4];
+  char tag[4];
   u32 head;
   u32 tail;
   u8 buf[BUFSIZE];
 };
 
-int gdx_data_start GDXDATA;
+int gdx_data_start GDXDATA = 1;
 int gdx_debug_print GDXDATA = 1;
 int gdx_initialized GDXDATA = 0;
+
+struct gdx_rpc_t gdx_rpc GDXDATA = {"rpc"};
 struct gdx_queue gdx_rxq GDXDATA = {"rxq"};
 struct gdx_queue gdx_txq GDXDATA = {"txq"};
 
-
-void GDXFUNC gdx_debug(const char *format, ...) {
+int GDXFUNC gdx_debug(const char *format, ...) {
   if (gdx_debug_print) {
     va_list arg;
     int done;
@@ -38,7 +57,7 @@ void GDXFUNC gdx_debug(const char *format, ...) {
   }
 }
 
-void GDXFUNC gdx_log(const char *format, ...) {
+int GDXFUNC gdx_info(const char *format, ...) {
   va_list arg;
   int done;
   va_start(arg, format);
@@ -106,8 +125,8 @@ u8 GDXFUNC gdx_queue_pop(struct gdx_queue* q) {
 }
 
 u32 GDXFUNC gdx_TcpGetStatus(u32 sock, u32 dst) {
-  u16 retvalue = -1;
-  u16 readable_size = 0;
+  u32 retvalue = -1;
+  u32 readable_size = 0;
   const int n = gdx_queue_size(&gdx_rxq);
   if (0 < n) {
       retvalue = 0;
@@ -162,7 +181,7 @@ u32 GDXFUNC gdx_Ave_TcpRecv(u32 sock, u32 ptr, u32 len) {
   return len;
 }
 
-void GDXFUNC gdx_McsReceive(u32 ptr, u32 len) {
+u32 GDXFUNC gdx_McsReceive(u32 ptr, u32 len) {
   int i;
   gdx_debug("gdx_McsReceive ptr:%08x size:%d\n", ptr, len);
 
@@ -170,12 +189,13 @@ void GDXFUNC gdx_McsReceive(u32 ptr, u32 len) {
     return 0;
   }
 
+  gdx_debug("gdx_queue_size size:%d\n", gdx_queue_size(&gdx_rxq));
   if (gdx_queue_size(&gdx_rxq) < len) {
     len = gdx_queue_size(&gdx_rxq);
   }
 
   if (len == 0) {
-    return -1;
+    return 0;
   }
 
   for (i = 0; i < len; ++i) {
@@ -191,26 +211,66 @@ void GDXFUNC gdx_McsReceive(u32 ptr, u32 len) {
   return len;
 }
 
+u32 GDXFUNC gdx_Ave_TcpOpen(u32 ip, u32 port) {
+  gdx_info("gdx_Ave_TcpOpen\n");
+  gdx_queue_init(&gdx_rxq);
+  gdx_queue_init(&gdx_txq);
+  gdx_rpc.request = RPC_TCP_OPEN;
+  gdx_rpc.param1 = ip == 0x0077; // to lobby
+  gdx_rpc.param2 = ip;
+  gdx_rpc.param3 = port;
+  return 7; // dummy socket id
+}
+
+u32 GDXFUNC gdx_Ave_TcpClose(u32 sock) {
+  gdx_info("gdx_Ave_TcpClose\n");
+  gdx_queue_init(&gdx_rxq);
+  gdx_queue_init(&gdx_txq);
+  gdx_rpc.request = RPC_TCP_CLOSE;
+  gdx_rpc.param1 = sock;
+  return 0;
+}
+
 void GDXFUNC gdx_LobbyToMcsInitSocket() {
   gdx_queue_init(&gdx_rxq);
   gdx_queue_init(&gdx_txq);
 }
 
-void GDXFUNC patch_skip_modem()
-{
-    // replace modem_recognition with network_battle.
-    write32(0x003c4f58, 0x0015f110);
-
-    // skip ppp dialing step.
-    write32(0x0035a660, 0x24030002);
+u32 GDXFUNC gdx_gethostbyname_ps2_0(u32 hostname) {
+  gdx_info("gdx_gethostbyname_ps2_0\n");
+  // hostname : "ca1202.mmcp6"
+  return 7; // dummy ticket id
 }
 
-void GDXFUNC patch_tcp() {
+u32 GDXFUNC gdx_gethostbyname_ps2_1(u32 ticket_id) {
+  gdx_info("gdx_gethostbyname_ps2_1\n");
+  return 0x0077; // dummy lobby ip addr
+}
+
+u32 GDXFUNC gdx_gethostbyname_ps2_release(u32 ticket_id) {
+  gdx_info("gdx_gethostbyname_ps2_release\n");
+  return 0; // ok
+}
+
+void GDXFUNC write_patch() {
+  // replace modem_recognition with network_battle.
+  write32(0x003c4f58, 0x0015f110);
+
+  // skip ppp dialing step.
+  write32(0x0035a660, 0x24030002);
+
+  // replace network functions.
+  write32(0x00381da4, OP_JAL(gdx_Ave_TcpOpen));
+  write32(0x00382024, OP_JAL(gdx_Ave_TcpClose));
   write32(0x00381fb4, OP_JAL(gdx_Ave_TcpSend));
   write32(0x00381f7c, OP_JAL(gdx_Ave_TcpRecv));
   write32(0x0037fd2c, OP_JAL(gdx_McsReceive));
   write32(0x00357e34, OP_JAL(gdx_TcpGetStatus));
   write32(0x0035a174, OP_JAL(gdx_LobbyToMcsInitSocket));
+  write32(0x00359e04, OP_JAL(gdx_gethostbyname_ps2_0));
+  write32(0x00359e78, OP_JAL(gdx_gethostbyname_ps2_1));
+  write32(0x00359ea4, OP_JAL(gdx_gethostbyname_ps2_release));
+  write32(0x00359ec4, OP_JAL(gdx_gethostbyname_ps2_release));
 }
 
 void GDXMAIN gdx_main() {
@@ -221,8 +281,7 @@ void GDXMAIN gdx_main() {
     return;
   }
 
-  patch_skip_modem();
-  patch_tcp();
+  write_patch();
   gdx_queue_init(&gdx_rxq);
   gdx_queue_init(&gdx_txq);
 

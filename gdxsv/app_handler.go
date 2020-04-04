@@ -212,7 +212,8 @@ var _ = register(lbsLoginType, func(p *AppPeer, m *Message) {
 	loginType := m.Reader().Read8()
 
 	// loginType == 0 means the user have an account.
-	if loginType == 0 {
+	// loginType == 3 means the user seems to have returned from match.
+	if loginType == 0 || loginType == 3 {
 		account, err := getDB().GetAccountBySessionID(p.SessionID)
 		if err != nil {
 			glog.Warning("failed to account : ", p.SessionID)

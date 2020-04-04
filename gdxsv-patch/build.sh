@@ -34,5 +34,5 @@ docker run -v $(pwd):$(pwd) \
 
 docker run -v $(pwd):$(pwd) \
     ps2dev-docker ee-objdump \
-    -D $(pwd)/bin/gdxpatch.o | tee $(pwd)/bin/gdxpatch.asm
+    -D $(pwd)/bin/gdxpatch.o > $(pwd)/bin/gdxpatch.asm
 
