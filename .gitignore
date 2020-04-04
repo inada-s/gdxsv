@@ -1,4 +1,8 @@
 bin/
+.vscode/
 log.txt
 dump.txt
 gdxsv.db
+mybuild.sh
+mypcsx2copy.sh
+SLPM_650.76

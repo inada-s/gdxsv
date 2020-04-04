@@ -1,9 +1,5 @@
 SECTIONS
 {
-    . = 0x0015c4e8;
-    gdx.init : {
-        *(gdx.init*)
-    }
     . = 0x000f0000;
     gdx.data ALIGN(32) : {
         *(gdx.data*)
@@ -12,5 +8,13 @@ SECTIONS
     gdx.func ALIGN(32) : {
         *(gdx.func*)
         *(.rodata*)
+    }
+    . = 0x000fff00;
+    gdx.main ALIGN(32) : {
+        *(gdx.main*)
+    }
+    . = 0x0015c4e8;
+    gdx.inject : {
+        *(gdx.inject*)
     }
 }

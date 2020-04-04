@@ -564,7 +564,7 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 
 		// Debug
 		renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
-		if 2 == renpo && 2 == zeon {
+		if renpo == 2 && zeon == 2 {
 			battle := NewBattle(p.Lobby.ID)
 			for _, u := range p.Lobby.Users {
 				if u.Entry != EntryNone {
@@ -874,9 +874,9 @@ var _ = register(lbsAskPlayerSide, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	pos := m.Reader().Read8()
+	glog.Infoln("lbsAskPlayerInfo", pos)
 	u := p.Battle.GetUserByPos(pos)
 	userID := u.UserID
-
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
 		WriteString(userID).

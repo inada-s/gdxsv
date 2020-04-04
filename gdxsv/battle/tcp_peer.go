@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/golang/glog"
 	pb "github.com/golang/protobuf/proto"
@@ -34,6 +35,7 @@ func (u *TCPPeer) Close() error {
 
 func (u *TCPPeer) Serve(logic *Logic) {
 	glog.Infoln("[TCP]", u.Address(), "Serve Start")
+	time.Sleep(2 * time.Second)
 	defer glog.Infoln("[TCP]", u.Address(), "Serve End")
 	// c.f. ReflectMsg
 	// 6X := category?
