@@ -94,7 +94,7 @@ func (l *Lobby) CanBattleStart() bool {
 	return 2 <= a && 2 <= b
 }
 
-func (l *Lobby) PickReadyToBattleUsers() []*AppPeer {
+func (l *Lobby) PickBattleUsers() []*AppPeer {
 	a := uint16(0)
 	b := uint16(0)
 	peers := []*AppPeer{}

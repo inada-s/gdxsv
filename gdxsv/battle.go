@@ -82,6 +82,20 @@ func (b *Battle) GetGameParamByPos(pos byte) []byte {
 	return b.GameParams[pos]
 }
 
+func (b *Battle) GetUserSide(userID string) uint16 {
+	for _, id := range b.RenpoIDs {
+		if id == userID {
+			return 1
+		}
+	}
+	for _, id := range b.ZeonIDs {
+		if id == userID {
+			return 2
+		}
+	}
+	return 0
+}
+
 type BattleResult struct {
 	BattleCode  string `json:"battle_code,omitempty"`
 	Unk2        byte   `json:"unk_2,omitempty"`

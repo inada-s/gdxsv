@@ -41,7 +41,7 @@ var DefaultRule = Rule{
 	Difficulty:   3,
 	DamageLevel:  2,
 	Timer:        2,   // 2:180sec
-	TeamFlag:     1,   // 1:side select (buggy)
+	TeamFlag:     0,   // 1:side select (buggy)
 	StageFlag:    3,   // 1:ground 2:space 3:ground and space
 	MsFlag:       1,   // 1:opponent side MS available
 	RenpoVital:   600, // renpo total cost
@@ -57,16 +57,16 @@ var DefaultRule = Rule{
 	AutoRebattle: 0,
 	NoRanking:    0, // 1:no battle record
 	CPUFlag:      0, // unknown
-	SelectLook:   0, // 1:can see enemy's choice of MS
+	SelectLook:   1, // 1:can see opponent's MS choice
 	Unused1:      0,
 	Unused2:      0,
 	Unused3:      0,
 	Unused4:      0,
 	TeamType0:    0, // unknown
 	TeamType1:    0, // unknown
-	TeamType2:    1, // unknown
-	TeamType3:    1, // unknown
-	StageNo:      0,
+	TeamType2:    0, // unknown
+	TeamType3:    0, // unknown
+	StageNo:      0, // unknown
 }
 
 func NewRule() *Rule {

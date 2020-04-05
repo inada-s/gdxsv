@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -378,7 +379,7 @@ var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
 		unk19, unk20, unk21, unk22, unk23, unk24,
 		unk25, unk26, unk27, unk28,
 	}
-	bin, _ := json.MarshalIndent(result, "", "  ")
+	bin, _ := json.MarshalIndent(result, "", " ")
 	glog.Info(string(bin))
 	// TODO: Save battle result
 })
@@ -423,28 +424,38 @@ var _ = register(lbsRankRanking, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
 	_ = nowTopRank
 
-	userRank2 := uint8(111)
-	userRanking2 := uint32(222)
-	userRankingTotal2 := uint32(333)
+	klass := p.WinCount / 100
+	if 14 <= klass {
+		klass = 14
+	}
+
+	// TODO: ranking
+	numerator := 100
+	denominator := 100
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write8(userRank2).
-		Write32(userRanking2).
-		Write32(userRankingTotal2).Msg())
+		Write8(uint8(klass)).
+		Write32(uint32(numerator)).
+		Write32(uint32(denominator)).Msg())
 })
 
 var _ = register(lbsWinLose, func(p *AppPeer, m *Message) {
+	// TODO: Implement ranking
 	nowTopRank := m.Reader().Read8()
 	_ = nowTopRank
 
-	userBattle := uint16(300)
-	userWin := uint16(200)
-	userLose := uint16(100)
+	klass := p.WinCount / 100
+	if 14 <= klass {
+		klass = 14
+	}
+	userWin := r16(p.WinCount)
+	userLose := r16(p.LoseCount)
 	userDraw := uint16(0)
-	userInvalid := uint16(0)
-	userBattlePoint1 := uint32(1)
-	userBattlePoint2 := uint32(1)
+	userInvalid := r16(p.BattleCount - p.WinCount - p.LoseCount)
+	userBattlePoint1 := uint32(0)
+	userBattlePoint2 := uint32(0)
+
 	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(userBattle).
+		Write16(uint16(klass)).
 		Write16(userWin).
 		Write16(userLose).
 		Write16(userDraw).
@@ -455,7 +466,6 @@ var _ = register(lbsWinLose, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsDeviceData, func(p *AppPeer, m *Message) {
 	r := m.Reader()
-	// Read16 * 8
 	data1 := r.Read16()
 	data2 := r.Read16()
 	data3 := r.Read16()
@@ -476,7 +486,6 @@ var _ = register(lbsServerMoney, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsStartLobby, func(p *AppPeer, m *Message) {
-	// TODO: find recv func
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -621,7 +630,7 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		if p.Lobby.CanBattleStart() {
 			battle := NewBattle(p.app, p.Lobby.ID)
 			battle.BattleCode = GenBattleCode()
-			for _, q := range p.Lobby.PickReadyToBattleUsers() {
+			for _, q := range p.Lobby.PickBattleUsers() {
 				battle.Add(q)
 				q.Battle = battle
 				NotifyReadyBattle(q)
@@ -732,6 +741,7 @@ var _ = register(lbsSendMail, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsUserSite, func(p *AppPeer, m *Message) {
+	// TODO: Implement
 	userID := m.Reader().ReadString()
 	_ = userID
 	p.SendMessage(NewServerAnswer(m).Writer().
@@ -926,46 +936,73 @@ var _ = register(lbsAskMatchingJoin, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsAskPlayerSide, func(p *AppPeer, m *Message) {
-	side := m.Reader().Read8() // always 0
-	glog.Infoln("side?", side)
+	// player position
 	p.SendMessage(NewServerAnswer(m).Writer().Write8(p.Battle.GetPosition(p.UserID)).Msg())
 })
 
+func r16(a int) uint16 {
+	if math.MaxUint16 < a {
+		return math.MaxUint16
+	}
+	return uint16(a)
+}
+
 var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
+	if p.Battle == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
 	pos := m.Reader().Read8()
-	glog.Infoln("lbsAskPlayerInfo", pos)
 	u := p.Battle.GetUserByPos(pos)
 	param := p.Battle.GetGameParamByPos(pos)
+	side := p.Battle.GetUserSide(u.UserID)
+	// TODO: Consider a reasonable calculation method.
+	klass := u.WinCount / 100
+	if 14 <= klass {
+		klass = 14
+	}
 
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
 		WriteString(u.UserID).
 		WriteString(u.Name).
-		WriteBytes(param).Msg())
+		WriteBytes(param).
+		Write16(uint16(klass)).
+		Write16(r16(u.WinCount)).
+		Write16(r16(u.LoseCount)).
+		Write16(0). // draw count
+		Write16(r16(u.BattleCount - u.WinCount - u.LoseCount)).
+		Write16(0). // Unknown
+		Write16(side).
+		Write16(0). // Unknown
+		Msg())
 })
 
 var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
+	if p.Battle == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
 	// Binary rule data
 	// 001e2980: NetRecvHeyaBinDef default values
 	// 001e2830: NetHeyaDataSet    overwrite ?
-	if p.Battle != nil {
-		a := NewServerAnswer(m)
-		w := a.Writer()
-		bin := p.Battle.Rule.Serialize()
-		w.Write16(uint16(len(bin)))
-		w.Write(bin)
-		p.SendMessage(a)
-	} else {
-		NewServerAnswer(m).SetErr()
-	}
+	a := NewServerAnswer(m)
+	w := a.Writer()
+	bin := p.Battle.Rule.Serialize()
+	w.Write16(uint16(len(bin)))
+	w.Write(bin)
+	p.SendMessage(a)
 })
 
 var _ = register(lbsAskBattleCode, func(p *AppPeer, m *Message) {
-	if p.Battle != nil {
-		p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.Battle.BattleCode).Msg())
-	} else {
-		NewServerAnswer(m).SetErr()
+	if p.Battle == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
 	}
+
+	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.Battle.BattleCode).Msg())
 })
 
 var _ = register(lbsAskMcsAddress, func(p *AppPeer, m *Message) {
