@@ -1,7 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
-python3.8.exe .\asm2pnach.py < .\patch\gdxpatch.asm > C:\projects\pcsx2\bin\cheats\1187BBDF.pnach
+python3.8 asm2pnach.py < patch\gdxpatch.asm > ..\pcsx2\bin\cheats\1187BBDF.pnach
 """
 
 import sys

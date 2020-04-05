@@ -1,16 +1,20 @@
-# gdxsv
+gdxsv
+---
 # UNDER CONSTRUCTION
-
-Just started making :)
-
-I need your help.
 
 
 ## DEVELOPOR INFORMATION
+### gdxsv
+The `gdxsv` directory contains main server program.
 
 ### pcsx2 fork
-The pcsx2 submodule is a pcsx2 fork customized for the development of this server.
+The `pcsx2` directory is a submodule, that is pcsx2 fork customized for the development of this server.
 I don't expect to play with this because of performance issues.
+
+### ps2patch
+The `ps2patch` directory contains source program of paches for playstation2 version to enter network mode.
+These patches now depends on pcsx2 fork.
+
 
 ### Development
 

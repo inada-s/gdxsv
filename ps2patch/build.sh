@@ -1,10 +1,12 @@
-#!/bin/bash -ex
-#ee-addr2line  ee-c++        ee-g++        ee-gcov       ee-objcopy    ee-readelf    ee-strip
-#ee-ar         ee-c++filt    ee-gcc        ee-ld         ee-objdump    ee-size
-#ee-as         ee-cpp        ee-gccbug     ee-nm         ee-ranlib     ee-strings
+#!/bin/bash
+set -eux
 
 SCRIPT_DIR=$(cd $(dirname $0); pwd)
 cd $SCRIPT_DIR
+
+#ee-addr2line  ee-c++        ee-g++        ee-gcov       ee-objcopy    ee-readelf    ee-strip
+#ee-ar         ee-c++filt    ee-gcc        ee-ld         ee-objdump    ee-size
+#ee-as         ee-cpp        ee-gccbug     ee-nm         ee-ranlib     ee-strings
 
 PATH=$PATH:/usr/local/bin
 
@@ -35,4 +37,3 @@ docker run -v $(pwd):$(pwd) \
 docker run -v $(pwd):$(pwd) \
     ps2dev-docker ee-objdump \
     -D $(pwd)/bin/gdxpatch.o > $(pwd)/bin/gdxpatch.asm
-
