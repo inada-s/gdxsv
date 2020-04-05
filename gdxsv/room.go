@@ -12,6 +12,8 @@ const (
 )
 
 type Room struct {
+	app *App
+
 	ID        uint16
 	LobbyID   uint16
 	Name      string
@@ -19,27 +21,28 @@ type Room struct {
 	Password  string
 	Owner     string
 	Deadline  time.Time
-	Users     []*AppPeer
+	Users     []*DBUser
 	Status    byte
 	Rule      *Rule
 }
 
-func NewRoom(lobbyID, roomID uint16) *Room {
+func NewRoom(app *App, lobbyID, roomID uint16) *Room {
 	return &Room{
+		app: app,
+
 		ID:      roomID,
 		LobbyID: lobbyID,
 		Name:    "",
 		Status:  RoomStateEmpty,
 		Rule:    NewRule(),
-		Users:   make([]*AppPeer, 0),
+		Users:   make([]*DBUser, 0),
 	}
 }
 
-func (r *Room) Enter(u *AppPeer) {
+func (r *Room) Enter(u *DBUser) {
 	if len(r.Users) == 0 {
 		r.Owner = u.UserID
 		r.Deadline = time.Now().Add(30 * time.Minute)
-		// r.MaxPlayer = r.Rule.playerCount
 	}
 
 	userAlreadyExists := false
@@ -79,7 +82,7 @@ func (r *Room) Exit(userID string) {
 }
 
 func (r *Room) Remove() {
-	*r = *NewRoom(r.LobbyID, r.ID)
+	*r = *NewRoom(r.app, r.LobbyID, r.ID)
 }
 
 func (r *Room) Entry(u *AppPeer, side uint16) {
@@ -90,11 +93,13 @@ func (r *Room) GetEntryUserCount() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
 	for _, u := range r.Users {
-		switch u.Entry {
-		case EntryRenpo:
-			a++
-		case EntryZeon:
-			b++
+		if q, ok := r.app.FindPeer(u.UserID); ok {
+			switch q.Entry {
+			case EntryRenpo:
+				a++
+			case EntryZeon:
+				b++
+			}
 		}
 	}
 	return a, b
@@ -109,23 +114,25 @@ func (r *Room) StartBattleUsers() (active []*AppPeer, inactive []*AppPeer) {
 	a := uint16(0)
 	b := uint16(0)
 	for _, u := range r.Users {
-		switch u.Entry {
-		case EntryRenpo:
-			if a < 2 {
-				active = append(active, u)
-			} else {
-				inactive = append(inactive, u)
+		if q, ok := r.app.FindPeer(u.UserID); ok {
+			switch q.Entry {
+			case EntryRenpo:
+				if a < 2 {
+					active = append(active, q)
+				} else {
+					inactive = append(inactive, q)
+				}
+				a++
+			case EntryZeon:
+				if b < 2 {
+					active = append(active, q)
+				} else {
+					inactive = append(inactive, q)
+				}
+				b++
+			default:
+				inactive = append(inactive, q)
 			}
-			a++
-		case EntryZeon:
-			if b < 2 {
-				active = append(active, u)
-			} else {
-				inactive = append(inactive, u)
-			}
-			b++
-		default:
-			inactive = append(inactive, u)
 		}
 	}
 	return active, inactive

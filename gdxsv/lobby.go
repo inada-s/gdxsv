@@ -22,7 +22,7 @@ func NewLobby(app *App, lobbyID uint16) *Lobby {
 	}
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
-		lobby.Rooms[roomID] = NewRoom(lobbyID, roomID)
+		lobby.Rooms[roomID] = NewRoom(app, lobbyID, roomID)
 	}
 	return lobby
 }
