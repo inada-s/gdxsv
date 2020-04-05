@@ -13,6 +13,8 @@ import (
 	"gdxsv/gdxsv/proto"
 )
 
+var _ Peer = (*TCPPeer)(nil)
+
 type TCPPeer struct {
 	BasePeer
 

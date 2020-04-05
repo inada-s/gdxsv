@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -9,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+
+	"gdxsv/gdxsv/battle"
 )
 
 type MessageHandler func(*AppPeer, *Message)
@@ -166,6 +169,8 @@ func SendServerShutDown(p *AppPeer) {
 }
 
 func StartLoginFlow(p *AppPeer) {
+	m := NewServerQuestion(lbsAskConnectionID)
+	glog.Infoln("lbsAskConnectionID:", hex.EncodeToString(m.Serialize()))
 	p.SendMessage(NewServerQuestion(lbsAskConnectionID))
 }
 
@@ -380,8 +385,8 @@ var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
 		unk25, unk26, unk27, unk28,
 	}
 	bin, _ := json.MarshalIndent(result, "", " ")
-	glog.Info(string(bin))
-	// TODO: Save battle result
+	glog.Infof("======= BATTLE LOG : %v ======\n%v", p.UserID, string(bin))
+
 })
 
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
@@ -628,12 +633,14 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		}
 
 		if p.Lobby.CanBattleStart() {
-			battle := NewBattle(p.app, p.Lobby.ID)
-			battle.BattleCode = GenBattleCode()
+			b := NewBattle(p.app, p.Lobby.ID)
+			b.BattleCode = GenBattleCode()
 			for _, q := range p.Lobby.PickBattleUsers() {
-				battle.Add(q)
-				q.Battle = battle
+				b.Add(q)
+				q.Battle = b
 				NotifyReadyBattle(q)
+				battle.AddUserWhoIsGoingTobattle(
+					b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
 			}
 		}
 

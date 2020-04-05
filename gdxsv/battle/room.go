@@ -11,12 +11,13 @@ import (
 type Room struct {
 	sync.RWMutex
 
-	id    int
-	peers []Peer // 追加はappend 削除はnil代入 インデックスがposと一致するように維持
+	logic      *Logic
+	battleCode string
+	peers      []Peer // 追加はappend 削除はnil代入 インデックスがposと一致するように維持
 }
 
-func newRoom(id int) *Room {
-	return &Room{id: id}
+func newRoom(logic *Logic, battleCode string) *Room {
+	return &Room{logic: logic, battleCode: battleCode}
 }
 
 func (r *Room) SendMessage(peer Peer, msg *proto.BattleMessage) {
@@ -39,17 +40,17 @@ func (r *Room) SendMessage(peer Peer, msg *proto.BattleMessage) {
 	r.RUnlock()
 }
 
-func (r *Room) Clear() {
+func (r *Room) Dispose() {
 	r.Lock()
-	for i := 0; i < len(r.peers); i++ {
-		r.peers[i] = nil
-	}
-	r.peers = r.peers[:0]
+	logic := r.logic
+	r.logic = nil
+	r.peers = nil
 	r.Unlock()
+	logic.OnRoomClose(r)
 }
 
 func (r *Room) Join(p Peer) {
-	p.SetRoomID(r.id)
+	p.SetRoomID(r.battleCode)
 	r.Lock()
 	p.SetPosition(len(r.peers))
 	r.peers = append(r.peers, p)
@@ -72,7 +73,7 @@ func (r *Room) Leave(p Peer) {
 	}
 	r.Unlock()
 	if empty {
-		r.Clear()
+		r.Dispose()
 	}
 
 	glog.Infof("leave peer %v", p.Address())

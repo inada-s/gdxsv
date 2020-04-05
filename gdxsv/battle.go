@@ -100,8 +100,8 @@ type BattleResult struct {
 	BattleCode  string `json:"battle_code,omitempty"`
 	Unk2        byte   `json:"unk_2,omitempty"`
 	BattleCount byte   `json:"battle_count,omitempty"`
-	Unk4        byte   `json:"unk_4,omitempty"`
-	Unk5        byte   `json:"unk_5,omitempty"`
+	WinCount    byte   `json:"win_count,omitempty"`
+	LoseCount   byte   `json:"lose_count,omitempty"`
 	Unk6        byte   `json:"unk_6,omitempty"`
 	Unk7        byte   `json:"unk_7,omitempty"`
 	Unk8        uint32 `json:"unk_8,omitempty"`
@@ -109,7 +109,7 @@ type BattleResult struct {
 	Unk10       byte   `json:"unk_10,omitempty"`
 	Unk11       byte   `json:"unk_11,omitempty"`
 	Unk12       byte   `json:"unk_12,omitempty"`
-	Unk13       uint16 `json:"unk_13,omitempty"`
+	KillCount   uint16 `json:"kill_count,omitempty"`
 	Unk14       uint16 `json:"unk_14,omitempty"`
 	Unk15       uint16 `json:"unk_15,omitempty"`
 	Unk16       uint16 `json:"unk_16,omitempty"`
