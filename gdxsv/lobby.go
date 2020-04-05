@@ -1,18 +1,22 @@
 package main
 
 type Lobby struct {
+	app *App
+
 	ID         uint16
 	Rule       *Rule
-	Users      map[string]*AppPeer
+	Users      map[string]*DBUser
 	Rooms      map[uint16]*Room
 	EntryUsers []string
 }
 
-func NewLobby(lobbyID uint16) *Lobby {
+func NewLobby(app *App, lobbyID uint16) *Lobby {
 	lobby := &Lobby{
+		app: app,
+
 		ID:         lobbyID,
 		Rule:       NewRule(),
-		Users:      make(map[string]*AppPeer),
+		Users:      make(map[string]*DBUser),
 		Rooms:      make(map[uint16]*Room),
 		EntryUsers: make([]string, 0),
 	}
@@ -23,8 +27,8 @@ func NewLobby(lobbyID uint16) *Lobby {
 	return lobby
 }
 
-func (l *Lobby) Enter(u *AppPeer) {
-	l.Users[u.UserID] = u
+func (l *Lobby) Enter(p *AppPeer) {
+	l.Users[p.UserID] = &p.DBUser
 }
 
 func (l *Lobby) Exit(userID string) {
@@ -44,9 +48,9 @@ func (l *Lobby) Entry(u *AppPeer) {
 	l.EntryUsers = append(l.EntryUsers, u.UserID)
 }
 
-func (l *Lobby) EntryCancel(u *AppPeer) {
+func (l *Lobby) EntryCancel(userID string) {
 	for i, id := range l.EntryUsers {
-		if id == u.UserID {
+		if id == userID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 			break
 		}
@@ -56,12 +60,14 @@ func (l *Lobby) EntryCancel(u *AppPeer) {
 func (l *Lobby) GetUserCountBySide() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
-	for _, u := range l.Users {
-		switch u.Entry {
-		case EntryRenpo:
-			a++
-		case EntryZeon:
-			b++
+	for userID := range l.Users {
+		if p, ok := l.app.FindPeer(userID); ok {
+			switch p.Entry {
+			case EntryRenpo:
+				a++
+			case EntryZeon:
+				b++
+			}
 		}
 	}
 	return a, b
@@ -70,10 +76,9 @@ func (l *Lobby) GetUserCountBySide() (uint16, uint16) {
 func (l *Lobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
-	for _, id := range l.EntryUsers {
-		u, ok := l.Users[id]
-		if ok {
-			switch u.Entry {
+	for _, userID := range l.EntryUsers {
+		if p, ok := l.app.FindPeer(userID); ok {
+			switch p.Entry {
 			case EntryRenpo:
 				a++
 			case EntryZeon:
@@ -92,26 +97,25 @@ func (l *Lobby) CanBattleStart() bool {
 func (l *Lobby) PickReadyToBattleUsers() []*AppPeer {
 	a := uint16(0)
 	b := uint16(0)
-	battleUsers := []*AppPeer{}
-	for _, id := range l.EntryUsers {
-		u, ok := l.Users[id]
-		if ok {
-			switch u.Entry {
+	peers := []*AppPeer{}
+	for _, userID := range l.EntryUsers {
+		if p, ok := l.app.FindPeer(userID); ok {
+			switch p.Entry {
 			case EntryRenpo:
 				if a < 2 {
-					battleUsers = append(battleUsers, u)
+					peers = append(peers, p)
 				}
 				a++
 			case EntryZeon:
 				if b < 2 {
-					battleUsers = append(battleUsers, u)
+					peers = append(peers, p)
 				}
 				b++
 			}
 		}
 	}
-	for _, u := range battleUsers {
-		l.EntryCancel(u)
+	for _, p := range peers {
+		l.EntryCancel(p.UserID)
 	}
-	return battleUsers
+	return peers
 }

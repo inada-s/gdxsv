@@ -386,7 +386,7 @@ var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
 	// Client sends length-prefixed 640 bytes binary data.
 	// This is used when goto battle scene.
-	p.gameParam = m.Reader().ReadBytes()
+	p.GameParam = m.Reader().ReadBytes()
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -615,18 +615,16 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		if enable == 1 {
 			p.Lobby.Entry(p)
 		} else {
-			p.Lobby.EntryCancel(p)
+			p.Lobby.EntryCancel(p.UserID)
 		}
 
 		if p.Lobby.CanBattleStart() {
-			battle := NewBattle(p.Lobby.ID)
+			battle := NewBattle(p.app, p.Lobby.ID)
 			battle.BattleCode = GenBattleCode()
-			for _, u := range p.Lobby.PickReadyToBattleUsers() {
-				battle.Add(u)
-				u.Battle = battle
-			}
-			for _, u := range p.Battle.Users {
-				NotifyReadyBattle(u)
+			for _, q := range p.Lobby.PickReadyToBattleUsers() {
+				battle.Add(q)
+				q.Battle = battle
+				NotifyReadyBattle(q)
 			}
 		}
 
@@ -842,8 +840,10 @@ var _ = register(lbsPostChatMessage, func(p *AppPeer, m *Message) {
 			u.SendMessage(msg)
 		}
 	} else if p.Lobby != nil {
-		for _, u := range p.Lobby.Users {
-			u.SendMessage(msg)
+		for userID := range p.Lobby.Users {
+			if q, ok := p.app.FindPeer(userID); ok {
+				q.SendMessage(msg)
+			}
 		}
 	}
 })
@@ -927,30 +927,37 @@ var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	pos := m.Reader().Read8()
 	glog.Infoln("lbsAskPlayerInfo", pos)
 	u := p.Battle.GetUserByPos(pos)
-	userID := u.UserID
-	glog.Infoln(pos, userID, u.Name)
+	param := p.Battle.GetGameParamByPos(pos)
+
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
-		WriteString(userID).
+		WriteString(u.UserID).
 		WriteString(u.Name).
-		WriteBytes(u.gameParam).Msg())
+		WriteBytes(param).Msg())
 })
 
 var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
 	// Binary rule data
 	// 001e2980: NetRecvHeyaBinDef default values
 	// 001e2830: NetHeyaDataSet    overwrite ?
-	a := NewServerAnswer(m)
-	w := a.Writer()
-	rule := DefaultRule
-	bin := rule.Serialize()
-	w.Write16(uint16(len(bin)))
-	w.Write(bin)
-	p.SendMessage(a)
+	if p.Battle != nil {
+		a := NewServerAnswer(m)
+		w := a.Writer()
+		bin := p.Battle.Rule.Serialize()
+		w.Write16(uint16(len(bin)))
+		w.Write(bin)
+		p.SendMessage(a)
+	} else {
+		NewServerAnswer(m).SetErr()
+	}
 })
 
 var _ = register(lbsAskBattleCode, func(p *AppPeer, m *Message) {
-	p.SendMessage(NewServerAnswer(m).Writer().WriteString("12345").Msg())
+	if p.Battle != nil {
+		p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.Battle.BattleCode).Msg())
+	} else {
+		NewServerAnswer(m).SetErr()
+	}
 })
 
 var _ = register(lbsAskMcsAddress, func(p *AppPeer, m *Message) {

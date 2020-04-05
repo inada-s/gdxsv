@@ -62,7 +62,7 @@ func NewApp() *App {
 		chQuit:   make(chan interface{}),
 	}
 	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbys[uint16(i)] = NewLobby(uint16(i))
+		app.lobbys[uint16(i)] = NewLobby(app, uint16(i))
 	}
 	return app
 }
@@ -104,6 +104,11 @@ func (a *App) NewPeer(conn *net.TCPConn) *AppPeer {
 		outbuf:     make([]byte, 0, 1024),
 		inbuf:      make([]byte, 0, 1024),
 	}
+}
+
+func (a *App) FindPeer(userID string) (*AppPeer, bool) {
+	p, ok := a.users[userID]
+	return p, ok
 }
 
 func (a *App) Locked(f func(*App)) {
@@ -207,13 +212,16 @@ func (a *App) BroadcastLobbyUserCount(lobbyID uint16) {
 		msgSum2 := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryZeon).Write16(renpo + zeon).Msg()
 		msgRenpo := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryRenpo).Write16(renpo).Msg()
 		msgZeon := NewServerNotice(lbsLobbyJoin).Writer().Write16(EntryZeon).Write16(zeon).Msg()
-		for _, u := range lobby.Users {
-			if u.inLobbyChat {
-				u.SendMessage(msgSum1)
-				u.SendMessage(msgSum2)
-			} else {
-				u.SendMessage(msgRenpo)
-				u.SendMessage(msgZeon)
+		for userID := range lobby.Users {
+			p, ok := a.FindPeer(userID)
+			if ok {
+				if p.inLobbyChat {
+					p.SendMessage(msgSum1)
+					p.SendMessage(msgSum2)
+				} else {
+					p.SendMessage(msgRenpo)
+					p.SendMessage(msgZeon)
+				}
 			}
 		}
 	}
@@ -225,9 +233,11 @@ func (a *App) BroadcastLobbyMatchEntryUserCount(lobbyID uint16) {
 		renpo, zeon := lobby.GetLobbyMatchEntryUserCount()
 		msg1 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(EntryRenpo).Write16(renpo).Msg()
 		msg2 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(EntryZeon).Write16(zeon).Msg()
-		for _, u := range lobby.Users {
-			u.SendMessage(msg1)
-			u.SendMessage(msg2)
+		for userID := range lobby.Users {
+			if p, ok := a.FindPeer(userID); ok {
+				p.SendMessage(msg1)
+				p.SendMessage(msg2)
+			}
 		}
 	}
 }
@@ -244,9 +254,11 @@ func (a *App) BroadcastRoomState(room *Room) {
 
 	msg1 := NewServerNotice(lbsRoomStatus).Writer().Write16(room.ID).Write8(room.Status).Msg()
 	msg2 := NewServerNotice(lbsRoomTitle).Writer().Write16(room.ID).WriteString(room.Name).Msg()
-	for _, u := range lobby.Users {
-		u.SendMessage(msg1)
-		u.SendMessage(msg2)
+	for userID := range lobby.Users {
+		if p, ok := a.FindPeer(userID); ok {
+			p.SendMessage(msg1)
+			p.SendMessage(msg2)
+		}
 	}
 }
 
@@ -259,8 +271,9 @@ type AppPeer struct {
 	Lobby  *Lobby
 	Battle *Battle
 
-	Entry             uint16
-	gameParam         []byte
+	Entry     uint16
+	GameParam []byte
+
 	inLobbyChat       bool
 	inBattleAfterRoom bool
 

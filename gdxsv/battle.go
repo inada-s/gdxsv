@@ -3,34 +3,34 @@ package main
 import (
 	"net"
 	"time"
-
-	"github.com/golang/glog"
 )
 
 type Battle struct {
+	app *App
+
 	BattleCode string
 	ServerIP   net.IP
 	ServerPort uint16
-	Users      []*AppPeer
+	Users      []*DBUser
 	RenpoIDs   []string
 	ZeonIDs    []string
-	UDPUsers   map[string]bool
-	P2PMap     map[string]map[string]struct{}
+	GameParams [][]byte
 	Rule       *Rule
 	LobbyID    uint16
 	StartTime  time.Time
 	TestBattle bool
 }
 
-func NewBattle(lobbyID uint16) *Battle {
+func NewBattle(app *App, lobbyID uint16) *Battle {
 	return &Battle{
-		Users:    make([]*AppPeer, 0),
-		RenpoIDs: make([]string, 0),
-		ZeonIDs:  make([]string, 0),
-		UDPUsers: map[string]bool{},
-		P2PMap:   map[string]map[string]struct{}{},
-		Rule:     NewRule(),
-		LobbyID:  lobbyID,
+		app: app,
+
+		Users:      make([]*DBUser, 0),
+		GameParams: make([][]byte, 0),
+		RenpoIDs:   make([]string, 0),
+		ZeonIDs:    make([]string, 0),
+		Rule:       NewRule(),
+		LobbyID:    lobbyID,
 	}
 }
 
@@ -38,12 +38,13 @@ func (b *Battle) SetRule(rule *Rule) {
 	b.Rule = rule
 }
 
-func (b *Battle) Add(peer *AppPeer) {
-	b.Users = append(b.Users, peer)
-	if peer.Entry == EntryRenpo {
-		b.RenpoIDs = append(b.RenpoIDs, peer.UserID)
-	} else if peer.Entry == EntryZeon {
-		b.ZeonIDs = append(b.ZeonIDs, peer.UserID)
+func (b *Battle) Add(p *AppPeer) {
+	b.Users = append(b.Users, &p.DBUser)
+	b.GameParams = append(b.GameParams, p.GameParam)
+	if p.Entry == EntryRenpo {
+		b.RenpoIDs = append(b.RenpoIDs, p.UserID)
+	} else if p.Entry == EntryZeon {
+		b.ZeonIDs = append(b.ZeonIDs, p.UserID)
 	}
 }
 
@@ -57,44 +58,28 @@ func (b *Battle) SetBattleServer(ip net.IP, port uint16) {
 }
 
 func (b *Battle) GetPosition(userID string) byte {
-	pos := byte(0)
-	for _, id := range b.RenpoIDs {
-		if id == userID {
-			return pos + 1
+	for i, u := range b.Users {
+		if userID == u.UserID {
+			return byte(i + 1)
 		}
-		pos++
 	}
-	for _, id := range b.ZeonIDs {
-		if id == userID {
-			return pos + 1
-		}
-		pos++
-	}
-	glog.Infoln("GetPosition failed")
 	return 0
-
-	/*
-		for i, u := range b.Users {
-			if userID == u.UserID {
-				return byte(i + 1)
-			}
-		}
-		return 0
-	*/
 }
 
-func (b *Battle) GetUserByPos(pos byte) *AppPeer {
-	users := map[byte]*AppPeer{}
-	for _, u := range b.Users {
-		users[b.GetPosition(u.UserID)] = u
+func (b *Battle) GetUserByPos(pos byte) *DBUser {
+	pos -= 1
+	if pos < 0 || len(b.Users) < int(pos) {
+		return nil
 	}
-	return users[pos]
-	/*
-		pos -= 1
-		if pos < 0 || len(b.Users) < int(pos) {
-			return nil
-		}
-	*/
+	return b.Users[pos]
+}
+
+func (b *Battle) GetGameParamByPos(pos byte) []byte {
+	pos -= 1
+	if pos < 0 || len(b.Users) < int(pos) {
+		return nil
+	}
+	return b.GameParams[pos]
 }
 
 type BattleResult struct {
