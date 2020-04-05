@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-python3.8 asm2pnach.py < patch\gdxpatch.asm > ..\pcsx2\bin\cheats\1187BBDF.pnach
+Convert asm into pnach (pcsx2 chat codes) file.
 """
 
 import sys
