@@ -144,6 +144,16 @@ var _ = register(lbsLineCheck, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsLogout, func(p *AppPeer, m *Message) {
 	// the client is logging out
+	if p.Room != nil {
+		p.Room.Exit(p.UserID)
+		p.app.BroadcastRoomState(p.Room)
+		p.Room = nil
+	}
+	if p.Lobby != nil {
+		p.Lobby.Exit(p.UserID)
+		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+		p.Lobby = nil
+	}
 })
 
 func SendServerShutDown(p *AppPeer) {
@@ -327,12 +337,11 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 	p.DBUser = *u
 	p.app.users[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
-	p.SendMessage(NewServerNotice(lbsAskBattleResult))
+	p.SendMessage(NewServerQuestion(lbsAskBattleResult))
 	p.SendMessage(NewServerNotice(lbsAddProgress))
 })
 
 var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
-	// 000e3132333435000000000000000000000100000000000000000000000000010000000000000000000000000000000d0000000f0008000a0007000403e7
 	r := m.Reader()
 	unk1 := r.ReadString()
 	unk2 := r.Read8()
@@ -371,10 +380,12 @@ var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
 	}
 	bin, _ := json.MarshalIndent(result, "", "  ")
 	glog.Info(string(bin))
+	// TODO: Save battle result
 })
 
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
 	// Client sends length-prefixed 640 bytes binary data.
+	// This is used when goto battle scene.
 	p.gameParam = m.Reader().ReadBytes()
 	p.SendMessage(NewServerAnswer(m))
 })
@@ -607,18 +618,14 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 			p.Lobby.EntryCancel(p)
 		}
 
-		// Debug
-		renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
-		if renpo == 2 && zeon == 2 {
+		if p.Lobby.CanBattleStart() {
 			battle := NewBattle(p.Lobby.ID)
 			battle.BattleCode = GenBattleCode()
-			for _, u := range p.Lobby.Users {
-				if u.Entry != EntryNone {
-					battle.Add(u)
-					u.Battle = battle
-				}
+			for _, u := range p.Lobby.PickReadyToBattleUsers() {
+				battle.Add(u)
+				u.Battle = battle
 			}
-			for _, u := range battle.Users {
+			for _, u := range p.Battle.Users {
 				NotifyReadyBattle(u)
 			}
 		}

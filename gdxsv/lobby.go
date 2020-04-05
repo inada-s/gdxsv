@@ -86,35 +86,32 @@ func (l *Lobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 
 func (l *Lobby) CanBattleStart() bool {
 	a, b := l.GetLobbyMatchEntryUserCount()
-	if l.ID == uint16(2) {
-		return 1 <= a && 1 <= b
-	}
-	if l.ID == uint16(3) {
-		return 1 <= a || 1 <= b
-	}
 	return 2 <= a && 2 <= b
 }
 
-func (l *Lobby) StartBattleUsers() []*AppPeer {
+func (l *Lobby) PickReadyToBattleUsers() []*AppPeer {
 	a := uint16(0)
 	b := uint16(0)
-	ret := []*AppPeer{}
+	battleUsers := []*AppPeer{}
 	for _, id := range l.EntryUsers {
 		u, ok := l.Users[id]
 		if ok {
 			switch u.Entry {
 			case EntryRenpo:
 				if a < 2 {
-					ret = append(ret, u)
+					battleUsers = append(battleUsers, u)
 				}
 				a++
 			case EntryZeon:
 				if b < 2 {
-					ret = append(ret, u)
+					battleUsers = append(battleUsers, u)
 				}
 				b++
 			}
 		}
 	}
-	return ret
+	for _, u := range battleUsers {
+		l.EntryCancel(u)
+	}
+	return battleUsers
 }
