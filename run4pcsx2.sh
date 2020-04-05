@@ -37,6 +37,18 @@ sed -i -e 's#WindowPos.*$#WindowPos=800,0#'    pcsx2/bin2/inis/PCSX2_ui.ini
 sed -i -e 's#WindowPos.*$#WindowPos=0,550#'    pcsx2/bin3/inis/PCSX2_ui.ini
 sed -i -e 's#WindowPos.*$#WindowPos=800,550#'  pcsx2/bin4/inis/PCSX2_ui.ini
 
+# edit stick binding for bin3, bin4 
+for bin in bin3 bin4; do
+sed -i -e '/, 32, /d' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e '/, 33, /d' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e '/, 34, /d' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e '/, 35, /d' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e 's#, 36, #, 32, #' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e 's#, 37, #, 33, #' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e 's#, 38, #, 34, #' pcsx2/${bin}/inis/LilyPad.ini
+sed -i -e 's#, 39, #, 35, #' pcsx2/${bin}/inis/LilyPad.ini
+done
+
 trap 'kill $(jobs -p)' EXIT
 MSYS_NO_PATHCONV=1 pcsx2/bin1/pcsx2-dev.exe ${GDX_ISO_PATH} &
 MSYS_NO_PATHCONV=1 pcsx2/bin2/pcsx2-dev.exe ${GDX_ISO_PATH} &
