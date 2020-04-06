@@ -1,15 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/width"
 
 	"gdxsv/gdxsv/battle"
 )
@@ -344,7 +349,6 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 	p.app.users[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
 	p.SendMessage(NewServerQuestion(lbsAskBattleResult))
-	p.SendMessage(NewServerNotice(lbsAddProgress))
 })
 
 var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
@@ -377,22 +381,42 @@ var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
 	unk26 := r.Read16()
 	unk27 := r.Read16()
 	unk28 := r.Read16()
-	result := BattleResult{
+	result := &BattleResult{
 		unk1, unk2, unk3, unk4, unk5, unk6,
 		unk7, unk8, unk9, unk10, unk11, unk12,
 		unk13, unk14, unk15, unk16, unk17, unk18,
 		unk19, unk20, unk21, unk22, unk23, unk24,
 		unk25, unk26, unk27, unk28,
 	}
-	bin, _ := json.MarshalIndent(result, "", " ")
-	glog.Infof("======= BATTLE LOG : %v ======\n%v", p.UserID, string(bin))
-
+	p.app.OnGetBattleResult(p, result)
+	p.SendMessage(NewServerNotice(lbsAddProgress))
 })
 
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
 	// Client sends length-prefixed 640 bytes binary data.
 	// This is used when goto battle scene.
 	p.GameParam = m.Reader().ReadBytes()
+
+	// The data consists of keyconfig and pilot name.
+	// Pick pilot name.
+	r := m.Reader()
+	var buf []byte
+	for i := 0; i < 18; i++ {
+		r.Read8()
+	}
+	for 0 < r.Remaining() {
+		v := r.Read8()
+		if v == 0 {
+			break
+		}
+		buf = append(buf, v)
+	}
+	bin, err := ioutil.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
+	if err != nil {
+		glog.Errorln(err)
+	}
+	p.PilotName = string(bin)
+
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -427,46 +451,73 @@ var _ = register(lbsAskPatchData, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsRankRanking, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
-	_ = nowTopRank
+	ranking, err := getDB().GetWinCountRanking(0)
+	if nowTopRank == 0 && err == nil {
+		klass := p.WinCount / 100
+		if 14 <= klass {
+			klass = 14
+		}
 
-	klass := p.WinCount / 100
-	if 14 <= klass {
-		klass = 14
+		maxRank := len(ranking)
+		myRank := 0
+		i := sort.Search(len(ranking), func(i int) bool { return ranking[i].WinCount <= p.WinCount })
+		for _, rec := range ranking {
+			glog.Info(rec.UserID, rec.Name, rec.WinCount)
+		}
+		glog.Info("player win count:", p.WinCount)
+		glog.Info("i:", i)
+		if i < len(ranking) && ranking[i].WinCount == p.WinCount {
+			myRank = ranking[i].Rank
+		} else {
+			myRank = i // means out of rank
+		}
+
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write8(uint8(klass)).
+			Write32(uint32(myRank)).
+			Write32(uint32(maxRank)).Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write8(uint8(10)).
+			Write32(uint32(20)).
+			Write32(uint32(30)).Msg())
 	}
-
-	// TODO: ranking
-	numerator := 100
-	denominator := 100
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write8(uint8(klass)).
-		Write32(uint32(numerator)).
-		Write32(uint32(denominator)).Msg())
 })
 
 var _ = register(lbsWinLose, func(p *AppPeer, m *Message) {
-	// TODO: Implement ranking
 	nowTopRank := m.Reader().Read8()
-	_ = nowTopRank
+	if nowTopRank == 0 {
+		klass := p.WinCount / 100
+		if 14 <= klass {
+			klass = 14
+		}
 
-	klass := p.WinCount / 100
-	if 14 <= klass {
-		klass = 14
+		userWin := r16(p.WinCount)
+		userLose := r16(p.LoseCount)
+		userDraw := uint16(0)
+		userInvalid := r16(p.BattleCount - p.WinCount - p.LoseCount)
+		userBattlePoint1 := uint32(0)
+		userBattlePoint2 := uint32(0)
+
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(uint16(klass)).
+			Write16(userWin).
+			Write16(userLose).
+			Write16(userDraw).
+			Write16(userInvalid).
+			Write32(userBattlePoint1).
+			Write32(userBattlePoint2).Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(uint16(1)).
+			Write16(100).
+			Write16(100).
+			Write16(100).
+			Write16(0).
+			Write32(1).
+			Write32(1).Msg())
 	}
-	userWin := r16(p.WinCount)
-	userLose := r16(p.LoseCount)
-	userDraw := uint16(0)
-	userInvalid := r16(p.BattleCount - p.WinCount - p.LoseCount)
-	userBattlePoint1 := uint32(0)
-	userBattlePoint2 := uint32(0)
 
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(uint16(klass)).
-		Write16(userWin).
-		Write16(userLose).
-		Write16(userDraw).
-		Write16(userInvalid).
-		Write32(userBattlePoint1).
-		Write32(userBattlePoint2).Msg())
 })
 
 var _ = register(lbsDeviceData, func(p *AppPeer, m *Message) {
@@ -635,12 +686,21 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 		if p.Lobby.CanBattleStart() {
 			b := NewBattle(p.app, p.Lobby.ID)
 			b.BattleCode = GenBattleCode()
-			for _, q := range p.Lobby.PickBattleUsers() {
+			participants := p.Lobby.PickBattleUsers()
+			for _, q := range participants {
 				b.Add(q)
 				q.Battle = b
-				NotifyReadyBattle(q)
 				battle.AddUserWhoIsGoingTobattle(
 					b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
+				getDB().AddBattleRecord(&BattleRecord{
+					BattleCode: b.BattleCode,
+					UserID:     q.UserID,
+					UserName:   q.Name,
+					PilotName:  q.PilotName,
+					Players:    len(participants),
+					Aggregate:  1,
+				})
+				NotifyReadyBattle(q)
 			}
 		}
 
@@ -875,17 +935,23 @@ var _ = register(lbsPostChatMessage, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsTopRankingTag, func(p *AppPeer, m *Message) {
 	topRankSuu := uint8(1)
-	topRankTag := "UNDER CONSTRUCTION"
+	topRankTag := "勝利数ランキング"
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(topRankSuu).
 		WriteString(topRankTag).Msg())
 })
 
 var _ = register(lbsTopRankingSuu, func(p *AppPeer, m *Message) {
+	// How many users there is in the ranking
+	// page: ranking kind?
 	page := m.Reader().Read8()
 	glog.Infoln("page", page)
-	topRunkSuu := uint16(1)
-	p.SendMessage(NewServerAnswer(m).Writer().Write16(topRunkSuu).Msg())
+
+	n := 0
+	if ranking, err := getDB().GetWinCountRanking(0); err == nil {
+		n = len(ranking)
+	}
+	p.SendMessage(NewServerAnswer(m).Writer().Write16(uint16(n)).Msg())
 })
 
 var _ = register(lbsTopRanking, func(p *AppPeer, m *Message) {
@@ -895,8 +961,31 @@ var _ = register(lbsTopRanking, func(p *AppPeer, m *Message) {
 	num3 := r.Read16()
 	glog.Infoln("TopRanking", num1, num2, num3)
 
-	topRankerNum := uint16(1)
-	topRankStr := "UNDER CONSTRUCTION"
+	ranking, err := getDB().GetWinCountRanking(0)
+	if err != nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+	index := int(num2 - 1)
+
+	if index < 0 || len(ranking) <= index {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	// Note: <COLOR=N>
+	// 0: 白
+	// 1: 赤
+	// 2: 緑
+	// 3: 黄
+	// 4: 青
+	// 5: 紫
+
+	rec := ranking[index]
+	topRankerNum := uint16(num2)
+	topRankStr := fmt.Sprintf("<SIZE=4><BODY>%3d位 <COLOR=3> %s <COLOR=4>%v<BR>", rec.Rank, width.Widen.String(rec.UserID), rec.Name) +
+		fmt.Sprintf("<SIZE=3><COLOR=0>%5d<COLOR=3>戦<COLOR=0> %5d<COLOR=3>勝<COLOR=0> %5d<COLOR=3>敗<COLOR=0> %5d<COLOR=3>無効<COLOR=0><END>",
+			rec.BattleCount, rec.WinCount, rec.LoseCount, rec.BattleCount-rec.WinCount-rec.LoseCount)
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(topRankerNum).
 		WriteString(topRankStr).Msg())

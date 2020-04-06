@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/rpc"
@@ -262,6 +263,126 @@ func (a *App) BroadcastRoomState(room *Room) {
 	}
 }
 
+func (a *App) OnGetBattleResult(p *AppPeer, result *BattleResult) {
+	js, err := json.Marshal(result)
+	if err != nil {
+		glog.Errorln("Failed to marshal battle result", err)
+		glog.Infoln(result)
+		return
+	}
+
+	record, err := getDB().GetBattleRecordUser(result.BattleCode, p.UserID)
+	if err != nil {
+		glog.Errorln("Failed to load battle record", err)
+		glog.Infoln(string(js))
+		return
+	}
+
+	record.Round = int(result.BattleCount)
+	record.Win = int(result.WinCount)
+	record.Lose = int(result.LoseCount)
+	record.Kill = int(result.KillCount)
+	record.Death = 0 // missing in gdxsv
+	record.Frame = 0 // missing in gdxsv
+	record.Result = string(js)
+
+	err = getDB().UpdateBattleRecord(record)
+	if err != nil {
+		glog.Errorln("Failed to save battle record", err)
+		glog.Infoln(record)
+		return
+	}
+
+	glog.Infoln("before", p.DBUser)
+	rec, err := getDB().CalculateUserTotalBattleCount(p.UserID, 0)
+	if err != nil {
+		glog.Errorln("Failed to calculate battle count", err)
+		return
+	}
+
+	p.DBUser.BattleCount = rec.Battle
+	p.DBUser.WinCount = rec.Win
+	p.DBUser.LoseCount = rec.Lose
+	p.DBUser.KillCount = rec.Kill
+	p.DBUser.DeathCount = rec.Death
+
+	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 1)
+	if err != nil {
+		glog.Errorln("Failed to calculate battle count", err)
+		return
+	}
+
+	p.DBUser.RenpoBattleCount = rec.Battle
+	p.DBUser.RenpoWinCount = rec.Win
+	p.DBUser.RenpoLoseCount = rec.Lose
+	p.DBUser.RenpoKillCount = rec.Kill
+	p.DBUser.RenpoDeathCount = rec.Death
+
+	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 1)
+	if err != nil {
+		glog.Errorln("Failed to calculate battle count", err)
+		return
+	}
+
+	p.DBUser.ZeonBattleCount = rec.Battle
+	p.DBUser.ZeonWinCount = rec.Win
+	p.DBUser.ZeonLoseCount = rec.Lose
+	p.DBUser.ZeonKillCount = rec.Kill
+	p.DBUser.ZeonDeathCount = rec.Death
+
+	rec, err = getDB().CalculateUserDailyBattleCount(p.UserID)
+	if err != nil {
+		glog.Errorln("Failed to calculate battle count", err)
+		return
+	}
+
+	p.DBUser.DailyBattleCount = rec.Battle
+	p.DBUser.DailyWinCount = rec.Win
+	p.DBUser.DailyLoseCount = rec.Lose
+
+	err = getDB().UpdateUser(&p.DBUser)
+	if err != nil {
+		glog.Errorln(err)
+		return
+	}
+	glog.Infoln("after", p.DBUser)
+}
+
+type RankingEntry struct {
+	Rank        uint32
+	EntireCount uint32
+	Class       byte
+	Battle      uint32
+	Win         uint32
+	Lose        uint32
+	Invalid     uint32
+	Kill        uint32
+}
+
+func (a *App) getUserRanking(userID string, side byte) *RankingEntry {
+	res, err := getDB().CalculateUserTotalBattleCount(userID, side)
+	if err != nil {
+		glog.Errorln(err)
+	}
+
+	// TODO: Consider a reasonable calculation method.
+	c := res.Win / 100
+	if 14 <= c {
+		c = 14
+	}
+
+	return &RankingEntry{
+		Rank:        0, // TODO
+		EntireCount: 0, // TODO
+		Class:       byte(c),
+		Battle:      uint32(res.Battle),
+		Win:         uint32(res.Win),
+		Lose:        uint32(res.Lose),
+		Invalid:     uint32(res.Battle - res.Win - res.Lose),
+		Kill:        uint32(res.Kill),
+	}
+}
+
 type AppPeer struct {
 	DBUser
 
@@ -273,6 +394,7 @@ type AppPeer struct {
 
 	Entry     uint16
 	GameParam []byte
+	PilotName string
 
 	inLobbyChat       bool
 	inBattleAfterRoom bool
