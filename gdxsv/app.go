@@ -348,17 +348,6 @@ func (a *App) OnGetBattleResult(p *AppPeer, result *BattleResult) {
 	glog.Infoln("after", p.DBUser)
 }
 
-type RankingEntry struct {
-	Rank        uint32
-	EntireCount uint32
-	Class       byte
-	Battle      uint32
-	Win         uint32
-	Lose        uint32
-	Invalid     uint32
-	Kill        uint32
-}
-
 type AppPeer struct {
 	DBUser
 
@@ -371,6 +360,7 @@ type AppPeer struct {
 	Entry     uint16
 	GameParam []byte
 	PilotName string
+	Rank      int
 
 	inLobbyChat       bool
 	inBattleAfterRoom bool

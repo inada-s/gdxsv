@@ -449,32 +449,53 @@ var _ = register(lbsAskPatchData, func(p *AppPeer, m *Message) {
 	p.SendMessage(a)
 })
 
+func decideGrade(winCount, rank int) uint8 {
+	// grade 14 ~ 0
+	// [大将][中将][少将][大佐][中佐][少佐][大尉][中尉][少尉][曹長][軍曹][伍長][上等兵][一等兵][二等兵]
+
+	if rank == 0 {
+		// when ranking is not available.
+		return 0
+	}
+
+	grade := winCount / 100
+
+	if 14 <= grade {
+		grade = 14
+	}
+
+	if 12 <= grade {
+		if rank <= 5 {
+			rank = 14 // 1~5 [大将]
+		} else if rank <= 20 {
+			rank = 13 // 6~20 [中将]
+		} else if rank <= 50 {
+			rank = 12 // 21~50 [少将]
+		} else {
+			rank = 11 // 50~ [大佐]
+		}
+	}
+
+	return uint8(grade)
+}
+
 var _ = register(lbsRankRanking, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
 	ranking, err := getDB().GetWinCountRanking(0)
 	if nowTopRank == 0 && err == nil {
-		klass := p.WinCount / 100
-		if 14 <= klass {
-			klass = 14
-		}
-
 		maxRank := len(ranking)
-		myRank := 0
+		p.Rank = 0
 		i := sort.Search(len(ranking), func(i int) bool { return ranking[i].WinCount <= p.WinCount })
-		for _, rec := range ranking {
-			glog.Info(rec.UserID, rec.Name, rec.WinCount)
-		}
-		glog.Info("player win count:", p.WinCount)
-		glog.Info("i:", i)
 		if i < len(ranking) && ranking[i].WinCount == p.WinCount {
-			myRank = ranking[i].Rank
+			p.Rank = ranking[i].Rank
 		} else {
-			myRank = i // means out of rank
+			p.Rank = i // means out of rank
 		}
+		grade := decideGrade(p.WinCount, p.Rank)
 
 		p.SendMessage(NewServerAnswer(m).Writer().
-			Write8(uint8(klass)).
-			Write32(uint32(myRank)).
+			Write8(uint8(grade)).
+			Write32(uint32(p.Rank)).
 			Write32(uint32(maxRank)).Msg())
 	} else {
 		p.SendMessage(NewServerAnswer(m).Writer().
@@ -487,11 +508,7 @@ var _ = register(lbsRankRanking, func(p *AppPeer, m *Message) {
 var _ = register(lbsWinLose, func(p *AppPeer, m *Message) {
 	nowTopRank := m.Reader().Read8()
 	if nowTopRank == 0 {
-		klass := p.WinCount / 100
-		if 14 <= klass {
-			klass = 14
-		}
-
+		grade := decideGrade(p.WinCount, p.Rank)
 		userWin := r16(p.WinCount)
 		userLose := r16(p.LoseCount)
 		userDraw := uint16(0)
@@ -500,7 +517,7 @@ var _ = register(lbsWinLose, func(p *AppPeer, m *Message) {
 		userBattlePoint2 := uint32(0)
 
 		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(uint16(klass)).
+			Write16(uint16(grade)).
 			Write16(userWin).
 			Write16(userLose).
 			Write16(userDraw).
@@ -1053,18 +1070,14 @@ var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	u := p.Battle.GetUserByPos(pos)
 	param := p.Battle.GetGameParamByPos(pos)
 	side := p.Battle.GetUserSide(u.UserID)
-	// TODO: Consider a reasonable calculation method.
-	klass := u.WinCount / 100
-	if 14 <= klass {
-		klass = 14
-	}
+	grade := decideGrade(u.WinCount, p.Battle.GetUserRankByPos(pos))
 
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write8(pos).
 		WriteString(u.UserID).
 		WriteString(u.Name).
 		WriteBytes(param).
-		Write16(uint16(klass)).
+		Write16(uint16(grade)).
 		Write16(r16(u.WinCount)).
 		Write16(r16(u.LoseCount)).
 		Write16(0). // draw count

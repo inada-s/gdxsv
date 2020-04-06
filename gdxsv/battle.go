@@ -12,6 +12,7 @@ type Battle struct {
 	ServerIP   net.IP
 	ServerPort uint16
 	Users      []*DBUser
+	UserRanks  []int
 	RenpoIDs   []string
 	ZeonIDs    []string
 	GameParams [][]byte
@@ -26,6 +27,7 @@ func NewBattle(app *App, lobbyID uint16) *Battle {
 		app: app,
 
 		Users:      make([]*DBUser, 0),
+		UserRanks:  make([]int, 0),
 		GameParams: make([][]byte, 0),
 		RenpoIDs:   make([]string, 0),
 		ZeonIDs:    make([]string, 0),
@@ -41,6 +43,7 @@ func (b *Battle) SetRule(rule *Rule) {
 func (b *Battle) Add(p *AppPeer) {
 	b.Users = append(b.Users, &p.DBUser)
 	b.GameParams = append(b.GameParams, p.GameParam)
+	b.UserRanks = append(b.UserRanks, p.Rank)
 	if p.Entry == EntryRenpo {
 		b.RenpoIDs = append(b.RenpoIDs, p.UserID)
 	} else if p.Entry == EntryZeon {
@@ -67,7 +70,7 @@ func (b *Battle) GetPosition(userID string) byte {
 }
 
 func (b *Battle) GetUserByPos(pos byte) *DBUser {
-	pos -= 1
+	pos--
 	if pos < 0 || len(b.Users) < int(pos) {
 		return nil
 	}
@@ -75,11 +78,19 @@ func (b *Battle) GetUserByPos(pos byte) *DBUser {
 }
 
 func (b *Battle) GetGameParamByPos(pos byte) []byte {
-	pos -= 1
-	if pos < 0 || len(b.Users) < int(pos) {
+	pos--
+	if pos < 0 || len(b.GameParams) < int(pos) {
 		return nil
 	}
 	return b.GameParams[pos]
+}
+
+func (b *Battle) GetUserRankByPos(pos byte) int {
+	pos--
+	if pos < 0 || len(b.UserRanks) < int(pos) {
+		return 0
+	}
+	return b.UserRanks[pos]
 }
 
 func (b *Battle) GetUserSide(userID string) uint16 {
