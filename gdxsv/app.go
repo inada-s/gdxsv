@@ -318,7 +318,7 @@ func (a *App) OnGetBattleResult(p *AppPeer, result *BattleResult) {
 	p.DBUser.RenpoKillCount = rec.Kill
 	p.DBUser.RenpoDeathCount = rec.Death
 
-	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 1)
+	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 2)
 	if err != nil {
 		glog.Errorln("Failed to calculate battle count", err)
 		return
@@ -357,30 +357,6 @@ type RankingEntry struct {
 	Lose        uint32
 	Invalid     uint32
 	Kill        uint32
-}
-
-func (a *App) getUserRanking(userID string, side byte) *RankingEntry {
-	res, err := getDB().CalculateUserTotalBattleCount(userID, side)
-	if err != nil {
-		glog.Errorln(err)
-	}
-
-	// TODO: Consider a reasonable calculation method.
-	c := res.Win / 100
-	if 14 <= c {
-		c = 14
-	}
-
-	return &RankingEntry{
-		Rank:        0, // TODO
-		EntireCount: 0, // TODO
-		Class:       byte(c),
-		Battle:      uint32(res.Battle),
-		Win:         uint32(res.Win),
-		Lose:        uint32(res.Lose),
-		Invalid:     uint32(res.Battle - res.Win - res.Lose),
-		Kill:        uint32(res.Kill),
-	}
 }
 
 type AppPeer struct {
