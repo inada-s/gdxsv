@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"math"
 	"net"
@@ -66,10 +67,22 @@ const (
 	lbsRecvMail       CmdID = 0x6705
 	lbsManagerMessage CmdID = 0x6706
 
-	lbsLoginType            CmdID = 0x6110
-	lbsConnectionID         CmdID = 0x6101
-	lbsAskConnectionID      CmdID = 0x6102
-	lbsWarningMessage       CmdID = 0x6103
+	lbsLoginType       CmdID = 0x6110
+	lbsConnectionID    CmdID = 0x6101
+	lbsAskConnectionID CmdID = 0x6102
+	lbsWarningMessage  CmdID = 0x6103
+
+	lbsEncodeStart CmdID = 0x613a
+	lbsUserInfo1   CmdID = 0x6131
+	lbsUserInfo2   CmdID = 0x6132 // UNUSED
+	lbsUserInfo3   CmdID = 0x6133 // UNUSED
+	lbsUserInfo4   CmdID = 0x6134 // UNUSED
+	lbsUserInfo5   CmdID = 0x6135 // UNUSED
+	lbsUserInfo6   CmdID = 0x6136 // UNUSED
+	lbsUserInfo7   CmdID = 0x6137 // UNUSED
+	lbsUserInfo8   CmdID = 0x6138 // UNUSED
+	lbsUserInfo9   CmdID = 0x6139
+
 	lbsRegulationHeader     CmdID = 0x6820
 	lbsRegulationText       CmdID = 0x6821
 	lbsRegulationFooter     CmdID = 0x6822
@@ -181,38 +194,8 @@ func StartLoginFlow(p *AppPeer) {
 
 var _ = register(lbsAskConnectionID, func(p *AppPeer, m *Message) {
 	connID := m.Reader().ReadString()
-
-	if len(connID) == 0 {
-		connID = "temptemp"
-	}
-	// We use initial connID to identify a user.
-	// The value should be written by patch.
-	if len(connID) != 8 {
-		glog.Warning("invalid connection id: ", connID)
-		p.conn.Close()
-		return
-	}
-
-	glog.Info("connID", connID)
-	account, err := getDB().GetAccountBySessionID(connID)
-	if err != nil {
-		// We use initial connID as loginKey
-		loginKey := connID
-		account, err = getDB().GetAccountByLoginKey(loginKey)
-		if err != nil {
-			glog.Info("register account")
-			account, err = getDB().RegisterAccountWithLoginKey(p.Address(), loginKey)
-			if err != nil {
-				glog.Error("failed to create account", err)
-				p.conn.Close()
-				return
-			}
-		}
-	}
-
-	getDB().LoginAccount(account)
-	p.SessionID = account.SessionID // generated session id
-
+	p.lastConnectionID = connID
+	p.SessionID = genSessionID()
 	p.SendMessage(NewServerQuestion(lbsConnectionID).Writer().
 		WriteString(p.SessionID).Msg())
 })
@@ -233,40 +216,118 @@ var _ = register(lbsRegulationHeader, func(p *AppPeer, m *Message) {
 	p.SendMessage(NewServerQuestion(lbsLoginType))
 })
 
+func sendUserList(p *AppPeer) {
+	account, err := getDB().GetAccountBySessionID(p.SessionID)
+	if err != nil {
+		glog.Warning("failed to get account: ", p.SessionID)
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY>FAILED TO GET ACCOUNT INFO<END>").Msg())
+		return
+	}
+
+	users, err := getDB().GetUserList(account.LoginKey)
+	if err != nil {
+		glog.Warning("failed to get user list", account.SessionID)
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>FAILED TO GET USER LIST<END>").Msg())
+		return
+	}
+
+	n := NewServerNotice(lbsUserHandle)
+	w := n.Writer()
+	w.Write8(uint8(len(users)))
+	for _, u := range users {
+		w.WriteString(u.UserID)
+		w.WriteString(u.Name)
+	}
+	p.SendMessage(n)
+}
+
 var _ = register(lbsLoginType, func(p *AppPeer, m *Message) {
 	loginType := m.Reader().Read8()
 
-	// loginType == 0 means the user have an account.
-	// loginType == 3 means the user seems to have returned from match.
-	if loginType == 0 || loginType == 3 {
-		account, err := getDB().GetAccountBySessionID(p.SessionID)
-		if err != nil {
-			glog.Warning("failed to account : ", p.SessionID)
-			p.conn.Close()
+	// LoginType
+	// 0 : 「ネットワーク接続」
+	// 1 : 「新規登録」
+	// 2 : 「登録情報変更」
+	// 3 : The user come back from battle server
+
+	switch loginType {
+	case 2:
+		// Go to account registration flow.
+		p.SendMessage(NewServerQuestion(lbsUserInfo1))
+	case 3:
+		// The user must have valid connection_id.
+		if p.lastConnectionID == "" {
+			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+				WriteString("<LF=5><BODY>INVALID CONNECTION ID<END>").Msg())
 			return
 		}
 
-		users, err := getDB().GetUserList(account.LoginKey)
+		account, err := getDB().GetAccountBySessionID(p.lastConnectionID)
 		if err != nil {
-			glog.Warning("failed to get user list", account.SessionID)
-			p.conn.Close()
+			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+				WriteString("<LF=5><BODY>FAILED TO GET ACCOUNT<END>").Msg())
 			return
 		}
 
-		n := NewServerNotice(lbsUserHandle)
-		w := n.Writer()
-		w.Write8(uint8(len(users)))
-		for _, u := range users {
-			w.WriteString(u.UserID)
-			w.WriteString(u.Name)
+		// Update session_id that was generated when the first request.
+		err = getDB().LoginAccount(account, p.SessionID)
+		if err != nil {
+			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+				WriteString("<LF=5><BODY>FAILED TO LOGIN<END>").Msg())
+			return
 		}
-		p.SendMessage(n)
-	} else {
-		// The original user registration flow uses real personal information.
-		// We don't implement this because we don't want to collect personal information.
+
+		sendUserList(p)
+	default:
 		glog.Warning("UNSUPPORTED LOGIN TYPE", loginType)
-		p.conn.Close()
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY>UNSUPPORTED LOGIN TYPE<END>").Msg())
 	}
+})
+
+var _ = register(lbsEncodeStart, func(p *AppPeer, m *Message) {
+	// Client sends this packet before sending user personal info.
+	// There is no special information.
+})
+
+var _ = register(lbsUserInfo1, func(p *AppPeer, m *Message) {
+	// Calculate hash value of telephone number that has been treated simple encryption,
+	// and use it as login_key.
+	// If user send same telephone number same login key must be generated.
+	hasher := fnv.New32()
+	hasher.Write(m.Reader().ReadBytes())
+	loginKey := hex.EncodeToString(hasher.Sum(nil))
+
+	// If the user already have an account, get it.
+	account, err := getDB().GetAccountByLoginKey(loginKey)
+	if err != nil {
+		account, err = getDB().RegisterAccountWithLoginKey(p.Address(), loginKey)
+		if err != nil {
+			glog.Error("failed to create account", err)
+			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+				WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
+			return
+		}
+	}
+
+	// Now the user has valid account.
+	// Update session_id that was generated when the first request.
+	err = getDB().LoginAccount(account, p.SessionID)
+	if err != nil {
+		glog.Error("failed to login account", err)
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>FAILED TO LOGIN<END>").Msg())
+		return
+	}
+
+	// skip 2~8 that's ok.
+	p.SendMessage(NewServerQuestion(lbsUserInfo9))
+})
+
+var _ = register(lbsUserInfo9, func(p *AppPeer, m *Message) {
+	sendUserList(p)
 })
 
 var _ = register(lbsUserRegist, func(p *AppPeer, m *Message) {

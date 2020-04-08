@@ -453,6 +453,7 @@ type AppPeer struct {
 	PilotName string
 	Rank      int
 
+	lastConnectionID  string
 	inLobbyChat       bool
 	inBattleAfterRoom bool
 

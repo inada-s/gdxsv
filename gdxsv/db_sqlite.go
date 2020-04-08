@@ -230,9 +230,8 @@ func (db SQLiteDB) GetAccountBySessionID(sid string) (*Account, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) LoginAccount(a *Account) error {
-	a.SessionID = genSessionID()
-	a.LastLogin = time.Now()
+func (db SQLiteDB) LoginAccount(a *Account, sessionID string) error {
+	now := time.Now()
 	_, err := db.Exec(`
 UPDATE
 	account
@@ -241,10 +240,15 @@ SET
 	last_login = ?
 WHERE
 	login_key = ?`,
-		a.SessionID,
-		a.LastLogin,
+		sessionID,
+		now,
 		a.LoginKey)
-	return err
+	if err != nil {
+		return err
+	}
+	a.LastLogin = now
+	a.SessionID = sessionID
+	return nil
 }
 
 func (db SQLiteDB) RegisterUser(loginKey string) (*DBUser, error) {

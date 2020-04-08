@@ -136,8 +136,8 @@ type DB interface {
 	// GetAccountBySessionID retrieves an account by session-id.
 	GetAccountBySessionID(sessionID string) (*Account, error)
 
-	// LoginAccount updates last login information.
-	LoginAccount(*Account) error
+	// LoginAccount updates last login information and update sessionID.
+	LoginAccount(account *Account, sessionID string) error
 
 	// RegisterUser creates new user.
 	// An account can hold three users.
