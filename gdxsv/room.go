@@ -14,6 +14,7 @@ const (
 type Room struct {
 	app *App
 
+	Platform  uint8
 	ID        uint16
 	LobbyID   uint16
 	Name      string
@@ -26,16 +27,17 @@ type Room struct {
 	Rule      *Rule
 }
 
-func NewRoom(app *App, lobbyID, roomID uint16) *Room {
+func NewRoom(app *App, platform uint8, lobbyID, roomID uint16) *Room {
 	return &Room{
 		app: app,
 
-		ID:      roomID,
-		LobbyID: lobbyID,
-		Name:    "",
-		Status:  RoomStateEmpty,
-		Rule:    NewRule(),
-		Users:   make([]*DBUser, 0),
+		Platform: platform,
+		ID:       roomID,
+		LobbyID:  lobbyID,
+		Name:     "",
+		Status:   RoomStateEmpty,
+		Rule:     NewRule(),
+		Users:    make([]*DBUser, 0),
 	}
 }
 
@@ -82,7 +84,7 @@ func (r *Room) Exit(userID string) {
 }
 
 func (r *Room) Remove() {
-	*r = *NewRoom(r.app, r.LobbyID, r.ID)
+	*r = *NewRoom(r.app, r.Platform, r.LobbyID, r.ID)
 }
 
 func (r *Room) Entry(u *AppPeer, side uint16) {

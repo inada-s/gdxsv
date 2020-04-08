@@ -3,6 +3,7 @@ package main
 type Lobby struct {
 	app *App
 
+	Platform   uint8
 	ID         uint16
 	Rule       *Rule
 	Users      map[string]*DBUser
@@ -10,10 +11,11 @@ type Lobby struct {
 	EntryUsers []string
 }
 
-func NewLobby(app *App, lobbyID uint16) *Lobby {
+func NewLobby(app *App, platform uint8, lobbyID uint16) *Lobby {
 	lobby := &Lobby{
 		app: app,
 
+		Platform:   platform,
 		ID:         lobbyID,
 		Rule:       NewRule(),
 		Users:      make(map[string]*DBUser),
@@ -22,7 +24,7 @@ func NewLobby(app *App, lobbyID uint16) *Lobby {
 	}
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
-		lobby.Rooms[roomID] = NewRoom(app, lobbyID, roomID)
+		lobby.Rooms[roomID] = NewRoom(app, platform, lobbyID, roomID)
 	}
 	return lobby
 }

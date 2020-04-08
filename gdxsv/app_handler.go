@@ -160,7 +160,7 @@ var _ = register(lbsLogout, func(p *AppPeer, m *Message) {
 	}
 	if p.Lobby != nil {
 		p.Lobby.Exit(p.UserID)
-		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+		p.app.BroadcastLobbyUserCount(p.Lobby)
 		p.Lobby = nil
 	}
 })
@@ -182,6 +182,9 @@ func StartLoginFlow(p *AppPeer) {
 var _ = register(lbsAskConnectionID, func(p *AppPeer, m *Message) {
 	connID := m.Reader().ReadString()
 
+	if len(connID) == 0 {
+		connID = "temptemp"
+	}
 	// We use initial connID to identify a user.
 	// The value should be written by patch.
 	if len(connID) != 8 {
@@ -438,11 +441,23 @@ var _ = register(lbsAskPatchData, func(p *AppPeer, m *Message) {
 	platform := r.Read8()
 	crule := r.Read8()
 	data := r.ReadString()
-	_ = platform
-	_ = crule
-	_ = data
 
-	glog.Infoln(platform, crule, data)
+	// Detect client platform
+	// TODO: DC1
+	if platform == 1 && crule == 2 && data == "1100" {
+		p.Platform = PlatformPS2
+	} else if platform == 0 && crule == 3 && data == "1000" {
+		p.Platform = PlatformDC2
+	} else {
+		glog.Warning("============================")
+		glog.Warning("UNKNOWN CLIENT PLATFORM TYPE")
+		glog.Warningln(platform)
+		glog.Warningln(crule)
+		glog.Warningln(data)
+		glog.Warning("============================")
+		p.conn.Close()
+		return
+	}
 
 	a := NewServerAnswer(m)
 	a.Status = StatusError // this means no patch data probably.
@@ -549,6 +564,9 @@ var _ = register(lbsDeviceData, func(p *AppPeer, m *Message) {
 	data8 := r.Read16()
 	glog.Info("DeviceData",
 		data1, data2, data3, data4, data5, data6, data7, data8)
+	// PS2: 0 0 0 999 1 0 0 0
+	// DC1:
+	// DC2: 0 0 0 0 1 0 0 0
 
 	p.SendMessage(NewServerAnswer(m))
 })
@@ -570,6 +588,7 @@ var _ = register(lbsInvitationTag, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsPlazaMax, func(p *AppPeer, m *Message) {
+	// DC2 LobbyID: 2, 4-6, 9-17, 19-22
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(maxLobbyCount).Msg())
 })
@@ -583,17 +602,38 @@ var _ = register(lbsPlazaTitle, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsPlazaJoin, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.lobbys[lobbyID]
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(lobbyID).
-		Write16(uint16(len(lobby.Users))).Msg())
+	// PS2: LobbyID, UserCount
+	// DC : LobbyID, DC1UserCount, DC2UserCount
+	if p.IsPS2() {
+		lobby := p.app.GetLobby(p.Platform, lobbyID)
+		if lobby == nil {
+			p.SendMessage(NewServerAnswer(m).SetErr())
+			return
+		}
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			Write16(uint16(len(lobby.Users))).Msg())
+	} else if p.IsDC() {
+		lobby1 := p.app.GetLobby(PlatformDC1, lobbyID)
+		lobby2 := p.app.GetLobby(PlatformDC2, lobbyID)
+		if lobby1 == nil || lobby2 == nil {
+			p.SendMessage(NewServerAnswer(m).SetErr())
+			return
+		}
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			Write16(uint16(len(lobby1.Users))).
+			Write16(uint16(len(lobby2.Users))).Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+	}
 })
 
 var _ = register(lbsPlazaStatus, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
-		Write8(1).Msg())
+		Write8(uint8(3)).Msg())
 })
 
 var _ = register(lbsPlazaExplain, func(p *AppPeer, m *Message) {
@@ -605,58 +645,76 @@ var _ = register(lbsPlazaExplain, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsPlazaEntry, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.lobbys[lobbyID]
+	lobby := p.app.GetLobby(p.Platform, lobbyID)
+	if lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
 	p.Lobby = lobby
 	p.Entry = EntryNone
 	p.inLobbyChat = false
 
 	lobby.Enter(p)
 	p.SendMessage(NewServerAnswer(m))
-	p.app.BroadcastLobbyUserCount(lobbyID)
+	p.app.BroadcastLobbyUserCount(lobby)
 })
 
 var _ = register(lbsPlazaExit, func(p *AppPeer, m *Message) {
-	if p.Lobby != nil {
-		lobbyID := p.Lobby.ID
-
-		p.Lobby.Exit(p.UserID)
-		p.Lobby = nil
-		p.Entry = EntryNone
-		p.inLobbyChat = false
-
-		p.SendMessage(NewServerAnswer(m))
-		p.app.BroadcastLobbyUserCount(lobbyID)
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	lobby := p.Lobby
+
+	p.Lobby.Exit(p.UserID)
+	p.Lobby = nil
+	p.Entry = EntryNone
+	p.inLobbyChat = false
+
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastLobbyUserCount(lobby)
 })
 
 var _ = register(lbsLobbyEntry, func(p *AppPeer, m *Message) {
-	if p.Lobby != nil {
-		side := m.Reader().Read16()
-		p.Entry = side
-		p.inLobbyChat = true
-		p.SendMessage(NewServerAnswer(m))
-		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	side := m.Reader().Read16()
+	p.Entry = side
+	p.inLobbyChat = true
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastLobbyUserCount(p.Lobby)
 })
 
 var _ = register(lbsLobbyExit, func(p *AppPeer, m *Message) {
-	if p.Lobby != nil {
-		p.Entry = EntryNone
-		p.inLobbyChat = false
-		p.SendMessage(NewServerAnswer(m))
-		p.app.BroadcastLobbyUserCount(p.Lobby.ID)
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	// LobbyExit means go back to side select scene.
+	// So don't remove Lobby ref here.
+
+	p.Entry = EntryNone
+	p.inLobbyChat = false
+
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastLobbyUserCount(p.Lobby)
 })
 
 var _ = register(lbsLobbyJoin, func(p *AppPeer, m *Message) {
-	if p.Lobby != nil {
-		side := m.Reader().Read16()
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	side := m.Reader().Read16()
+	switch p.Lobby.Platform {
+	case PlatformPS2:
 		renpo, zeon := p.Lobby.GetUserCountBySide()
 		if p.inLobbyChat {
 			p.SendMessage(NewServerAnswer(m).Writer().
@@ -670,137 +728,185 @@ var _ = register(lbsLobbyJoin, func(p *AppPeer, m *Message) {
 					Write16(side).Write16(zeon).Msg())
 			}
 		}
-		return
+	case PlatformDC1, PlatformDC2:
+		lobby1 := p.app.GetLobby(PlatformDC1, p.Lobby.ID)
+		lobby2 := p.app.GetLobby(PlatformDC2, p.Lobby.ID)
+		if lobby1 == nil || lobby2 == nil {
+			p.SendMessage(NewServerAnswer(m).SetErr())
+			return
+		}
+
+		renpo1, zeon1 := lobby1.GetUserCountBySide()
+		renpo2, zeon2 := lobby2.GetUserCountBySide()
+		if p.inLobbyChat {
+			p.SendMessage(NewServerAnswer(m).Writer().
+				Write16(side).
+				Write16(renpo1 + zeon1).
+				Write16(renpo2 + zeon2).Msg())
+		} else {
+			if side == 1 {
+				p.SendMessage(NewServerAnswer(m).Writer().
+					Write16(side).
+					Write16(renpo1).
+					Write16(renpo2).Msg())
+			} else {
+				p.SendMessage(NewServerAnswer(m).Writer().
+					Write16(side).
+					Write16(zeon1).
+					Write16(zeon2).Msg())
+			}
+		}
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
 })
 
 var _ = register(lbsLobbyMatchingJoin, func(p *AppPeer, m *Message) {
-	if p.Lobby != nil {
-		side := m.Reader().Read16()
-		renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
-		if side == 1 {
-			p.SendMessage(NewServerAnswer(m).Writer().
-				Write16(side).Write16(renpo).Msg())
-		} else {
-			p.SendMessage(NewServerAnswer(m).Writer().
-				Write16(side).Write16(zeon).Msg())
-		}
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	side := m.Reader().Read16()
+	renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
+	if side == 1 {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(side).Write16(renpo).Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(side).Write16(zeon).Msg())
+	}
 })
 
 var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
-	enable := m.Reader().Read8()
-	if p.Lobby != nil {
-		if enable == 1 {
-			p.Lobby.Entry(p)
-		} else {
-			p.Lobby.EntryCancel(p.UserID)
-		}
-
-		if p.Lobby.CanBattleStart() {
-			b := NewBattle(p.app, p.Lobby.ID)
-			b.BattleCode = GenBattleCode()
-			participants := p.Lobby.PickBattleUsers()
-			for _, q := range participants {
-				b.Add(q)
-				q.Battle = b
-				battle.AddUserWhoIsGoingTobattle(
-					b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
-				getDB().AddBattleRecord(&BattleRecord{
-					BattleCode: b.BattleCode,
-					UserID:     q.UserID,
-					UserName:   q.Name,
-					PilotName:  q.PilotName,
-					Players:    len(participants),
-					Aggregate:  1,
-				})
-				NotifyReadyBattle(q)
-			}
-		}
-
-		p.SendMessage(NewServerAnswer(m))
-		p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby.ID)
-
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
 
+	enable := m.Reader().Read8()
+	if enable == 1 {
+		p.Lobby.Entry(p)
+	} else {
+		p.Lobby.EntryCancel(p.UserID)
+	}
+
+	if p.Lobby.CanBattleStart() {
+		b := NewBattle(p.app, p.Lobby.ID)
+		b.BattleCode = GenBattleCode()
+		participants := p.Lobby.PickBattleUsers()
+		for _, q := range participants {
+			b.Add(q)
+			q.Battle = b
+			battle.AddUserWhoIsGoingTobattle(
+				b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
+			getDB().AddBattleRecord(&BattleRecord{
+				BattleCode: b.BattleCode,
+				UserID:     q.UserID,
+				UserName:   q.Name,
+				PilotName:  q.PilotName,
+				Players:    len(participants),
+				Aggregate:  1,
+			})
+			NotifyReadyBattle(q)
+		}
+	}
+
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby)
 })
 
 var _ = register(lbsRoomStatus, func(p *AppPeer, m *Message) {
-	roomID := m.Reader().Read16()
-	if room, ok := p.Lobby.Rooms[roomID]; ok {
-		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(roomID).
-			Write8(room.Status).Msg())
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	roomID := m.Reader().Read16()
+	room, ok := p.Lobby.Rooms[roomID]
+	if !ok {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	p.SendMessage(NewServerAnswer(m).Writer().
+		Write16(roomID).
+		Write8(room.Status).Msg())
 })
 
 var _ = register(lbsRoomMax, func(p *AppPeer, m *Message) {
-	if p.Lobby != nil {
-		roomCount := uint16(len(p.Lobby.Rooms))
-		p.SendMessage(NewServerAnswer(m).Writer().Write16(roomCount).Msg())
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	roomCount := uint16(len(p.Lobby.Rooms))
+	p.SendMessage(NewServerAnswer(m).Writer().Write16(roomCount).Msg())
 })
 
 var _ = register(lbsRoomTitle, func(p *AppPeer, m *Message) {
-	roomID := m.Reader().Read16()
-	if p.Lobby != nil {
-		if room, ok := p.Lobby.Rooms[roomID]; ok {
-			p.SendMessage(NewServerAnswer(m).Writer().
-				Write16(roomID).
-				WriteString(room.Name).Msg())
-			return
-		}
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	roomID := m.Reader().Read16()
+	room, ok := p.Lobby.Rooms[roomID]
+	if !ok {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	p.SendMessage(NewServerAnswer(m).Writer().
+		Write16(roomID).
+		WriteString(room.Name).Msg())
 })
 
 var _ = register(lbsRoomCreate, func(p *AppPeer, m *Message) {
-	roomID := m.Reader().Read16()
-	if p.Lobby != nil {
-		lobby := p.Lobby
-		if room, ok := lobby.Rooms[roomID]; ok {
-			if room.Status == RoomStateEmpty {
-				room.Status = RoomStatePrepare
-				room.Owner = p.UserID
-				p.Room = room
-				p.SendMessage(NewServerAnswer(m))
-				p.app.BroadcastRoomState(room)
-				return
-			}
-		}
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr().Writer().
-		WriteString("<LF=6><BODY>Failed to create room<END>").Msg())
+
+	roomID := m.Reader().Read16()
+	room, ok := p.Lobby.Rooms[roomID]
+	if !ok {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	if room.Status != RoomStateEmpty {
+		p.SendMessage(NewServerAnswer(m).SetErr().Writer().
+			WriteString("<LF=6><BODY>Failed to create room<END>").Msg())
+		return
+	}
+
+	room.Status = RoomStatePrepare
+	room.Owner = p.UserID
+	p.Room = room
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastRoomState(room)
 })
 
 var _ = register(lbsPutRoomName, func(p *AppPeer, m *Message) {
-	if p.Room != nil && p.Room.Owner == p.UserID && p.Room.Status == RoomStatePrepare {
-		roomName := m.Reader().ReadShiftJISString()
-		p.Room.Name = roomName
-		p.SendMessage(NewServerAnswer(m))
-		p.app.BroadcastRoomState(p.Room)
+	if p.Room == nil || p.Room.Owner != p.UserID || p.Room.Status != RoomStatePrepare {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	roomName := m.Reader().ReadShiftJISString()
+	p.Room.Name = roomName
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastRoomState(p.Room)
 })
 
 var _ = register(lbsEndRoomCreate, func(p *AppPeer, m *Message) {
-	if p.Room != nil && p.Room.Owner == p.UserID && p.Room.Status == RoomStatePrepare {
-		p.Room.Enter(&p.DBUser)
-		p.SendMessage(NewServerAnswer(m))
-		p.app.BroadcastRoomState(p.Room)
+	if p.Room == nil || p.Room.Owner != p.UserID || p.Room.Status != RoomStatePrepare {
+		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+
+	p.Room.Enter(&p.DBUser)
+	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastRoomState(p.Room)
 })
 
 var _ = register(lbsSendMail, func(p *AppPeer, m *Message) {
@@ -812,16 +918,18 @@ var _ = register(lbsSendMail, func(p *AppPeer, m *Message) {
 	glog.Infoln("com1", comment1)
 	glog.Infoln("com2", comment2)
 
-	if u, ok := p.app.users[userID]; ok {
-		u.SendMessage(NewServerNotice(lbsRecvMail).Writer().
-			WriteString(p.UserID).
-			WriteString(p.Name).
-			WriteString(comment1).Msg())
-		p.SendMessage(NewServerAnswer(m))
-	} else {
+	u, ok := p.app.users[userID]
+	if !ok {
 		p.SendMessage(NewServerAnswer(m).SetErr().Writer().
 			WriteString("<LF=6><BODY><CENTER>THE USER IS NOT IN LOBBY<END>").Msg())
+		return
 	}
+
+	u.SendMessage(NewServerNotice(lbsRecvMail).Writer().
+		WriteString(p.UserID).
+		WriteString(p.Name).
+		WriteString(comment1).Msg())
+	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(lbsUserSite, func(p *AppPeer, m *Message) {
@@ -844,30 +952,36 @@ var _ = register(lbsWaitJoin, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsRoomEntry, func(p *AppPeer, m *Message) {
+	if p.Lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
 	r := m.Reader()
 	roomID := r.Read16()
-	unknown := r.Read16()
+	_ = r.Read16() // unknown
 
-	glog.Infoln("room entry", roomID, unknown)
+	room, ok := p.Lobby.Rooms[roomID]
+	if !ok {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
 
-	if p.Lobby != nil {
-		if room, ok := p.Lobby.Rooms[roomID]; ok {
-			if room.Status == RoomStateRecruiting {
-				room.Enter(&p.DBUser)
-				p.Room = room
-				for _, u := range room.Users {
-					if q, ok := p.app.FindPeer(u.UserID); ok {
-						q.SendMessage(NewServerNotice(lbsRoomCommer).Writer().
-							WriteString(u.UserID).
-							WriteString(u.Name).Msg())
-					}
-				}
-				p.SendMessage(NewServerAnswer(m))
-				return
-			}
+	if room.Status != RoomStateRecruiting {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	room.Enter(&p.DBUser)
+	p.Room = room
+	for _, u := range room.Users {
+		if q, ok := p.app.FindPeer(u.UserID); ok {
+			q.SendMessage(NewServerNotice(lbsRoomCommer).Writer().
+				WriteString(u.UserID).
+				WriteString(u.Name).Msg())
 		}
 	}
-	p.SendMessage(NewServerAnswer(m).SetErr())
+	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(lbsRoomExit, func(p *AppPeer, m *Message) {
@@ -1009,33 +1123,27 @@ var _ = register(lbsTopRanking, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsGoToTop, func(p *AppPeer, m *Message) {
-	p.Battle = nil
+	room := p.Room
+	lobby := p.Lobby
 
-	lobbyID := uint16(0)
-	roomID := uint16(0)
-
-	if p.Room != nil {
-		roomID = p.Room.ID
-		p.Room.Exit(p.UserID)
-		p.Room = nil
+	if room != nil {
+		room.Exit(p.UserID)
 	}
 
 	if p.Lobby != nil {
-		lobbyID = p.Lobby.ID
-		p.Lobby.Exit(p.UserID)
-		p.Lobby = nil
+		lobby.Exit(p.UserID)
 	}
 
+	p.Room = nil
+	p.Lobby = nil
+	p.Battle = nil
 	p.Entry = EntryNone
+
 	p.SendMessage(NewServerAnswer(m))
 
-	if lobbyID != 0 {
-		p.app.BroadcastLobbyUserCount(lobbyID)
-		p.app.BroadcastLobbyMatchEntryUserCount(lobbyID)
-		if roomID != 0 {
-			// TODO broadcast about room
-		}
-	}
+	p.app.BroadcastLobbyUserCount(lobby)
+	p.app.BroadcastLobbyMatchEntryUserCount(lobby)
+	p.app.BroadcastRoomState(room)
 })
 
 func NotifyReadyBattle(p *AppPeer) {

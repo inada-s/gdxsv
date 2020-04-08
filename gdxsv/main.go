@@ -102,6 +102,9 @@ func mainLobby() {
 	go app.ListenAndServe(stripHost(conf.LobbyAddr))
 	go app.ListenAndServeBattle(stripHost(conf.BattleAddr))
 
+	go app.ListenAndServe(stripHost(":9876"))
+	go app.ListenAndServe(stripHost(":37926"))
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c)
 	if *dump {
