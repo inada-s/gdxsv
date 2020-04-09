@@ -1,3 +1,6 @@
 [submodule "pcsx2"]
 	path = pcsx2
 	url = git@github.com:inada-s/pcsx2
+[submodule "flycast"]
+	path = flycast
+	url = git@github.com:inada-s/flycast.git
