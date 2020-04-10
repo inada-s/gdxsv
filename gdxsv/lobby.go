@@ -93,6 +93,11 @@ func (l *Lobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 
 func (l *Lobby) CanBattleStart() bool {
 	a, b := l.GetLobbyMatchEntryUserCount()
+	if l.ID == 2 {
+		// This game requires four players to play,
+		// but can check the connection to the battle server.
+		return 1 <= a || 1 <= b
+	}
 	return 2 <= a && 2 <= b
 }
 

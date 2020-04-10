@@ -699,9 +699,16 @@ var _ = register(lbsPlazaStatus, func(p *AppPeer, m *Message) {
 
 var _ = register(lbsPlazaExplain, func(p *AppPeer, m *Message) {
 	lobbyID := m.Reader().Read16()
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(lobbyID).
-		WriteString(fmt.Sprintf("<BODY>Lobby %d<END>", lobbyID)).Msg())
+	if lobbyID == 2 {
+		// Test to establish connection to battle server.
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			WriteString(fmt.Sprintf("<BODY>SINGLE USER CONN CHECK<END>")).Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			WriteString(fmt.Sprintf("<BODY>Lobby %d<END>", lobbyID)).Msg())
+	}
 })
 
 var _ = register(lbsPlazaEntry, func(p *AppPeer, m *Message) {
@@ -1326,5 +1333,5 @@ var _ = register(lbsAskMcsAddress, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsAskMcsVersion, func(p *AppPeer, m *Message) {
-	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(0).Write8(0).Msg())
 })
