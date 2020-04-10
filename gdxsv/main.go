@@ -103,7 +103,7 @@ func mainLobby() {
 	go app.ListenAndServeBattle(stripHost(conf.BattleAddr))
 
 	c := make(chan os.Signal, 1)
-	signal.Notify(c)
+	signal.Notify(c, os.Interrupt, os.Kill)
 	if *dump {
 		dumper := spew.NewDefaultConfig()
 		dumper.MaxDepth = 5
