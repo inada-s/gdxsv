@@ -213,6 +213,12 @@ u32 GDXFUNC gdx_McsReceive(u32 ptr, u32 len) {
 
 u32 GDXFUNC gdx_Ave_TcpOpen(u32 ip, u32 port) {
   gdx_info("gdx_Ave_TcpOpen\n");
+  // u32 ret = ((u32 (*)())0x00350630)(); // TCPInitialize()
+  // gdx_info("ret=%d\n", ret);
+
+  // endian fix
+  port = port >> 8 | (port & 0xFF) << 8;
+
   gdx_queue_init(&gdx_rxq);
   gdx_queue_init(&gdx_txq);
   gdx_rpc.request = RPC_TCP_OPEN;

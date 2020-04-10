@@ -1326,12 +1326,12 @@ var _ = register(lbsAskMcsAddress, func(p *AppPeer, m *Message) {
 	w.Write8(byte(b1))
 	w.Write8(byte(b2))
 	w.Write8(byte(b3))
-	w.Write16(4)
-	w.Write16LE(port)
+	w.Write16(2)
+	w.Write16(port)
 
 	p.SendMessage(a)
 })
 
 var _ = register(lbsAskMcsVersion, func(p *AppPeer, m *Message) {
-	p.SendMessage(NewServerAnswer(m).Writer().Write8(0).Write8(0).Msg())
+	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
 })
