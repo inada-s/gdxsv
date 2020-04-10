@@ -41,7 +41,9 @@ func main() {
 	must(err)
 	hash := hex.EncodeToString(h.Sum(nil))
 
-	if hash != "f3306ef9c874929685f0950a48cf5189" {
+	fmt.Println(hash)
+	if hash != "f3306ef9c874929685f0950a48cf5189" && // Disc2
+		hash != "5b8092cd7faf8954f96b3e918c840ad3" { // Disc1
 		panic("incorrect hash")
 	}
 
@@ -55,12 +57,22 @@ func main() {
 	atms := [][]byte{
 		[]byte("ATN3+MS=V34,1,14400,33600,14400,33600"),
 		[]byte("ATM1\r                                "),
-		[]byte("AT+MS=V34,1,33600,33600,33600,33600"),
-		[]byte("ATM1\r                              "),
-		[]byte("AT+MS=V34,1,28800,33600,28800,33600"),
-		[]byte("ATM1\r                              "),
-		[]byte("AT+MS=V34,1,14400,33600,14400,33600"),
-		[]byte("ATM1\r                              "),
+		/*
+			[]byte("AT+MS=V34,1,33600,33600,33600,33600"),
+			[]byte("ATM1\r                              "),
+			[]byte("AT+MS=V34,1,28800,33600,28800,33600"),
+			[]byte("ATM1\r                              "),
+			[]byte("AT+MS=V34,1,14400,33600,14400,33600"),
+			[]byte("ATM1\r                              "),
+			[]byte(`send"AT%C1`),
+			[]byte(`send"ATM1` + "\r"),
+			[]byte("ATX3&C1&D2"),
+			[]byte("ATM1\r     "),
+			[]byte("ATS46=136"),
+			[]byte("ATM1\r    "),
+			[]byte("AT&Q0\r"),
+			[]byte("ATM1\r\r"),
+		*/
 		[]byte("ca1203.mmcp6"),
 		[]byte("192.168.0.10"),
 	}
