@@ -43,7 +43,7 @@ func (u *TCPPeer) Serve(logic *Logic) {
 	// 6X := category?
 	// 1031 := request connection ID
 	// nn6XXXXX1031XXXXXXXXXXXXXXXX
-	data, _ := hex.DecodeString("0c610022103166778899aabbccdd")
+	data, _ := hex.DecodeString("0e610022103166778899aabbccdd")
 	u.AddSendData(data)
 	u.readLoop(logic)
 	if u.room != nil {
