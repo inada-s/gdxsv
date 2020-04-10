@@ -1,4 +1,5 @@
 bin/
+work/
 .vscode/
 log.txt
 dump.txt
