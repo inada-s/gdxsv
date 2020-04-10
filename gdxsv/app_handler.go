@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/golang/glog"
 	"golang.org/x/text/encoding/japanese"
@@ -1247,8 +1248,7 @@ var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 	param := p.Battle.GetGameParamByPos(pos)
 	side := p.Battle.GetUserSide(u.UserID)
 	grade := decideGrade(u.WinCount, p.Battle.GetUserRankByPos(pos))
-
-	p.SendMessage(NewServerAnswer(m).Writer().
+	msg := NewServerAnswer(m).Writer().
 		Write8(pos).
 		WriteString(u.UserID).
 		WriteString(u.Name).
@@ -1261,7 +1261,15 @@ var _ = register(lbsAskPlayerInfo, func(p *AppPeer, m *Message) {
 		Write16(0). // Unknown
 		Write16(side).
 		Write16(0). // Unknown
-		Msg())
+		Msg()
+
+	go func(p *AppPeer, msg *Message) {
+		// Client recv buffer is too short?
+		// so we must wait to send big data
+		// but it's dirty...
+		time.Sleep(time.Duration(pos) * time.Second)
+		p.SendMessage(msg)
+	}(p, msg)
 })
 
 var _ = register(lbsAskRuleData, func(p *AppPeer, m *Message) {
