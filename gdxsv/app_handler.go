@@ -89,12 +89,12 @@ const (
 	lbsUserHandle           CmdID = 0x6111
 	lbsUserRegist           CmdID = 0x6112
 	lbsUserDecide           CmdID = 0x6113
-	lbsAddProgress          CmdID = 0x6118
-	lbsAskBattleResult      CmdID = 0x6120
-	lbsAskGameVersion       CmdID = 0x6117
-	lbsAskGameCode          CmdID = 0x6116
-	lbsAskCountryCode       CmdID = 0x6115
 	lbsAskPlatformCode      CmdID = 0x6114
+	lbsAskCountryCode       CmdID = 0x6115
+	lbsAskGameCode          CmdID = 0x6116
+	lbsAskGameVersion       CmdID = 0x6117
+	lbsLoginOk              CmdID = 0x6118
+	lbsAskBattleResult      CmdID = 0x6120
 	lbsAskKDDICharges       CmdID = 0x6142
 	lbsPostGameParameter    CmdID = 0x6143
 	lbsWinLose              CmdID = 0x6145
@@ -412,6 +412,34 @@ var _ = register(lbsUserDecide, func(p *AppPeer, m *Message) {
 	p.DBUser = *u
 	p.app.users[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
+	p.SendMessage(NewServerQuestion(lbsAskGameCode))
+})
+
+var _ = register(lbsAskGameCode, func(p *AppPeer, m *Message) {
+	code := 0
+	if m.BodySize == 1 {
+		code = int(m.Reader().Read8())
+	} else {
+		code = int(m.Reader().Read16())
+	}
+
+	switch code {
+	case 0x02:
+		p.Platform = PlatformPS2
+	case 0x0300:
+		p.Platform = PlatformDC1
+	case 0x0301:
+		p.Platform = PlatformDC2
+	default:
+		glog.Warning("============================")
+		glog.Warning(" UNKNOWN CLIENT PLATFORM ")
+		glog.Warning(code)
+		glog.Warning("============================")
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>UNKNOWN CLIENT PLATFORM<END>").Msg())
+		return
+	}
+
 	p.SendMessage(NewServerQuestion(lbsAskBattleResult))
 })
 
@@ -453,7 +481,7 @@ var _ = register(lbsAskBattleResult, func(p *AppPeer, m *Message) {
 		unk25, unk26, unk27, unk28,
 	}
 	p.app.OnGetBattleResult(p, result)
-	p.SendMessage(NewServerNotice(lbsAddProgress))
+	p.SendMessage(NewServerNotice(lbsLoginOk))
 })
 
 var _ = register(lbsPostGameParameter, func(p *AppPeer, m *Message) {
@@ -502,23 +530,7 @@ var _ = register(lbsAskPatchData, func(p *AppPeer, m *Message) {
 	platform := r.Read8()
 	crule := r.Read8()
 	data := r.ReadString()
-
-	// Detect client platform
-	// TODO: DC1
-	if platform == 1 && crule == 2 && data == "1100" {
-		p.Platform = PlatformPS2
-	} else if platform == 0 && crule == 3 && data == "1000" {
-		p.Platform = PlatformDC2
-	} else {
-		glog.Warning("============================")
-		glog.Warning("UNKNOWN CLIENT PLATFORM TYPE")
-		glog.Warningln(platform)
-		glog.Warningln(crule)
-		glog.Warningln(data)
-		glog.Warning("============================")
-		p.conn.Close()
-		return
-	}
+	_, _, _ = platform, crule, data
 
 	a := NewServerAnswer(m)
 	a.Status = StatusError // this means no patch data probably.
@@ -626,7 +638,7 @@ var _ = register(lbsDeviceData, func(p *AppPeer, m *Message) {
 	glog.Info("DeviceData",
 		data1, data2, data3, data4, data5, data6, data7, data8)
 	// PS2: 0 0 0 999 1 0 0 0
-	// DC1:
+	// DC1: 0 0 0 0 1 0 0 0
 	// DC2: 0 0 0 0 1 0 0 0
 
 	p.SendMessage(NewServerAnswer(m))
