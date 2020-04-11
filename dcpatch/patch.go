@@ -86,7 +86,7 @@ func main() {
 
 	os.Remove(track03binDst)
 	fmt.Println("Writing", track03binDst)
-	err = ioutil.WriteFile(track03binDst, bin, 0x644)
+	err = ioutil.WriteFile(track03binDst, bin, 0644)
 	must(err)
 	fmt.Println("Done")
 }
