@@ -20,20 +20,14 @@ type Rule struct {
 	RedarFlag    byte
 	LockonFlag   byte
 	Onematch     byte
-	RenpoMask    uint32
-	ZeonMask     uint32
+	RenpoMaskPS2 uint32
+	ZeonMaskPS2  uint32
 	AutoRebattle byte
 	NoRanking    byte
 	CPUFlag      byte
 	SelectLook   byte
-	Unused1      byte
-	Unused2      byte
-	Unused3      byte
-	Unused4      byte
-	TeamType0    byte
-	TeamType1    byte
-	TeamType2    byte
-	TeamType3    byte
+	RenpoMaskDC  uint32
+	ZeonMaskDC   uint32
 	StageNo      byte
 }
 
@@ -52,20 +46,14 @@ var DefaultRule = Rule{
 	RedarFlag:    0,   // 1:no rader
 	LockonFlag:   0,   // 1:disable lockon warning
 	Onematch:     0,
-	RenpoMask:    0xffffffff,
-	ZeonMask:     0xffffffff,
+	RenpoMaskPS2: 0xffffffff,
+	ZeonMaskPS2:  0xffffffff,
 	AutoRebattle: 0,
-	NoRanking:    0, // 1:no battle record
-	CPUFlag:      0, // unknown
-	SelectLook:   1, // 1:can see opponent's MS choice
-	Unused1:      0,
-	Unused2:      0,
-	Unused3:      0,
-	Unused4:      0,
-	TeamType0:    0, // unknown
-	TeamType1:    0, // unknown
-	TeamType2:    0, // unknown
-	TeamType3:    0, // unknown
+	NoRanking:    0,    // 1:no battle record
+	CPUFlag:      0xff, // unknown
+	SelectLook:   1,    // 1:can see opponent's MS choice
+	RenpoMaskDC:  0xffffffff,
+	ZeonMaskDC:   0xffffffff,
 	StageNo:      0, // unknown
 }
 
@@ -90,20 +78,14 @@ func (r *Rule) Serialize() []byte {
 	binary.Write(b, binary.LittleEndian, r.RedarFlag)
 	binary.Write(b, binary.LittleEndian, r.LockonFlag)
 	binary.Write(b, binary.LittleEndian, r.Onematch)
-	binary.Write(b, binary.LittleEndian, r.RenpoMask)
-	binary.Write(b, binary.LittleEndian, r.ZeonMask)
+	binary.Write(b, binary.LittleEndian, r.RenpoMaskPS2)
+	binary.Write(b, binary.LittleEndian, r.ZeonMaskPS2)
 	binary.Write(b, binary.LittleEndian, r.AutoRebattle)
 	binary.Write(b, binary.LittleEndian, r.NoRanking)
 	binary.Write(b, binary.LittleEndian, r.CPUFlag)
 	binary.Write(b, binary.LittleEndian, r.SelectLook)
-	binary.Write(b, binary.LittleEndian, r.Unused1)
-	binary.Write(b, binary.LittleEndian, r.Unused2)
-	binary.Write(b, binary.LittleEndian, r.Unused3)
-	binary.Write(b, binary.LittleEndian, r.Unused4)
-	binary.Write(b, binary.LittleEndian, r.TeamType0)
-	binary.Write(b, binary.LittleEndian, r.TeamType1)
-	binary.Write(b, binary.LittleEndian, r.TeamType2)
-	binary.Write(b, binary.LittleEndian, r.TeamType3)
+	binary.Write(b, binary.LittleEndian, r.RenpoMaskDC)
+	binary.Write(b, binary.LittleEndian, r.ZeonMaskDC)
 	binary.Write(b, binary.LittleEndian, r.StageNo)
 	return b.Bytes()
 }
