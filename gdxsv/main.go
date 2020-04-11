@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +16,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 	"github.com/jmoiron/sqlx"
+	"github.com/miekg/dns"
 )
 
 var (
@@ -36,7 +37,7 @@ type Config struct {
 func loadConfig() {
 	var c Config
 	if err := env.Parse(&c); err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 
 	glog.Infof("%+v", c)
@@ -61,7 +62,7 @@ func pprofPort(mode string) int {
 }
 
 func printUsage() {
-	log.Println("Usage: ", os.Args[0], "[lobby]")
+	glog.Info("Usage: ", os.Args[0], "[lobby, dns, initdb]")
 }
 
 func prepareOption(command string) {
@@ -70,7 +71,7 @@ func prepareOption(command string) {
 		go func() {
 			port := pprofPort(command)
 			addr := fmt.Sprintf(":%v", port)
-			log.Println(http.ListenAndServe(addr, nil))
+			glog.Errorln(http.ListenAndServe(addr, nil))
 		}()
 	}
 	if *profile >= 2 {
@@ -97,9 +98,9 @@ func prepareDB() {
 	}
 }
 
-func mainLobby() {
+func mainApp() {
 	app := NewApp()
-	go app.ListenAndServe(stripHost(conf.LobbyAddr))
+	go app.ListenAndServeLobby(stripHost(conf.LobbyAddr))
 	go app.ListenAndServeBattle(stripHost(conf.BattleAddr))
 
 	c := make(chan os.Signal, 1)
@@ -123,12 +124,44 @@ func mainLobby() {
 	app.Quit()
 }
 
+func makeDNSHandler(record string) func(dns.ResponseWriter, *dns.Msg) {
+	return func(w dns.ResponseWriter, r *dns.Msg) {
+		m := new(dns.Msg)
+		m.SetReply(r)
+		rr, err := dns.NewRR(record)
+		if err != nil {
+			glog.Error(err)
+		}
+		m.Answer = append(m.Answer, rr)
+		err = w.WriteMsg(m)
+		if err != nil {
+			glog.Error(err)
+		}
+	}
+}
+
+func mainDNS() {
+	ip, _, err := net.SplitHostPort(conf.LobbyPublicAddr)
+	if err != nil {
+		glog.Errorln(err)
+	}
+
+	dns.HandleFunc("ca1203.mmcp6", makeDNSHandler("ca1203.mmcp6. 3600 IN A "+ip))
+	dns.HandleFunc("ca1202.mmcp6", makeDNSHandler("ca1202.mmcp6. 3600 IN A "+ip))
+
+	server := &dns.Server{Addr: ":53", Net: "udp"}
+	err = server.ListenAndServe()
+	glog.Error(err)
+}
+
 func main() {
 	flag.Set("logtostderr", "true")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
-	glog.Infoln("gdxsv - GundamDX private game server.")
+	glog.Infoln("========================================================================")
+	glog.Infoln(" gdxsv - Mobile Suit Gundam: Federation vs. Zeon&DX Private Game Server.")
+	glog.Infoln("========================================================================")
 
 	args := flag.Args()
 	glog.Infoln(args, len(args))
@@ -144,9 +177,11 @@ func main() {
 	prepareOption(command)
 
 	switch command {
-	case "lobby":
+	case "dns":
+		mainDNS()
+	case "app":
 		prepareDB()
-		mainLobby()
+		mainApp()
 	case "initdb":
 		os.Remove(conf.DBName)
 		prepareDB()

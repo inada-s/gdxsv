@@ -9,6 +9,7 @@ require (
 	github.com/golang/protobuf v1.3.1
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
+	github.com/miekg/dns v1.1.29
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1 // indirect
 	golang.org/x/text v0.3.2

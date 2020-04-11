@@ -100,12 +100,16 @@ func (a *App) GetLobby(platform uint8, lobbyID uint16) *Lobby {
 }
 
 func (s *App) ListenAndServeBattle(addr string) error {
+	glog.Info("ListenAndServeBattle", addr)
+
 	hub := battle.NewLogic()
 	tcpSv := battle.NewTCPServer(hub)
 	return tcpSv.ListenAndServe(addr)
 }
 
-func (s *App) ListenAndServe(addr string) error {
+func (s *App) ListenAndServeLobby(addr string) error {
+	glog.Info("ListenAndServeLobby", addr)
+
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return err
@@ -163,7 +167,6 @@ func (a *App) Quit() {
 }
 
 func stripHost(addr string) string {
-	glog.Info(addr)
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		glog.Fatal("err in splitPort", err)
