@@ -6,38 +6,41 @@ import (
 
 const (
 	RoomStateEmpty      = 1
-	RoomStatePrepare    = 2
 	RoomStateRecruiting = 3
-	RoomStateFull       = 4
+	RoomStatePrepare    = 4
+	RoomStateFull       = 5
 )
 
 type Room struct {
-	app *App
+	app   *App
+	lobby *Lobby
+	ready bool
 
 	Platform  uint8
 	ID        uint16
-	LobbyID   uint16
+	EntrySide uint16
 	Name      string
 	MaxPlayer uint16
-	Password  string
 	Owner     string
 	Deadline  time.Time
 	Users     []*DBUser
 	Status    byte
-	Rule      *Rule
 }
 
-func NewRoom(app *App, platform uint8, lobbyID, roomID uint16) *Room {
+func NewRoom(app *App, platform uint8, lobby *Lobby, roomID, side uint16) *Room {
 	return &Room{
-		app: app,
+		app:   app,
+		lobby: lobby,
+		ready: false,
 
-		Platform: platform,
-		ID:       roomID,
-		LobbyID:  lobbyID,
-		Name:     "",
-		Status:   RoomStateEmpty,
-		Rule:     NewRule(),
-		Users:    make([]*DBUser, 0),
+		Platform:  platform,
+		ID:        roomID,
+		EntrySide: side,
+		Name:      "",
+		MaxPlayer: 2,
+		Owner:     "",
+		Status:    RoomStateEmpty,
+		Users:     make([]*DBUser, 0),
 	}
 }
 
@@ -84,58 +87,13 @@ func (r *Room) Exit(userID string) {
 }
 
 func (r *Room) Remove() {
-	*r = *NewRoom(r.app, r.Platform, r.LobbyID, r.ID)
+	*r = *NewRoom(r.app, r.Platform, r.lobby, r.ID, r.EntrySide)
 }
 
-func (r *Room) Entry(u *AppPeer, side uint16) {
-	u.Entry = side
+func (r *Room) Ready(u *AppPeer, enable uint8) {
+	r.ready = enable == 1
 }
 
-func (r *Room) GetEntryUserCount() (uint16, uint16) {
-	a := uint16(0)
-	b := uint16(0)
-	for _, u := range r.Users {
-		if q, ok := r.app.FindPeer(u.UserID); ok {
-			switch q.Entry {
-			case EntryRenpo:
-				a++
-			case EntryZeon:
-				b++
-			}
-		}
-	}
-	return a, b
-}
-
-func (r *Room) CanBattleStart() bool {
-	a, b := r.GetEntryUserCount()
-	return 0 < a && 0 < b && a <= 2 && b <= 2
-}
-
-func (r *Room) StartBattleUsers() (active []*AppPeer, inactive []*AppPeer) {
-	a := uint16(0)
-	b := uint16(0)
-	for _, u := range r.Users {
-		if q, ok := r.app.FindPeer(u.UserID); ok {
-			switch q.Entry {
-			case EntryRenpo:
-				if a < 2 {
-					active = append(active, q)
-				} else {
-					inactive = append(inactive, q)
-				}
-				a++
-			case EntryZeon:
-				if b < 2 {
-					active = append(active, q)
-				} else {
-					inactive = append(inactive, q)
-				}
-				b++
-			default:
-				inactive = append(inactive, q)
-			}
-		}
-	}
-	return active, inactive
+func (r *Room) IsReady() bool {
+	return r.ready
 }

@@ -80,7 +80,7 @@ func (m *Message) String() string {
 
 func (m *Message) SetErr() *Message {
 	m.Status = StatusError
-	text := fmt.Sprintf("<LF=6><BODY><CENTER>ERROR: %04x<END>", m.Command)
+	text := fmt.Sprintf("<LF=6><BODY><CENTER>ERROR: %04x<END>", string(m.Command))
 	return m.Writer().WriteString(text).Msg()
 }
 

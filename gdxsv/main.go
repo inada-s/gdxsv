@@ -107,7 +107,7 @@ func mainApp() {
 	signal.Notify(c, os.Interrupt, os.Kill)
 	if *dump {
 		dumper := spew.NewDefaultConfig()
-		dumper.MaxDepth = 5
+		dumper.MaxDepth = 7
 		dumper.SortKeys = true
 		dumper.DisableMethods = true
 		dumper.DisablePointerMethods = true
@@ -125,7 +125,10 @@ func mainApp() {
 }
 
 func makeDNSHandler(record string) func(dns.ResponseWriter, *dns.Msg) {
+	glog.Info("[DNS] ", record)
 	return func(w dns.ResponseWriter, r *dns.Msg) {
+		glog.Info("request comming", r)
+
 		m := new(dns.Msg)
 		m.SetReply(r)
 		rr, err := dns.NewRR(record)
@@ -146,8 +149,8 @@ func mainDNS() {
 		glog.Errorln(err)
 	}
 
-	dns.HandleFunc("ca1203.mmcp6", makeDNSHandler("ca1203.mmcp6. 3600 IN A "+ip))
 	dns.HandleFunc("ca1202.mmcp6", makeDNSHandler("ca1202.mmcp6. 3600 IN A "+ip))
+	dns.HandleFunc("ca1203.mmcp6", makeDNSHandler("ca1203.mmcp6. 3600 IN A "+ip))
 
 	server := &dns.Server{Addr: ":53", Net: "udp"}
 	err = server.ListenAndServe()

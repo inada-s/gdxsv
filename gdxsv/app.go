@@ -15,7 +15,7 @@ import (
 
 const (
 	maxLobbyCount = 22
-	maxRoomCount  = 0
+	maxRoomCount  = 5
 )
 
 const (
@@ -258,7 +258,7 @@ func (a *App) BroadcastLobbyUserCount(lobby *Lobby) {
 		for userID := range lobby.Users {
 			p, ok := a.FindPeer(userID)
 			if ok {
-				if p.inLobbyChat {
+				if p.InLobbyChat() {
 					p.SendMessage(msgSum1)
 					p.SendMessage(msgSum2)
 				} else {
@@ -295,7 +295,7 @@ func (a *App) BroadcastLobbyUserCount(lobby *Lobby) {
 
 		for userID := range lobby1.Users {
 			if p, ok := a.FindPeer(userID); ok {
-				if p.inLobbyChat {
+				if p.InLobbyChat() {
 					p.SendMessage(msgSum1)
 					p.SendMessage(msgSum2)
 				} else {
@@ -307,7 +307,7 @@ func (a *App) BroadcastLobbyUserCount(lobby *Lobby) {
 
 		for userID := range lobby2.Users {
 			if p, ok := a.FindPeer(userID); ok {
-				if p.inLobbyChat {
+				if p.InLobbyChat() {
 					p.SendMessage(msgSum1)
 					p.SendMessage(msgSum2)
 				} else {
@@ -332,26 +332,17 @@ func (a *App) BroadcastLobbyMatchEntryUserCount(lobby *Lobby) {
 }
 
 func (a *App) BroadcastRoomState(room *Room) {
-	if room == nil {
+	if room == nil || room.lobby == nil {
 		return
 	}
-
-	lobbys, ok := a.lobbys[room.Platform]
-	if !ok {
-		return
-	}
-
-	lobby, ok := lobbys[room.LobbyID]
-	if !ok {
-		return
-	}
-
 	msg1 := NewServerNotice(lbsRoomStatus).Writer().Write16(room.ID).Write8(room.Status).Msg()
 	msg2 := NewServerNotice(lbsRoomTitle).Writer().Write16(room.ID).WriteString(room.Name).Msg()
-	for userID := range lobby.Users {
+	for userID := range room.lobby.Users {
 		if p, ok := a.FindPeer(userID); ok {
-			p.SendMessage(msg1)
-			p.SendMessage(msg2)
+			if p.Entry == room.EntrySide {
+				p.SendMessage(msg1)
+				p.SendMessage(msg2)
+			}
 		}
 	}
 }
@@ -456,11 +447,8 @@ type AppPeer struct {
 	PilotName string
 	Rank      int
 
-	lastConnectionID  string
-	inLobbyChat       bool
-	inBattleAfterRoom bool
-
-	lastRecvTime time.Time
+	lastConnectionID string
+	lastRecvTime     time.Time
 
 	chWrite    chan bool
 	chDispatch chan bool
@@ -471,6 +459,10 @@ type AppPeer struct {
 
 	mInbuf sync.Mutex
 	inbuf  []byte
+}
+
+func (p *AppPeer) InLobbyChat() bool {
+	return p.Lobby != nil && p.Room == nil && p.Entry != EntryNone
 }
 
 func (p *AppPeer) IsPS2() bool {

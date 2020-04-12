@@ -16,8 +16,6 @@ import (
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/width"
-
-	"gdxsv/gdxsv/battle"
 )
 
 type MessageHandler func(*AppPeer, *Message)
@@ -133,16 +131,17 @@ const (
 	lbsEndRoomCreate      CmdID = 0x660C
 	lbsRoomEntry          CmdID = 0x6406
 	lbsRoomExit           CmdID = 0x6501
-	lbsRoomLeaver         CmdID = 0x6502
-	lbsRoomCommer         CmdID = 0x6503
-	lbsRoomRemove         CmdID = 0x6505
+	lbsRoomLeaver         CmdID = 0x6502 // A partner left from your room.
+	lbsRoomCommer         CmdID = 0x6503 // A player want to enter a room.
+	lbsMatchingEntry      CmdID = 0x6504 // Room matching
+	lbsRoomRemove         CmdID = 0x6505 // The room manager left from the room.
+	lbsWaitJoin           CmdID = 0x6506
+	lbsRoomUserReject     CmdID = 0x6507
 	lbsPostChatMessage    CmdID = 0x6701
 	lbsChatMessage        CmdID = 0x6702
 	lbsUserSite           CmdID = 0x6703
 	lbsLobbyRemove        CmdID = 0x64C0
 	lbsLobbyMatchingEntry CmdID = 0x640E
-	lbsWaitJoin           CmdID = 0x6506
-	lbsMatchingEntry      CmdID = 0x6504 // Room matching
 	lbsGoToTop            CmdID = 0x6208
 
 	lbsReadyBattle     CmdID = 0x6910
@@ -733,7 +732,6 @@ var _ = register(lbsPlazaEntry, func(p *AppPeer, m *Message) {
 
 	p.Lobby = lobby
 	p.Entry = EntryNone
-	p.inLobbyChat = false
 
 	lobby.Enter(p)
 	p.SendMessage(NewServerAnswer(m))
@@ -751,7 +749,6 @@ var _ = register(lbsPlazaExit, func(p *AppPeer, m *Message) {
 	p.Lobby.Exit(p.UserID)
 	p.Lobby = nil
 	p.Entry = EntryNone
-	p.inLobbyChat = false
 
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(lobby)
@@ -765,7 +762,6 @@ var _ = register(lbsLobbyEntry, func(p *AppPeer, m *Message) {
 
 	side := m.Reader().Read16()
 	p.Entry = side
-	p.inLobbyChat = true
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(p.Lobby)
 })
@@ -780,7 +776,6 @@ var _ = register(lbsLobbyExit, func(p *AppPeer, m *Message) {
 	// So don't remove Lobby ref here.
 
 	p.Entry = EntryNone
-	p.inLobbyChat = false
 
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(p.Lobby)
@@ -796,7 +791,7 @@ var _ = register(lbsLobbyJoin, func(p *AppPeer, m *Message) {
 	switch p.Lobby.Platform {
 	case PlatformPS2:
 		renpo, zeon := p.Lobby.GetUserCountBySide()
-		if p.inLobbyChat {
+		if p.InLobbyChat() {
 			p.SendMessage(NewServerAnswer(m).Writer().
 				Write16(side).Write16(renpo + zeon).Msg())
 		} else {
@@ -818,7 +813,7 @@ var _ = register(lbsLobbyJoin, func(p *AppPeer, m *Message) {
 
 		renpo1, zeon1 := lobby1.GetUserCountBySide()
 		renpo2, zeon2 := lobby2.GetUserCountBySide()
-		if p.inLobbyChat {
+		if p.InLobbyChat() {
 			p.SendMessage(NewServerAnswer(m).Writer().
 				Write16(side).
 				Write16(renpo1 + zeon1).
@@ -865,31 +860,10 @@ var _ = register(lbsLobbyMatchingEntry, func(p *AppPeer, m *Message) {
 	enable := m.Reader().Read8()
 	if enable == 1 {
 		p.Lobby.Entry(p)
+		p.Lobby.CheckLobbyBattleStart()
 	} else {
 		p.Lobby.EntryCancel(p.UserID)
 	}
-
-	if p.Lobby.CanBattleStart() {
-		b := NewBattle(p.app, p.Lobby.ID)
-		b.BattleCode = GenBattleCode()
-		participants := p.Lobby.PickBattleUsers()
-		for _, q := range participants {
-			b.Add(q)
-			q.Battle = b
-			battle.AddUserWhoIsGoingTobattle(
-				b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
-			getDB().AddBattleRecord(&BattleRecord{
-				BattleCode: b.BattleCode,
-				UserID:     q.UserID,
-				UserName:   q.Name,
-				PilotName:  q.PilotName,
-				Players:    len(participants),
-				Aggregate:  1,
-			})
-			NotifyReadyBattle(q)
-		}
-	}
-
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby)
 })
@@ -901,8 +875,8 @@ var _ = register(lbsRoomStatus, func(p *AppPeer, m *Message) {
 	}
 
 	roomID := m.Reader().Read16()
-	room, ok := p.Lobby.Rooms[roomID]
-	if !ok {
+	room := p.Lobby.FindRoom(p.Entry, roomID)
+	if room == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
@@ -917,9 +891,7 @@ var _ = register(lbsRoomMax, func(p *AppPeer, m *Message) {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-
-	roomCount := uint16(len(p.Lobby.Rooms))
-	p.SendMessage(NewServerAnswer(m).Writer().Write16(roomCount).Msg())
+	p.SendMessage(NewServerAnswer(m).Writer().Write16(maxRoomCount).Msg())
 })
 
 var _ = register(lbsRoomTitle, func(p *AppPeer, m *Message) {
@@ -929,8 +901,8 @@ var _ = register(lbsRoomTitle, func(p *AppPeer, m *Message) {
 	}
 
 	roomID := m.Reader().Read16()
-	room, ok := p.Lobby.Rooms[roomID]
-	if !ok {
+	room := p.Lobby.FindRoom(p.Entry, roomID)
+	if room == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
@@ -947,8 +919,8 @@ var _ = register(lbsRoomCreate, func(p *AppPeer, m *Message) {
 	}
 
 	roomID := m.Reader().Read16()
-	room, ok := p.Lobby.Rooms[roomID]
-	if !ok {
+	room := p.Lobby.FindRoom(p.Entry, roomID)
+	if room == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
@@ -985,6 +957,7 @@ var _ = register(lbsEndRoomCreate, func(p *AppPeer, m *Message) {
 	}
 
 	p.Room.Enter(&p.DBUser)
+
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastRoomState(p.Room)
 })
@@ -1027,8 +1000,14 @@ var _ = register(lbsUserSite, func(p *AppPeer, m *Message) {
 })
 
 var _ = register(lbsWaitJoin, func(p *AppPeer, m *Message) {
-	unk := uint16(1)
-	p.SendMessage(NewServerAnswer(m).Writer().Write16(unk).Msg())
+	waiting := uint16(0)
+	if p.Room != nil && p.Room.Status == RoomStateRecruiting {
+		waiting = 1
+	}
+	if p.Room != nil && p.Room.Status == RoomStateFull {
+		waiting = 2
+	}
+	p.SendMessage(NewServerAnswer(m).Writer().Write16(waiting).Msg())
 })
 
 var _ = register(lbsRoomEntry, func(p *AppPeer, m *Message) {
@@ -1041,8 +1020,8 @@ var _ = register(lbsRoomEntry, func(p *AppPeer, m *Message) {
 	roomID := r.Read16()
 	_ = r.Read16() // unknown
 
-	room, ok := p.Lobby.Rooms[roomID]
-	if !ok {
+	room := p.Lobby.FindRoom(p.Entry, roomID)
+	if room == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
@@ -1057,11 +1036,37 @@ var _ = register(lbsRoomEntry, func(p *AppPeer, m *Message) {
 	for _, u := range room.Users {
 		if q, ok := p.app.FindPeer(u.UserID); ok {
 			q.SendMessage(NewServerNotice(lbsRoomCommer).Writer().
-				WriteString(u.UserID).
-				WriteString(u.Name).Msg())
+				WriteString(p.UserID).
+				WriteString(p.Name).Msg())
 		}
 	}
 	p.SendMessage(NewServerAnswer(m))
+	p.app.BroadcastRoomState(room)
+})
+
+var _ = register(lbsRoomUserReject, func(p *AppPeer, m *Message) {
+	userID := m.Reader().ReadString()
+	p.SendMessage(NewServerAnswer(m))
+
+	if p.Room == nil {
+		return
+	}
+
+	if p.Room.Owner != p.UserID {
+		return
+	}
+
+	q, ok := p.app.FindPeer(userID)
+	if !ok {
+		return
+	}
+
+	if q.Room != p.Room {
+		return
+	}
+
+	q.SendMessage(NewServerNotice(lbsRoomRemove).Writer().
+		WriteString("<LF=6><BODY><CENTER>拒否されました。<END>").Msg())
 })
 
 var _ = register(lbsRoomExit, func(p *AppPeer, m *Message) {
@@ -1089,33 +1094,44 @@ var _ = register(lbsRoomExit, func(p *AppPeer, m *Message) {
 		r.Exit(p.UserID)
 		for _, u := range r.Users {
 			if q, ok := p.app.FindPeer(u.UserID); ok {
+				q.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(1).Msg())
 				q.SendMessage(NewServerNotice(lbsRoomLeaver).Writer().
-					WriteString(u.UserID).
-					WriteString(u.Name).Msg())
+					WriteString(p.UserID).
+					WriteString(p.Name).Msg())
 			}
 		}
 	}
 
-	if p.Lobby != nil {
-		p.app.BroadcastRoomState(r)
-	}
+	p.app.BroadcastRoomState(r)
 })
 
 var _ = register(lbsMatchingEntry, func(p *AppPeer, m *Message) {
-	entry := m.Reader().Read8()
-	if entry == 1 {
-		glog.Infoln("MatchingEntry")
-		p.SendMessage(NewServerAnswer(m))
-	} else {
-		glog.Infoln("MatchingEntryCancel")
-		// FIXME: workaround
-		// Only reply this request, client does not leave the room,
-		// so notify RoomRemove command to drive out.
-		// It doesn't work
+	if p.Room == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
-		p.SendMessage(NewServerNotice(lbsRoomRemove).Writer().
-			WriteString("").Msg())
+		return
 	}
+
+	r := p.Room
+	enable := m.Reader().Read8()
+
+	if r.Owner == p.UserID {
+		r.Ready(p, enable)
+		r.lobby.CheckRoomBattleStart()
+	} else if enable == 0 {
+		for _, u := range r.Users {
+			if q, ok := p.app.FindPeer(u.UserID); ok {
+				q.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(1).Msg())
+				q.SendMessage(NewServerNotice(lbsRoomLeaver).Writer().
+					WriteString(p.UserID).
+					WriteString(p.Name).Msg())
+			}
+		}
+		r.Exit(p.UserID)
+		p.Room = nil
+		p.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(0).Msg())
+	}
+
+	p.SendMessage(NewServerAnswer(m))
 })
 
 var _ = register(lbsPostChatMessage, func(p *AppPeer, m *Message) {
@@ -1138,7 +1154,9 @@ var _ = register(lbsPostChatMessage, func(p *AppPeer, m *Message) {
 	} else if p.Lobby != nil {
 		for userID := range p.Lobby.Users {
 			if q, ok := p.app.FindPeer(userID); ok {
-				q.SendMessage(msg)
+				if q.InLobbyChat() {
+					q.SendMessage(msg)
+				}
 			}
 		}
 	}

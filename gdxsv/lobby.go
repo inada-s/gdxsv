@@ -1,5 +1,7 @@
 package main
 
+import "gdxsv/gdxsv/battle"
+
 type Lobby struct {
 	app *App
 
@@ -7,7 +9,8 @@ type Lobby struct {
 	ID         uint16
 	Rule       *Rule
 	Users      map[string]*DBUser
-	Rooms      map[uint16]*Room
+	RenpoRooms map[uint16]*Room
+	ZeonRooms  map[uint16]*Room
 	EntryUsers []string
 }
 
@@ -19,14 +22,126 @@ func NewLobby(app *App, platform uint8, lobbyID uint16) *Lobby {
 		ID:         lobbyID,
 		Rule:       NewRule(),
 		Users:      make(map[string]*DBUser),
-		Rooms:      make(map[uint16]*Room),
+		RenpoRooms: make(map[uint16]*Room),
+		ZeonRooms:  make(map[uint16]*Room),
 		EntryUsers: make([]string, 0),
 	}
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
-		lobby.Rooms[roomID] = NewRoom(app, platform, lobbyID, roomID)
+		lobby.RenpoRooms[roomID] = NewRoom(app, platform, lobby, roomID, EntryRenpo)
+		lobby.ZeonRooms[roomID] = NewRoom(app, platform, lobby, roomID, EntryZeon)
 	}
 	return lobby
+}
+
+func (l *Lobby) FindRoom(side, roomID uint16) *Room {
+	if side == EntryRenpo {
+		r, ok := l.RenpoRooms[roomID]
+		if !ok {
+			return nil
+		}
+		return r
+	} else if side == EntryZeon {
+		r, ok := l.ZeonRooms[roomID]
+		if !ok {
+			return nil
+		}
+		return r
+	}
+	return nil
+}
+
+func (l *Lobby) CheckLobbyBattleStart() {
+	if !l.CanBattleStart() {
+		return
+	}
+	b := NewBattle(l.app, l.ID)
+	b.BattleCode = GenBattleCode()
+	participants := l.PickBattleUsers()
+	for _, q := range participants {
+		b.Add(q)
+		q.Battle = b
+		battle.AddUserWhoIsGoingTobattle(
+			b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
+		getDB().AddBattleRecord(&BattleRecord{
+			BattleCode: b.BattleCode,
+			UserID:     q.UserID,
+			UserName:   q.Name,
+			PilotName:  q.PilotName,
+			Players:    len(participants),
+			Aggregate:  1,
+		})
+		NotifyReadyBattle(q)
+	}
+}
+
+func (l *Lobby) CheckRoomBattleStart() {
+	var (
+		renpoRoom    *Room
+		zeonRoom     *Room
+		participants []*AppPeer
+	)
+
+	for _, room := range l.RenpoRooms {
+		if room.IsReady() {
+			var peers []*AppPeer
+			allOk := true
+			for _, u := range room.Users {
+				p, ok := l.app.FindPeer(u.UserID)
+				if !ok {
+					allOk = false
+				}
+				peers = append(peers, p)
+			}
+			if allOk {
+				renpoRoom = room
+				participants = append(participants, peers...)
+				break
+			}
+		}
+	}
+
+	for _, room := range l.ZeonRooms {
+		if room.IsReady() {
+			var peers []*AppPeer
+			allOk := true
+			for _, u := range room.Users {
+				p, ok := l.app.FindPeer(u.UserID)
+				if !ok {
+					allOk = false
+				}
+				peers = append(peers, p)
+			}
+			if allOk {
+				zeonRoom = room
+				participants = append(participants, peers...)
+				break
+			}
+		}
+	}
+
+	if renpoRoom == nil || zeonRoom == nil {
+		return
+	}
+
+	b := NewBattle(l.app, l.ID)
+	b.BattleCode = GenBattleCode()
+
+	for _, q := range participants {
+		b.Add(q)
+		q.Battle = b
+		battle.AddUserWhoIsGoingTobattle(
+			b.BattleCode, q.UserID, q.Name, q.Entry, q.SessionID)
+		getDB().AddBattleRecord(&BattleRecord{
+			BattleCode: b.BattleCode,
+			UserID:     q.UserID,
+			UserName:   q.Name,
+			PilotName:  q.PilotName,
+			Players:    len(participants),
+			Aggregate:  1,
+		})
+		NotifyReadyBattle(q)
+	}
 }
 
 func (l *Lobby) Enter(p *AppPeer) {
