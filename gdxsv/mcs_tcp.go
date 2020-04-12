@@ -1,4 +1,4 @@
-package battle
+package main
 
 import (
 	"encoding/hex"
@@ -13,39 +13,66 @@ import (
 	"gdxsv/gdxsv/proto"
 )
 
-var _ Peer = (*TCPPeer)(nil)
+type McsTCPServer struct {
+	mcs *Mcs
+}
 
-type TCPPeer struct {
-	BasePeer
+func NewTCPServer(mcs *Mcs) *McsTCPServer {
+	return &McsTCPServer{mcs: mcs}
+}
+
+func (s *McsTCPServer) ListenAndServe(addr string) error {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return err
+	}
+	listner, err := net.ListenTCP("tcp", tcpAddr)
+	if err != nil {
+		return err
+	}
+	for {
+		conn, err := listner.AcceptTCP()
+		if err != nil {
+			continue
+		}
+		peer := NewTCPPeer(conn)
+		go peer.Serve(s.mcs)
+	}
+}
+
+var _ McsPeer = (*McsTCPPeer)(nil)
+
+type McsTCPPeer struct {
+	BaseMcsPeer
 
 	sendMtx sync.Mutex
 	conn    *net.TCPConn
-	room    *Room
+	room    *McsRoom
 	seq     uint32
 }
 
-func NewTCPPeer(conn *net.TCPConn) *TCPPeer {
-	return &TCPPeer{
+func NewTCPPeer(conn *net.TCPConn) *McsTCPPeer {
+	return &McsTCPPeer{
 		conn: conn,
 		seq:  1,
 	}
 }
 
-func (u *TCPPeer) Close() error {
+func (u *McsTCPPeer) Close() error {
 	return u.conn.Close()
 }
 
-func (u *TCPPeer) Serve(logic *Logic) {
+func (u *McsTCPPeer) Serve(mcs *Mcs) {
 	glog.Infoln("[TCP]", u.Address(), "Serve Start")
 	time.Sleep(2 * time.Second)
 	defer glog.Infoln("[TCP]", u.Address(), "Serve End")
-	// c.f. ReflectMsg
+	// c.f. ps2 symbol ReflectMsg
 	// 6X := category?
 	// 1031 := request connection ID
 	// nn6XXXXX1031XXXXXXXXXXXXXXXX
 	data, _ := hex.DecodeString("0e610022103166778899aabbccdd")
 	u.AddSendData(data)
-	u.readLoop(logic)
+	u.readLoop(mcs)
 	if u.room != nil {
 		u.room.Leave(u)
 		u.room = nil
@@ -53,11 +80,11 @@ func (u *TCPPeer) Serve(logic *Logic) {
 	u.conn.Close()
 }
 
-func (u *TCPPeer) AddSendMessage(msg *proto.BattleMessage) {
+func (u *McsTCPPeer) AddSendMessage(msg *proto.BattleMessage) {
 	u.AddSendData(msg.GetBody())
 }
 
-func (u *TCPPeer) AddSendData(data []byte) {
+func (u *McsTCPPeer) AddSendData(data []byte) {
 	u.sendMtx.Lock()
 	defer u.sendMtx.Unlock()
 	for sum := 0; sum < len(data); {
@@ -70,16 +97,16 @@ func (u *TCPPeer) AddSendData(data []byte) {
 	}
 }
 
-func (u *TCPPeer) Address() string {
+func (u *McsTCPPeer) Address() string {
 	return u.conn.RemoteAddr().String()
 }
 
-func (u *TCPPeer) readLoop(logic *Logic) {
-	buf := make([]byte, 1024)
+func (u *McsTCPPeer) readLoop(mcs *Mcs) {
+	buf := make([]byte, 128)
 	inbuf := make([]byte, 0, 128)
 
 	for {
-		// u.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+		u.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 		n, err := u.conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
@@ -101,7 +128,7 @@ func (u *TCPPeer) readLoop(logic *Logic) {
 			sessionID := string(inbuf[12:20])
 			inbuf = inbuf[:0]
 			glog.Infoln("[TCP] SessionID", sessionID, err)
-			u.room = logic.Join(u, sessionID)
+			u.room = mcs.Join(u, sessionID)
 			if u.room == nil {
 				glog.Infoln("failed to join room: ", u.UserID(), u.Address())
 				u.conn.Close()

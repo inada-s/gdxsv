@@ -1,10 +1,11 @@
-package battle
+package main
 
 import (
+	"gdxsv/gdxsv/proto"
 	"sync"
 	"time"
 
-	"gdxsv/gdxsv/proto"
+	"github.com/golang/glog"
 )
 
 // Note: Shareing data between lobby server
@@ -14,11 +15,11 @@ import (
 // So here, let's simply share global variable.
 var lobbySharedData struct {
 	sync.Mutex
-	battleUsers map[string]BattleUserInfo
+	battleUsers map[string]McsUser
 }
 
 func init() {
-	lobbySharedData.battleUsers = map[string]BattleUserInfo{}
+	lobbySharedData.battleUsers = map[string]McsUser{}
 	go func() {
 		for {
 			removeZombieUserInfo()
@@ -27,7 +28,7 @@ func init() {
 	}()
 }
 
-type BattleUserInfo struct {
+type McsUser struct {
 	BattleCode string    `json:"battle_code,omitempty"`
 	UserID     string    `json:"user_id,omitempty"`
 	Name       string    `json:"name,omitempty"`
@@ -40,7 +41,7 @@ type BattleUserInfo struct {
 func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, side uint16, sessionID string) {
 	lobbySharedData.Lock()
 	defer lobbySharedData.Unlock()
-	lobbySharedData.battleUsers[sessionID] = BattleUserInfo{
+	lobbySharedData.battleUsers[sessionID] = McsUser{
 		BattleCode: battleCode,
 		UserID:     userID,
 		Name:       name,
@@ -50,17 +51,17 @@ func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, si
 	}
 }
 
-func GetInBattleUsers() []BattleUserInfo {
+func GetInBattleUsers() []McsUser {
 	lobbySharedData.Lock()
 	defer lobbySharedData.Unlock()
-	ret := []BattleUserInfo{}
+	ret := []McsUser{}
 	for _, u := range lobbySharedData.battleUsers {
 		ret = append(ret, u)
 	}
 	return ret
 }
 
-func getBattleUserInfo(sessionID string) (BattleUserInfo, bool) {
+func getBattleUserInfo(sessionID string) (McsUser, bool) {
 	lobbySharedData.Lock()
 	defer lobbySharedData.Unlock()
 	u, ok := lobbySharedData.battleUsers[sessionID]
@@ -91,72 +92,83 @@ func removeZombieUserInfo() {
 	}
 }
 
-type BasePeer struct {
-	sessionID string
-	userID    string
-	roomID    string
-	position  int
-}
-
-func (p *BasePeer) SetUserID(userID string) {
-	p.userID = userID
-}
-
-func (p *BasePeer) SetSessionID(sessionID string) {
-	p.sessionID = sessionID
-}
-
-func (p *BasePeer) SessionID() string {
-	return p.sessionID
-}
-
-func (p *BasePeer) UserID() string {
-	return p.userID
-}
-
-func (p *BasePeer) SetPosition(pos int) {
-	p.position = pos
-}
-
-func (p *BasePeer) Position() int {
-	return p.position
-}
-
-func (p *BasePeer) SetRoomID(id string) {
-	p.roomID = id
-}
-
-func (p *BasePeer) RoomID() string {
-	return p.roomID
-}
-
-type Peer interface {
+type McsPeer interface {
 	SetUserID(string)
 	SetSessionID(string)
 	UserID() string
 	SessionID() string
 	SetPosition(int)
 	Position() int
-	SetRoomID(string)
-	RoomID() string
+	SetMcsRoomID(string)
+	McsRoomID() string
 	AddSendData([]byte)
 	AddSendMessage(*proto.BattleMessage)
 	Address() string
 	Close() error
 }
 
-type Logic struct {
-	roomsMtx sync.Mutex
-	rooms    map[string]*Room
+type BaseMcsPeer struct {
+	sessionID string
+	userID    string
+	roomID    string
+	position  int
 }
 
-func NewLogic() *Logic {
-	l := &Logic{}
-	l.rooms = map[string]*Room{}
+func (p *BaseMcsPeer) SetUserID(userID string) {
+	p.userID = userID
+}
+
+func (p *BaseMcsPeer) SetSessionID(sessionID string) {
+	p.sessionID = sessionID
+}
+
+func (p *BaseMcsPeer) SessionID() string {
+	return p.sessionID
+}
+
+func (p *BaseMcsPeer) UserID() string {
+	return p.userID
+}
+
+func (p *BaseMcsPeer) SetPosition(pos int) {
+	p.position = pos
+}
+
+func (p *BaseMcsPeer) Position() int {
+	return p.position
+}
+
+func (p *BaseMcsPeer) SetMcsRoomID(id string) {
+	p.roomID = id
+}
+
+func (p *BaseMcsPeer) McsRoomID() string {
+	return p.roomID
+}
+
+type Mcs struct {
+	roomsMtx sync.Mutex
+	rooms    map[string]*McsRoom
+}
+
+func NewMcs() *Mcs {
+	l := &Mcs{}
+	l.rooms = map[string]*McsRoom{}
 	return l
 }
 
-func (m *Logic) Join(p Peer, sessionID string) *Room {
+func (mcs *Mcs) ListenAndServe(addr string) error {
+	glog.Info("ListenAndServeBattle", addr)
+
+	tcpSv := NewTCPServer(mcs)
+	return tcpSv.ListenAndServe(addr)
+}
+
+func (mcs *Mcs) Quit() {
+	// TODO impl
+}
+
+func (m *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	user, ok := getBattleUserInfo(sessionID)
 	if !ok {
 		return nil
@@ -168,7 +180,7 @@ func (m *Logic) Join(p Peer, sessionID string) *Room {
 	m.roomsMtx.Lock()
 	room := m.rooms[user.BattleCode]
 	if room == nil {
-		room = newRoom(m, user.BattleCode)
+		room = newMcsRoom(m, user.BattleCode)
 		m.rooms[user.BattleCode] = room
 	}
 	m.roomsMtx.Unlock()
@@ -176,7 +188,7 @@ func (m *Logic) Join(p Peer, sessionID string) *Room {
 	return room
 }
 
-func (m *Logic) OnRoomClose(room *Room) {
+func (m *Mcs) OnMcsRoomClose(room *McsRoom) {
 	m.roomsMtx.Lock()
 	delete(m.rooms, room.battleCode)
 	m.roomsMtx.Unlock()

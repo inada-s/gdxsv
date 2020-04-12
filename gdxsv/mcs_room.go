@@ -1,4 +1,4 @@
-package battle
+package main
 
 import (
 	"sync"
@@ -8,19 +8,19 @@ import (
 	"gdxsv/gdxsv/proto"
 )
 
-type Room struct {
+type McsRoom struct {
 	sync.RWMutex
 
-	logic      *Logic
+	mcs        *Mcs
 	battleCode string
-	peers      []Peer // 追加はappend 削除はnil代入 インデックスがposと一致するように維持
+	peers      []McsPeer // 追加はappend 削除はnil代入 インデックスがposと一致するように維持
 }
 
-func newRoom(logic *Logic, battleCode string) *Room {
-	return &Room{logic: logic, battleCode: battleCode}
+func newMcsRoom(mcs *Mcs, battleCode string) *McsRoom {
+	return &McsRoom{mcs: mcs, battleCode: battleCode}
 }
 
-func (r *Room) SendMessage(peer Peer, msg *proto.BattleMessage) {
+func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 	k := peer.Position()
 
 	r.RLock()
@@ -40,24 +40,24 @@ func (r *Room) SendMessage(peer Peer, msg *proto.BattleMessage) {
 	r.RUnlock()
 }
 
-func (r *Room) Dispose() {
+func (r *McsRoom) Dispose() {
 	r.Lock()
-	logic := r.logic
-	r.logic = nil
+	mcs := r.mcs
+	r.mcs = nil
 	r.peers = nil
 	r.Unlock()
-	logic.OnRoomClose(r)
+	mcs.OnMcsRoomClose(r)
 }
 
-func (r *Room) Join(p Peer) {
-	p.SetRoomID(r.battleCode)
+func (r *McsRoom) Join(p McsPeer) {
+	p.SetMcsRoomID(r.battleCode)
 	r.Lock()
 	p.SetPosition(len(r.peers))
 	r.peers = append(r.peers, p)
 	r.Unlock()
 }
 
-func (r *Room) Leave(p Peer) {
+func (r *McsRoom) Leave(p McsPeer) {
 	pos := p.Position()
 
 	r.Lock()

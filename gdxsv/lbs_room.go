@@ -11,14 +11,14 @@ const (
 	RoomStateFull       = 5
 )
 
-type Room struct {
-	app   *App
-	lobby *Lobby
+type LbsRoom struct {
+	app   *Lbs
+	lobby *LbsLobby
 	ready bool
 
 	Platform  uint8
 	ID        uint16
-	EntrySide uint16
+	Team      uint16
 	Name      string
 	MaxPlayer uint16
 	Owner     string
@@ -27,15 +27,15 @@ type Room struct {
 	Status    byte
 }
 
-func NewRoom(app *App, platform uint8, lobby *Lobby, roomID, side uint16) *Room {
-	return &Room{
+func NewRoom(app *Lbs, platform uint8, lobby *LbsLobby, roomID, team uint16) *LbsRoom {
+	return &LbsRoom{
 		app:   app,
 		lobby: lobby,
 		ready: false,
 
 		Platform:  platform,
 		ID:        roomID,
-		EntrySide: side,
+		Team:      team,
 		Name:      "",
 		MaxPlayer: 2,
 		Owner:     "",
@@ -44,7 +44,7 @@ func NewRoom(app *App, platform uint8, lobby *Lobby, roomID, side uint16) *Room 
 	}
 }
 
-func (r *Room) Enter(u *DBUser) {
+func (r *LbsRoom) Enter(u *DBUser) {
 	if len(r.Users) == 0 {
 		r.Owner = u.UserID
 		r.Deadline = time.Now().Add(30 * time.Minute)
@@ -67,7 +67,7 @@ func (r *Room) Enter(u *DBUser) {
 	}
 }
 
-func (r *Room) Exit(userID string) {
+func (r *LbsRoom) Exit(userID string) {
 	for i, u := range r.Users {
 		if u.UserID == userID {
 			r.Users, r.Users[len(r.Users)-1] = append(r.Users[:i], r.Users[i+1:]...), nil
@@ -86,14 +86,14 @@ func (r *Room) Exit(userID string) {
 	}
 }
 
-func (r *Room) Remove() {
-	*r = *NewRoom(r.app, r.Platform, r.lobby, r.ID, r.EntrySide)
+func (r *LbsRoom) Remove() {
+	*r = *NewRoom(r.app, r.Platform, r.lobby, r.ID, r.Team)
 }
 
-func (r *Room) Ready(u *AppPeer, enable uint8) {
+func (r *LbsRoom) Ready(u *LbsPeer, enable uint8) {
 	r.ready = enable == 1
 }
 
-func (r *Room) IsReady() bool {
+func (r *LbsRoom) IsReady() bool {
 	return r.ready
 }

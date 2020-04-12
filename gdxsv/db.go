@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"math/rand"
 	"time"
 )
@@ -28,16 +27,12 @@ func genSessionID() string {
 	return randomString(8, "123456789")
 }
 
-func GenBattleCode() string {
-	return fmt.Sprintf("%013d", time.Now().UnixNano()/1000000)
-}
-
 func randInt(min int, max int) int {
 	rand.Seed(time.Now().UTC().UnixNano())
 	return min + rand.Intn(max-min)
 }
 
-type Account struct {
+type DBAccount struct {
 	LoginKey   string    `db:"login_key" json:"login_key,omitempty"`
 	SessionID  string    `db:"session_id" json:"session_id,omitempty"`
 	LastUserID string    `db:"last_user_id" json:"last_user_id,omitempty"`
@@ -124,20 +119,20 @@ type DB interface {
 	Migrate() error
 
 	// RegisterAccount creates new user account.
-	RegisterAccount(ip string) (*Account, error)
+	RegisterAccount(ip string) (*DBAccount, error)
 
 	// RegisterAccountWithLoginKey creates new user account with specific login key.
 	// This function enables users to share login-key among different servers.
-	RegisterAccountWithLoginKey(ip string, loginKey string) (*Account, error)
+	RegisterAccountWithLoginKey(ip string, loginKey string) (*DBAccount, error)
 
 	// GetAccountByLoginKey retrieves an account by login-key.
-	GetAccountByLoginKey(key string) (*Account, error)
+	GetAccountByLoginKey(key string) (*DBAccount, error)
 
 	// GetAccountBySessionID retrieves an account by session-id.
-	GetAccountBySessionID(sessionID string) (*Account, error)
+	GetAccountBySessionID(sessionID string) (*DBAccount, error)
 
 	// LoginAccount updates last login information and update sessionID.
-	LoginAccount(account *Account, sessionID string) error
+	LoginAccount(account *DBAccount, sessionID string) error
 
 	// RegisterUser creates new user.
 	// An account can hold three users.
