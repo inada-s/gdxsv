@@ -11,13 +11,13 @@ import (
 type McsRoom struct {
 	sync.RWMutex
 
-	logic      *McsHub
+	mcs        *Mcs
 	battleCode string
 	peers      []McsPeer // 追加はappend 削除はnil代入 インデックスがposと一致するように維持
 }
 
-func newMcsRoom(logic *McsHub, battleCode string) *McsRoom {
-	return &McsRoom{logic: logic, battleCode: battleCode}
+func newMcsRoom(mcs *Mcs, battleCode string) *McsRoom {
+	return &McsRoom{mcs: mcs, battleCode: battleCode}
 }
 
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
@@ -42,11 +42,11 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 
 func (r *McsRoom) Dispose() {
 	r.Lock()
-	logic := r.logic
-	r.logic = nil
+	mcs := r.mcs
+	r.mcs = nil
 	r.peers = nil
 	r.Unlock()
-	logic.OnMcsRoomClose(r)
+	mcs.OnMcsRoomClose(r)
 }
 
 func (r *McsRoom) Join(p McsPeer) {

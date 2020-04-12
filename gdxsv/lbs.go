@@ -77,14 +77,6 @@ func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
 	return lobby
 }
 
-func (s *Lbs) ListenAndServeBattle(addr string) error {
-	glog.Info("ListenAndServeBattle", addr)
-
-	hub := NewLogic()
-	tcpSv := NewTCPServer(hub)
-	return tcpSv.ListenAndServe(addr)
-}
-
 func (s *Lbs) ListenAndServeLobby(addr string) error {
 	glog.Info("ListenAndServeLobby", addr)
 

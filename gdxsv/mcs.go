@@ -1,10 +1,11 @@
 package main
 
 import (
+	"gdxsv/gdxsv/proto"
 	"sync"
 	"time"
 
-	"gdxsv/gdxsv/proto"
+	"github.com/golang/glog"
 )
 
 // Note: Shareing data between lobby server
@@ -91,6 +92,21 @@ func removeZombieUserInfo() {
 	}
 }
 
+type McsPeer interface {
+	SetUserID(string)
+	SetSessionID(string)
+	UserID() string
+	SessionID() string
+	SetPosition(int)
+	Position() int
+	SetMcsRoomID(string)
+	McsRoomID() string
+	AddSendData([]byte)
+	AddSendMessage(*proto.BattleMessage)
+	Address() string
+	Close() error
+}
+
 type BaseMcsPeer struct {
 	sessionID string
 	userID    string
@@ -130,33 +146,29 @@ func (p *BaseMcsPeer) McsRoomID() string {
 	return p.roomID
 }
 
-type McsPeer interface {
-	SetUserID(string)
-	SetSessionID(string)
-	UserID() string
-	SessionID() string
-	SetPosition(int)
-	Position() int
-	SetMcsRoomID(string)
-	McsRoomID() string
-	AddSendData([]byte)
-	AddSendMessage(*proto.BattleMessage)
-	Address() string
-	Close() error
-}
-
-type McsHub struct {
+type Mcs struct {
 	roomsMtx sync.Mutex
 	rooms    map[string]*McsRoom
 }
 
-func NewLogic() *McsHub {
-	l := &McsHub{}
+func NewMcs() *Mcs {
+	l := &Mcs{}
 	l.rooms = map[string]*McsRoom{}
 	return l
 }
 
-func (m *McsHub) Join(p McsPeer, sessionID string) *McsRoom {
+func (mcs *Mcs) ListenAndServe(addr string) error {
+	glog.Info("ListenAndServeBattle", addr)
+
+	tcpSv := NewTCPServer(mcs)
+	return tcpSv.ListenAndServe(addr)
+}
+
+func (mcs *Mcs) Quit() {
+	// TODO impl
+}
+
+func (m *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	user, ok := getBattleUserInfo(sessionID)
 	if !ok {
 		return nil
@@ -176,7 +188,7 @@ func (m *McsHub) Join(p McsPeer, sessionID string) *McsRoom {
 	return room
 }
 
-func (m *McsHub) OnMcsRoomClose(room *McsRoom) {
+func (m *Mcs) OnMcsRoomClose(room *McsRoom) {
 	m.roomsMtx.Lock()
 	delete(m.rooms, room.battleCode)
 	m.roomsMtx.Unlock()

@@ -99,9 +99,13 @@ func prepareDB() {
 }
 
 func mainApp() {
-	app := NewLbs()
-	go app.ListenAndServeLobby(stripHost(conf.LobbyAddr))
-	go app.ListenAndServeBattle(stripHost(conf.BattleAddr))
+	lbs := NewLbs()
+	go lbs.ListenAndServeLobby(stripHost(conf.LobbyAddr))
+	defer lbs.Quit()
+
+	mcs := NewMcs()
+	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
+	defer mcs.Quit()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
@@ -114,14 +118,13 @@ func mainApp() {
 		dumper.DisablePointerAddresses = true
 		go func() {
 			for {
-				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(app.users)), 0644)
+				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(lbs.users)), 0644)
 				time.Sleep(time.Second)
 			}
 		}()
 	}
 	s := <-c
 	fmt.Println("Got signal:", s)
-	app.Quit()
 }
 
 func makeDNSHandler(record string) func(dns.ResponseWriter, *dns.Msg) {
