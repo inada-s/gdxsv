@@ -657,7 +657,6 @@ var _ = register(lbsInvitationTag, func(p *LbsPeer, m *LbsMessage) {
 })
 
 var _ = register(lbsPlazaMax, func(p *LbsPeer, m *LbsMessage) {
-	// DC2 LobbyID: 2, 4-6, 9-17, 19-22
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(maxLobbyCount).Msg())
 })
@@ -700,15 +699,15 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
-	if lobbyID == 2 {
-		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(lobbyID).
-			WriteString(fmt.Sprintf("<BODY>SINGLE USER CONN CHECK<END>")).Msg())
-	} else {
-		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(lobbyID).
-			WriteString(fmt.Sprintf("<BODY>Lobby %d<END>", lobbyID)).Msg())
+	lobby := p.app.GetLobby(p.Platform, lobbyID)
+	if lobby == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
 	}
+	p.SendMessage(NewServerAnswer(m).Writer().
+		Write16(lobbyID).
+		WriteString(lobby.Comment).
+		Msg())
 })
 
 var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {

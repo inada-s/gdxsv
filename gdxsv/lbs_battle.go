@@ -30,7 +30,7 @@ type LbsBattle struct {
 	TestBattle bool
 }
 
-func NewBattle(app *Lbs, lobbyID uint16) *LbsBattle {
+func NewBattle(app *Lbs, lobbyID uint16, rule *Rule) *LbsBattle {
 	host, portStr, err := net.SplitHostPort(conf.BattlePublicAddr)
 	if err != nil {
 		glog.Warningln(err)
@@ -43,6 +43,10 @@ func NewBattle(app *Lbs, lobbyID uint16) *LbsBattle {
 
 	ip, port := net.ParseIP(host), uint16(portNum)
 
+	if rule == nil {
+		rule = RulePresetDefault.Clone()
+	}
+
 	return &LbsBattle{
 		app: app,
 
@@ -54,7 +58,7 @@ func NewBattle(app *Lbs, lobbyID uint16) *LbsBattle {
 		GameParams: make([][]byte, 0),
 		RenpoIDs:   make([]string, 0),
 		ZeonIDs:    make([]string, 0),
-		Rule:       NewRule(),
+		Rule:       rule,
 		LobbyID:    lobbyID,
 	}
 }

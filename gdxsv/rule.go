@@ -5,6 +5,18 @@ import (
 	"encoding/binary"
 )
 
+var (
+	RulePresetDefault   *Rule
+	RulePresetNoRanking *Rule
+)
+
+func init() {
+	RulePresetDefault = baseRule.Clone()
+
+	RulePresetNoRanking = baseRule.Clone()
+	RulePresetNoRanking.NoRanking = 1
+}
+
 type Rule struct {
 	Difficulty   byte
 	DamageLevel  byte
@@ -31,9 +43,9 @@ type Rule struct {
 	StageNo      byte
 }
 
-var DefaultRule = Rule{
-	Difficulty:   3,
-	DamageLevel:  2,
+var baseRule = &Rule{
+	Difficulty:   3,   // Game Difficulty (zero-indexed)
+	DamageLevel:  2,   // Game DamageLevel (zero-indexed)
 	Timer:        2,   // 2:180sec
 	TeamFlag:     0,   // 1:side select (buggy)
 	StageFlag:    3,   // 1:ground 2:space 3:ground and space
@@ -57,9 +69,9 @@ var DefaultRule = Rule{
 	StageNo:      0, // unknown
 }
 
-func NewRule() *Rule {
-	r := DefaultRule // copy
-	return &r
+func (r *Rule) Clone() *Rule {
+	s := *r
+	return &s
 }
 
 func (r *Rule) Serialize() []byte {

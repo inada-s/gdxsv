@@ -46,23 +46,17 @@ func loadConfig() {
 
 func pprofPort(mode string) int {
 	switch mode {
-	case "lobby":
+	case "app":
 		return 16061
-	case "battle":
-		return 16062
 	case "dns":
-		return 16063
-	case "login":
-		return 16064
-	case "status":
-		return 16065
+		return 16062
 	default:
 		return 16060
 	}
 }
 
 func printUsage() {
-	glog.Info("Usage: ", os.Args[0], "[lobby, dns, initdb]")
+	glog.Info("Usage: ", os.Args[0], "[app, dns, initdb]")
 }
 
 func prepareOption(command string) {
