@@ -83,7 +83,7 @@ func (l *LbsLobby) GetUserCountBySide() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
 	for userID := range l.Users {
-		if p, ok := l.app.FindPeer(userID); ok {
+		if p := l.app.FindPeer(userID); p != nil {
 			switch p.Team {
 			case TeamRenpo:
 				a++
@@ -99,7 +99,7 @@ func (l *LbsLobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
 	for _, userID := range l.EntryUsers {
-		if p, ok := l.app.FindPeer(userID); ok {
+		if p := l.app.FindPeer(userID); p != nil {
 			switch p.Team {
 			case TeamRenpo:
 				a++
@@ -126,7 +126,7 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	b := uint16(0)
 	peers := []*LbsPeer{}
 	for _, userID := range l.EntryUsers {
-		if p, ok := l.app.FindPeer(userID); ok {
+		if p := l.app.FindPeer(userID); p != nil {
 			switch p.Team {
 			case TeamRenpo:
 				if a < 2 {
@@ -182,11 +182,12 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			var peers []*LbsPeer
 			allOk := true
 			for _, u := range room.Users {
-				p, ok := l.app.FindPeer(u.UserID)
-				if !ok {
-					allOk = false
-				}
+				p := l.app.FindPeer(u.UserID)
 				peers = append(peers, p)
+				if p == nil {
+					allOk = false
+					break
+				}
 			}
 			if allOk {
 				renpoRoom = room
@@ -201,9 +202,10 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			var peers []*LbsPeer
 			allOk := true
 			for _, u := range room.Users {
-				p, ok := l.app.FindPeer(u.UserID)
-				if !ok {
+				p := l.app.FindPeer(u.UserID)
+				if p == nil {
 					allOk = false
+					break
 				}
 				peers = append(peers, p)
 			}

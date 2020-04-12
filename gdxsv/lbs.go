@@ -63,8 +63,8 @@ func NewLbs() *Lbs {
 	return app
 }
 
-func (a *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
-	lobbies, ok := a.lobbies[platform]
+func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
+	lobbies, ok := lbs.lobbies[platform]
 	if !ok {
 		return nil
 	}
@@ -109,9 +109,9 @@ func (s *Lbs) ListenAndServeLobby(addr string) error {
 	}
 }
 
-func (a *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
+func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 	return &LbsPeer{
-		app:        a,
+		app:        lbs,
 		conn:       conn,
 		chWrite:    make(chan bool, 1),
 		chDispatch: make(chan bool, 1),
@@ -120,28 +120,31 @@ func (a *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 	}
 }
 
-func (a *Lbs) FindPeer(userID string) (*LbsPeer, bool) {
-	p, ok := a.users[userID]
-	return p, ok
+func (lbs *Lbs) FindPeer(userID string) *LbsPeer {
+	p, ok := lbs.users[userID]
+	if !ok {
+		return nil
+	}
+	return p
 }
 
-func (a *Lbs) Locked(f func(*Lbs)) {
+func (lbs *Lbs) Locked(f func(*Lbs)) {
 	c := make(chan interface{})
-	a.chEvent <- eventFunc{
+	lbs.chEvent <- eventFunc{
 		f: f,
 		c: c,
 	}
 	<-c
 }
 
-func (a *Lbs) Quit() {
-	a.Locked(func(app *Lbs) {
+func (lbs *Lbs) Quit() {
+	lbs.Locked(func(app *Lbs) {
 		for _, p := range app.users {
 			SendServerShutDown(p)
 		}
 	})
 	time.Sleep(1000 * time.Millisecond)
-	close(a.chQuit)
+	close(lbs.chQuit)
 }
 
 func stripHost(addr string) string {
@@ -170,15 +173,15 @@ type eventFunc struct {
 	c chan<- interface{}
 }
 
-func (a *Lbs) eventLoop() {
+func (lbs *Lbs) eventLoop() {
 	aliveCheck := time.Tick(10 * time.Second)
 	peers := map[string]*LbsPeer{}
 
 	for {
 		select {
-		case <-a.chQuit:
+		case <-lbs.chQuit:
 			return
-		case e := <-a.chEvent:
+		case e := <-lbs.chEvent:
 			switch args := e.(type) {
 			case eventPeerCome:
 				glog.Infoln("eventPeerCome")
@@ -187,7 +190,7 @@ func (a *Lbs) eventLoop() {
 				StartLoginFlow(args.peer)
 			case eventPeerMessage:
 				args.peer.lastRecvTime = time.Now()
-				if f, ok := a.handlers[args.msg.Command]; ok {
+				if f, ok := lbs.handlers[args.msg.Command]; ok {
 					f(args.peer, args.msg)
 				} else {
 					glog.Errorf("======================================")
@@ -203,10 +206,10 @@ func (a *Lbs) eventLoop() {
 				}
 			case eventPeerLeave:
 				glog.Infoln("eventPeerLeave")
-				delete(a.users, args.peer.UserID)
+				delete(lbs.users, args.peer.UserID)
 				delete(peers, args.peer.Address())
 			case eventFunc:
-				args.f(a)
+				args.f(lbs)
 				args.c <- struct{}{}
 			}
 		case <-aliveCheck:
@@ -223,7 +226,7 @@ func (a *Lbs) eventLoop() {
 	}
 }
 
-func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
+func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	if lobby == nil {
 		return
 	}
@@ -231,7 +234,7 @@ func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	// For lobby select scene.
 	msg := NewServerNotice(lbsPlazaJoin).Writer().
 		Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
-	for _, u := range a.users {
+	for _, u := range lbs.users {
 		if u.Platform == lobby.Platform {
 			u.SendMessage(msg)
 		}
@@ -245,8 +248,7 @@ func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 		msgRenpo := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamRenpo).Write16(renpo).Msg()
 		msgZeon := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamZeon).Write16(zeon).Msg()
 		for userID := range lobby.Users {
-			p, ok := a.FindPeer(userID)
-			if ok {
+			if p := lbs.FindPeer(userID); p != nil {
 				if p.InLobbyChat() {
 					p.SendMessage(msgSum1)
 					p.SendMessage(msgSum2)
@@ -257,8 +259,8 @@ func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 			}
 		}
 	} else if lobby.Platform == PlatformDC1 || lobby.Platform == PlatformDC2 {
-		lobby1 := a.GetLobby(PlatformDC1, lobby.ID)
-		lobby2 := a.GetLobby(PlatformDC2, lobby.ID)
+		lobby1 := lbs.GetLobby(PlatformDC1, lobby.ID)
+		lobby2 := lbs.GetLobby(PlatformDC2, lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
 			return
 		}
@@ -283,7 +285,7 @@ func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 			Write16(zeon2).Msg()
 
 		for userID := range lobby1.Users {
-			if p, ok := a.FindPeer(userID); ok {
+			if p := lbs.FindPeer(userID); p != nil {
 				if p.InLobbyChat() {
 					p.SendMessage(msgSum1)
 					p.SendMessage(msgSum2)
@@ -295,7 +297,7 @@ func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 		}
 
 		for userID := range lobby2.Users {
-			if p, ok := a.FindPeer(userID); ok {
+			if p := lbs.FindPeer(userID); p != nil {
 				if p.InLobbyChat() {
 					p.SendMessage(msgSum1)
 					p.SendMessage(msgSum2)
@@ -308,26 +310,26 @@ func (a *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	}
 }
 
-func (a *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
+func (lbs *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
 	renpo, zeon := lobby.GetLobbyMatchEntryUserCount()
 	msg1 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(TeamRenpo).Write16(renpo).Msg()
 	msg2 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(TeamZeon).Write16(zeon).Msg()
 	for userID := range lobby.Users {
-		if p, ok := a.FindPeer(userID); ok {
+		if p := lbs.FindPeer(userID); p != nil {
 			p.SendMessage(msg1)
 			p.SendMessage(msg2)
 		}
 	}
 }
 
-func (a *Lbs) BroadcastRoomState(room *LbsRoom) {
+func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 	if room == nil || room.lobby == nil {
 		return
 	}
 	msg1 := NewServerNotice(lbsRoomStatus).Writer().Write16(room.ID).Write8(room.Status).Msg()
 	msg2 := NewServerNotice(lbsRoomTitle).Writer().Write16(room.ID).WriteString(room.Name).Msg()
 	for userID := range room.lobby.Users {
-		if p, ok := a.FindPeer(userID); ok {
+		if p := lbs.FindPeer(userID); p != nil {
 			if p.Team == room.Team {
 				p.SendMessage(msg1)
 				p.SendMessage(msg2)
@@ -336,7 +338,7 @@ func (a *Lbs) BroadcastRoomState(room *LbsRoom) {
 	}
 }
 
-func (a *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
+func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	js, err := json.Marshal(result)
 	if err != nil {
 		glog.Errorln("Failed to marshal battle result", err)

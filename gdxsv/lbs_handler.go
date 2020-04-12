@@ -1023,7 +1023,7 @@ var _ = register(lbsRoomEntry, func(p *LbsPeer, m *LbsMessage) {
 	room.Enter(&p.DBUser)
 	p.Room = room
 	for _, u := range room.Users {
-		if q, ok := p.app.FindPeer(u.UserID); ok {
+		if q := p.app.FindPeer(u.UserID); q != nil {
 			q.SendMessage(NewServerNotice(lbsRoomCommer).Writer().
 				WriteString(p.UserID).
 				WriteString(p.Name).Msg())
@@ -1045,8 +1045,8 @@ var _ = register(lbsRoomUserReject, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	q, ok := p.app.FindPeer(userID)
-	if !ok {
+	q := p.app.FindPeer(userID)
+	if q == nil {
 		return
 	}
 
@@ -1071,7 +1071,7 @@ var _ = register(lbsRoomExit, func(p *LbsPeer, m *LbsMessage) {
 	if r.Owner == p.UserID {
 		for _, u := range r.Users {
 			if r.Owner != u.UserID {
-				if q, ok := p.app.FindPeer(u.UserID); ok {
+				if q := p.app.FindPeer(u.UserID); q != nil {
 					q.Room = nil
 					q.SendMessage(NewServerNotice(lbsRoomRemove).Writer().
 						WriteString("<LF=6><BODY><CENTER>部屋が解散になりました。<END>").Msg())
@@ -1082,7 +1082,7 @@ var _ = register(lbsRoomExit, func(p *LbsPeer, m *LbsMessage) {
 	} else {
 		r.Exit(p.UserID)
 		for _, u := range r.Users {
-			if q, ok := p.app.FindPeer(u.UserID); ok {
+			if q := p.app.FindPeer(u.UserID); q != nil {
 				q.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(1).Msg())
 				q.SendMessage(NewServerNotice(lbsRoomLeaver).Writer().
 					WriteString(p.UserID).
@@ -1108,7 +1108,7 @@ var _ = register(lbsMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 		r.lobby.CheckRoomBattleStart()
 	} else if enable == 0 {
 		for _, u := range r.Users {
-			if q, ok := p.app.FindPeer(u.UserID); ok {
+			if q := p.app.FindPeer(u.UserID); p != nil {
 				q.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(1).Msg())
 				q.SendMessage(NewServerNotice(lbsRoomLeaver).Writer().
 					WriteString(p.UserID).
@@ -1136,13 +1136,13 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 
 	if p.Room != nil {
 		for _, u := range p.Room.Users {
-			if q, ok := p.app.FindPeer(u.UserID); ok {
+			if q := p.app.FindPeer(u.UserID); q != nil {
 				q.SendMessage(msg)
 			}
 		}
 	} else if p.Lobby != nil {
-		for userID := range p.Lobby.Users {
-			if q, ok := p.app.FindPeer(userID); ok {
+		for _, u := range p.Lobby.Users {
+			if q := p.app.FindPeer(u.UserID); q != nil {
 				if q.InLobbyChat() {
 					q.SendMessage(msg)
 				}

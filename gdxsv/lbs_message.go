@@ -80,7 +80,7 @@ func (m *LbsMessage) String() string {
 
 func (m *LbsMessage) SetErr() *LbsMessage {
 	m.Status = StatusError
-	text := fmt.Sprintf("<LF=6><BODY><CENTER>ERROR: %04x<END>", string(m.Command))
+	text := fmt.Sprintf("<LF=6><BODY><CENTER>ERROR: %s<END>", string(m.Command))
 	return m.Writer().WriteString(text).Msg()
 }
 
