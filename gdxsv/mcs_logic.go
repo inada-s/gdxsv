@@ -1,4 +1,4 @@
-package battle
+package main
 
 import (
 	"sync"
@@ -14,11 +14,11 @@ import (
 // So here, let's simply share global variable.
 var lobbySharedData struct {
 	sync.Mutex
-	battleUsers map[string]BattleUserInfo
+	battleUsers map[string]McsUser
 }
 
 func init() {
-	lobbySharedData.battleUsers = map[string]BattleUserInfo{}
+	lobbySharedData.battleUsers = map[string]McsUser{}
 	go func() {
 		for {
 			removeZombieUserInfo()
@@ -27,7 +27,7 @@ func init() {
 	}()
 }
 
-type BattleUserInfo struct {
+type McsUser struct {
 	BattleCode string    `json:"battle_code,omitempty"`
 	UserID     string    `json:"user_id,omitempty"`
 	Name       string    `json:"name,omitempty"`
@@ -40,7 +40,7 @@ type BattleUserInfo struct {
 func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, side uint16, sessionID string) {
 	lobbySharedData.Lock()
 	defer lobbySharedData.Unlock()
-	lobbySharedData.battleUsers[sessionID] = BattleUserInfo{
+	lobbySharedData.battleUsers[sessionID] = McsUser{
 		BattleCode: battleCode,
 		UserID:     userID,
 		Name:       name,
@@ -50,17 +50,17 @@ func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, si
 	}
 }
 
-func GetInBattleUsers() []BattleUserInfo {
+func GetInBattleUsers() []McsUser {
 	lobbySharedData.Lock()
 	defer lobbySharedData.Unlock()
-	ret := []BattleUserInfo{}
+	ret := []McsUser{}
 	for _, u := range lobbySharedData.battleUsers {
 		ret = append(ret, u)
 	}
 	return ret
 }
 
-func getBattleUserInfo(sessionID string) (BattleUserInfo, bool) {
+func getBattleUserInfo(sessionID string) (McsUser, bool) {
 	lobbySharedData.Lock()
 	defer lobbySharedData.Unlock()
 	u, ok := lobbySharedData.battleUsers[sessionID]
@@ -91,72 +91,72 @@ func removeZombieUserInfo() {
 	}
 }
 
-type BasePeer struct {
+type BaseMcsPeer struct {
 	sessionID string
 	userID    string
 	roomID    string
 	position  int
 }
 
-func (p *BasePeer) SetUserID(userID string) {
+func (p *BaseMcsPeer) SetUserID(userID string) {
 	p.userID = userID
 }
 
-func (p *BasePeer) SetSessionID(sessionID string) {
+func (p *BaseMcsPeer) SetSessionID(sessionID string) {
 	p.sessionID = sessionID
 }
 
-func (p *BasePeer) SessionID() string {
+func (p *BaseMcsPeer) SessionID() string {
 	return p.sessionID
 }
 
-func (p *BasePeer) UserID() string {
+func (p *BaseMcsPeer) UserID() string {
 	return p.userID
 }
 
-func (p *BasePeer) SetPosition(pos int) {
+func (p *BaseMcsPeer) SetPosition(pos int) {
 	p.position = pos
 }
 
-func (p *BasePeer) Position() int {
+func (p *BaseMcsPeer) Position() int {
 	return p.position
 }
 
-func (p *BasePeer) SetRoomID(id string) {
+func (p *BaseMcsPeer) SetMcsRoomID(id string) {
 	p.roomID = id
 }
 
-func (p *BasePeer) RoomID() string {
+func (p *BaseMcsPeer) McsRoomID() string {
 	return p.roomID
 }
 
-type Peer interface {
+type McsPeer interface {
 	SetUserID(string)
 	SetSessionID(string)
 	UserID() string
 	SessionID() string
 	SetPosition(int)
 	Position() int
-	SetRoomID(string)
-	RoomID() string
+	SetMcsRoomID(string)
+	McsRoomID() string
 	AddSendData([]byte)
 	AddSendMessage(*proto.BattleMessage)
 	Address() string
 	Close() error
 }
 
-type Logic struct {
+type McsHub struct {
 	roomsMtx sync.Mutex
-	rooms    map[string]*Room
+	rooms    map[string]*McsRoom
 }
 
-func NewLogic() *Logic {
-	l := &Logic{}
-	l.rooms = map[string]*Room{}
+func NewLogic() *McsHub {
+	l := &McsHub{}
+	l.rooms = map[string]*McsRoom{}
 	return l
 }
 
-func (m *Logic) Join(p Peer, sessionID string) *Room {
+func (m *McsHub) Join(p McsPeer, sessionID string) *McsRoom {
 	user, ok := getBattleUserInfo(sessionID)
 	if !ok {
 		return nil
@@ -168,7 +168,7 @@ func (m *Logic) Join(p Peer, sessionID string) *Room {
 	m.roomsMtx.Lock()
 	room := m.rooms[user.BattleCode]
 	if room == nil {
-		room = newRoom(m, user.BattleCode)
+		room = newMcsRoom(m, user.BattleCode)
 		m.rooms[user.BattleCode] = room
 	}
 	m.roomsMtx.Unlock()
@@ -176,7 +176,7 @@ func (m *Logic) Join(p Peer, sessionID string) *Room {
 	return room
 }
 
-func (m *Logic) OnRoomClose(room *Room) {
+func (m *McsHub) OnMcsRoomClose(room *McsRoom) {
 	m.roomsMtx.Lock()
 	delete(m.rooms, room.battleCode)
 	m.roomsMtx.Unlock()

@@ -99,7 +99,7 @@ func prepareDB() {
 }
 
 func mainApp() {
-	app := NewApp()
+	app := NewLbs()
 	go app.ListenAndServeLobby(stripHost(conf.LobbyAddr))
 	go app.ListenAndServeBattle(stripHost(conf.BattleAddr))
 

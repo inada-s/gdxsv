@@ -1,4 +1,4 @@
-package battle
+package main
 
 import (
 	"encoding/hex"
@@ -13,29 +13,29 @@ import (
 	"gdxsv/gdxsv/proto"
 )
 
-var _ Peer = (*TCPPeer)(nil)
+var _ McsPeer = (*McsTCPPeer)(nil)
 
-type TCPPeer struct {
-	BasePeer
+type McsTCPPeer struct {
+	BaseMcsPeer
 
 	sendMtx sync.Mutex
 	conn    *net.TCPConn
-	room    *Room
+	room    *McsRoom
 	seq     uint32
 }
 
-func NewTCPPeer(conn *net.TCPConn) *TCPPeer {
-	return &TCPPeer{
+func NewTCPPeer(conn *net.TCPConn) *McsTCPPeer {
+	return &McsTCPPeer{
 		conn: conn,
 		seq:  1,
 	}
 }
 
-func (u *TCPPeer) Close() error {
+func (u *McsTCPPeer) Close() error {
 	return u.conn.Close()
 }
 
-func (u *TCPPeer) Serve(logic *Logic) {
+func (u *McsTCPPeer) Serve(logic *McsHub) {
 	glog.Infoln("[TCP]", u.Address(), "Serve Start")
 	time.Sleep(2 * time.Second)
 	defer glog.Infoln("[TCP]", u.Address(), "Serve End")
@@ -53,11 +53,11 @@ func (u *TCPPeer) Serve(logic *Logic) {
 	u.conn.Close()
 }
 
-func (u *TCPPeer) AddSendMessage(msg *proto.BattleMessage) {
+func (u *McsTCPPeer) AddSendMessage(msg *proto.BattleMessage) {
 	u.AddSendData(msg.GetBody())
 }
 
-func (u *TCPPeer) AddSendData(data []byte) {
+func (u *McsTCPPeer) AddSendData(data []byte) {
 	u.sendMtx.Lock()
 	defer u.sendMtx.Unlock()
 	for sum := 0; sum < len(data); {
@@ -70,11 +70,11 @@ func (u *TCPPeer) AddSendData(data []byte) {
 	}
 }
 
-func (u *TCPPeer) Address() string {
+func (u *McsTCPPeer) Address() string {
 	return u.conn.RemoteAddr().String()
 }
 
-func (u *TCPPeer) readLoop(logic *Logic) {
+func (u *McsTCPPeer) readLoop(logic *McsHub) {
 	buf := make([]byte, 1024)
 	inbuf := make([]byte, 0, 128)
 

@@ -1,12 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"net"
+	"strconv"
 	"time"
+
+	"github.com/golang/glog"
 )
 
-type Battle struct {
-	app *App
+func genBattleCode() string {
+	return fmt.Sprintf("%013d", time.Now().UnixNano()/1000000)
+}
+
+type LbsBattle struct {
+	app *Lbs
 
 	BattleCode string
 	ServerIP   net.IP
@@ -22,10 +30,25 @@ type Battle struct {
 	TestBattle bool
 }
 
-func NewBattle(app *App, lobbyID uint16) *Battle {
-	return &Battle{
+func NewBattle(app *Lbs, lobbyID uint16) *LbsBattle {
+	host, portStr, err := net.SplitHostPort(conf.BattlePublicAddr)
+	if err != nil {
+		glog.Warningln(err)
+	}
+
+	portNum, err := strconv.Atoi(portStr)
+	if err != nil {
+		glog.Warningln(err)
+	}
+
+	ip, port := net.ParseIP(host), uint16(portNum)
+
+	return &LbsBattle{
 		app: app,
 
+		BattleCode: genBattleCode(),
+		ServerIP:   ip,
+		ServerPort: port,
 		Users:      make([]*DBUser, 0),
 		UserRanks:  make([]int, 0),
 		GameParams: make([][]byte, 0),
@@ -36,31 +59,31 @@ func NewBattle(app *App, lobbyID uint16) *Battle {
 	}
 }
 
-func (b *Battle) SetRule(rule *Rule) {
+func (b *LbsBattle) SetRule(rule *Rule) {
 	b.Rule = rule
 }
 
-func (b *Battle) Add(p *AppPeer) {
+func (b *LbsBattle) Add(p *LbsPeer) {
 	b.Users = append(b.Users, &p.DBUser)
 	b.GameParams = append(b.GameParams, p.GameParam)
 	b.UserRanks = append(b.UserRanks, p.Rank)
-	if p.Entry == EntryRenpo {
+	if p.Team == TeamRenpo {
 		b.RenpoIDs = append(b.RenpoIDs, p.UserID)
-	} else if p.Entry == EntryZeon {
+	} else if p.Team == TeamZeon {
 		b.ZeonIDs = append(b.ZeonIDs, p.UserID)
 	}
 }
 
-func (b *Battle) NumOfEntryUsers() uint16 {
+func (b *LbsBattle) NumOfEntryUsers() uint16 {
 	return uint16(len(b.RenpoIDs) + len(b.ZeonIDs))
 }
 
-func (b *Battle) SetBattleServer(ip net.IP, port uint16) {
+func (b *LbsBattle) SetBattleServer(ip net.IP, port uint16) {
 	b.ServerIP = ip
 	b.ServerPort = port
 }
 
-func (b *Battle) GetPosition(userID string) byte {
+func (b *LbsBattle) GetPosition(userID string) byte {
 	for i, u := range b.Users {
 		if userID == u.UserID {
 			return byte(i + 1)
@@ -69,7 +92,7 @@ func (b *Battle) GetPosition(userID string) byte {
 	return 0
 }
 
-func (b *Battle) GetUserByPos(pos byte) *DBUser {
+func (b *LbsBattle) GetUserByPos(pos byte) *DBUser {
 	pos--
 	if pos < 0 || len(b.Users) < int(pos) {
 		return nil
@@ -77,7 +100,7 @@ func (b *Battle) GetUserByPos(pos byte) *DBUser {
 	return b.Users[pos]
 }
 
-func (b *Battle) GetGameParamByPos(pos byte) []byte {
+func (b *LbsBattle) GetGameParamByPos(pos byte) []byte {
 	pos--
 	if pos < 0 || len(b.GameParams) < int(pos) {
 		return nil
@@ -85,7 +108,7 @@ func (b *Battle) GetGameParamByPos(pos byte) []byte {
 	return b.GameParams[pos]
 }
 
-func (b *Battle) GetUserRankByPos(pos byte) int {
+func (b *LbsBattle) GetUserRankByPos(pos byte) int {
 	pos--
 	if pos < 0 || len(b.UserRanks) < int(pos) {
 		return 0
@@ -93,7 +116,7 @@ func (b *Battle) GetUserRankByPos(pos byte) int {
 	return b.UserRanks[pos]
 }
 
-func (b *Battle) GetUserSide(userID string) uint16 {
+func (b *LbsBattle) GetUserSide(userID string) uint16 {
 	for _, id := range b.RenpoIDs {
 		if id == userID {
 			return 1

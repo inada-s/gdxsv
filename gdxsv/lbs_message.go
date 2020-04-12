@@ -42,7 +42,7 @@ func init() {
 	nextSeq = sequenceGenerator()
 }
 
-type Message struct {
+type LbsMessage struct {
 	Direction byte
 	Category  byte
 	Command   CmdID
@@ -52,7 +52,7 @@ type Message struct {
 	Body      []byte
 }
 
-func (m *Message) String() string {
+func (m *LbsMessage) String() string {
 	b := new(bytes.Buffer)
 	switch m.Direction {
 	case ClientToServer:
@@ -78,13 +78,13 @@ func (m *Message) String() string {
 	return b.String()
 }
 
-func (m *Message) SetErr() *Message {
+func (m *LbsMessage) SetErr() *LbsMessage {
 	m.Status = StatusError
 	text := fmt.Sprintf("<LF=6><BODY><CENTER>ERROR: %04x<END>", string(m.Command))
 	return m.Writer().WriteString(text).Msg()
 }
 
-func (m *Message) Serialize() []byte {
+func (m *LbsMessage) Serialize() []byte {
 	w := new(bytes.Buffer)
 	m.BodySize = uint16(len(m.Body))
 	binary.Write(w, binary.BigEndian, m.Direction)
@@ -97,12 +97,12 @@ func (m *Message) Serialize() []byte {
 	return w.Bytes()
 }
 
-func Deserialize(data []byte) (int, *Message) {
+func Deserialize(data []byte) (int, *LbsMessage) {
 	if len(data) < HeaderSize {
 		return 0, nil
 	}
 
-	m := Message{}
+	m := LbsMessage{}
 	r := bytes.NewReader(data)
 	binary.Read(r, binary.BigEndian, &m.Direction)
 	binary.Read(r, binary.BigEndian, &m.Category)
@@ -119,8 +119,8 @@ func Deserialize(data []byte) (int, *Message) {
 	return int(HeaderSize + m.BodySize), &m
 }
 
-func NewServerQuestion(command CmdID) *Message {
-	return &Message{
+func NewServerQuestion(command CmdID) *LbsMessage {
+	return &LbsMessage{
 		Direction: ServerToClient,
 		Category:  CategoryQuestion,
 		Command:   command,
@@ -129,8 +129,8 @@ func NewServerQuestion(command CmdID) *Message {
 	}
 }
 
-func NewServerAnswer(request *Message) *Message {
-	return &Message{
+func NewServerAnswer(request *LbsMessage) *LbsMessage {
+	return &LbsMessage{
 		Direction: ServerToClient,
 		Category:  CategoryAnswer,
 		Command:   request.Command,
@@ -139,8 +139,8 @@ func NewServerAnswer(request *Message) *Message {
 	}
 }
 
-func NewServerNotice(command CmdID) *Message {
-	return &Message{
+func NewServerNotice(command CmdID) *LbsMessage {
+	return &LbsMessage{
 		Direction: ServerToClient,
 		Category:  CategoryNotice,
 		Command:   command,
@@ -149,8 +149,8 @@ func NewServerNotice(command CmdID) *Message {
 	}
 }
 
-func NewClientQuestion(command CmdID) *Message {
-	return &Message{
+func NewClientQuestion(command CmdID) *LbsMessage {
+	return &LbsMessage{
 		Direction: ClientToServer,
 		Category:  CategoryQuestion,
 		Command:   command,
@@ -159,8 +159,8 @@ func NewClientQuestion(command CmdID) *Message {
 	}
 }
 
-func NewClientAnswer(request *Message) *Message {
-	return &Message{
+func NewClientAnswer(request *LbsMessage) *LbsMessage {
+	return &LbsMessage{
 		Direction: ClientToServer,
 		Category:  CategoryAnswer,
 		Command:   request.Command,
@@ -169,8 +169,8 @@ func NewClientAnswer(request *Message) *Message {
 	}
 }
 
-func NewClientNotice(command CmdID) *Message {
-	return &Message{
+func NewClientNotice(command CmdID) *LbsMessage {
+	return &LbsMessage{
 		Direction: ClientToServer,
 		Category:  CategoryNotice,
 		Command:   command,
@@ -184,7 +184,7 @@ type MessageBodyReader struct {
 	r   *bytes.Reader
 }
 
-func (msg *Message) Reader() *MessageBodyReader {
+func (msg *LbsMessage) Reader() *MessageBodyReader {
 	return &MessageBodyReader{
 		seq: msg.Seq,
 		r:   bytes.NewReader(msg.Body),
@@ -241,11 +241,11 @@ func (m *MessageBodyReader) ReadShiftJISString() string {
 }
 
 type MessageBodyWriter struct {
-	msg *Message
+	msg *LbsMessage
 	buf *bytes.Buffer
 }
 
-func (msg *Message) Writer() *MessageBodyWriter {
+func (msg *LbsMessage) Writer() *MessageBodyWriter {
 	return &MessageBodyWriter{
 		msg: msg,
 		buf: new(bytes.Buffer),
@@ -325,6 +325,6 @@ func (m *MessageBodyWriter) WriteString(v string) *MessageBodyWriter {
 	return m
 }
 
-func (m *MessageBodyWriter) Msg() *Message {
+func (m *MessageBodyWriter) Msg() *LbsMessage {
 	return m.msg
 }

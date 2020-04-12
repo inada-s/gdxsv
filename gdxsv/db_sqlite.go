@@ -177,7 +177,7 @@ func (db SQLiteDB) Migrate() error {
 	return tx.Commit()
 }
 
-func (db SQLiteDB) RegisterAccount(ip string) (*Account, error) {
+func (db SQLiteDB) RegisterAccount(ip string) (*DBAccount, error) {
 	key := genLoginKey()
 	now := time.Now()
 	_, err := db.Exec(`
@@ -188,14 +188,14 @@ VALUES
 	if err != nil {
 		return nil, err
 	}
-	a := &Account{
+	a := &DBAccount{
 		LoginKey:  key,
 		CreatedIP: ip,
 	}
 	return a, nil
 }
 
-func (db SQLiteDB) RegisterAccountWithLoginKey(ip string, loginKey string) (*Account, error) {
+func (db SQLiteDB) RegisterAccountWithLoginKey(ip string, loginKey string) (*DBAccount, error) {
 	now := time.Now()
 	_, err := db.Exec(`
 INSERT INTO account
@@ -205,15 +205,15 @@ VALUES
 	if err != nil {
 		return nil, err
 	}
-	a := &Account{
+	a := &DBAccount{
 		LoginKey:  loginKey,
 		CreatedIP: ip,
 	}
 	return a, nil
 }
 
-func (db SQLiteDB) GetAccountByLoginKey(key string) (*Account, error) {
-	a := &Account{}
+func (db SQLiteDB) GetAccountByLoginKey(key string) (*DBAccount, error) {
+	a := &DBAccount{}
 	err := db.QueryRowx("SELECT * FROM account WHERE login_key = ?", key).StructScan(a)
 	if err != nil {
 		return nil, err
@@ -221,8 +221,8 @@ func (db SQLiteDB) GetAccountByLoginKey(key string) (*Account, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) GetAccountBySessionID(sid string) (*Account, error) {
-	a := &Account{}
+func (db SQLiteDB) GetAccountBySessionID(sid string) (*DBAccount, error) {
+	a := &DBAccount{}
 	err := db.QueryRowx("SELECT * FROM account WHERE session_id = ?", sid).StructScan(a)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (db SQLiteDB) GetAccountBySessionID(sid string) (*Account, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) LoginAccount(a *Account, sessionID string) error {
+func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string) error {
 	now := time.Now()
 	_, err := db.Exec(`
 UPDATE

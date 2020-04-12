@@ -1,20 +1,20 @@
-package battle
+package main
 
 import (
 	"net"
 )
 
-type TCPServer struct {
-	logic *Logic
+type McsTCPServer struct {
+	logic *McsHub
 }
 
-func NewTCPServer(logic *Logic) *TCPServer {
-	return &TCPServer{
+func NewTCPServer(logic *McsHub) *McsTCPServer {
+	return &McsTCPServer{
 		logic: logic,
 	}
 }
 
-func (s *TCPServer) ListenAndServe(addr string) error {
+func (s *McsTCPServer) ListenAndServe(addr string) error {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return err
