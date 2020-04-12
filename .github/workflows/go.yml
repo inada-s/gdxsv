@@ -18,10 +18,15 @@ jobs:
       with:
         go-version: 1.13
       id: go
-
+    - name: setup env
+      run: |
+        echo "::set-env name=GOPATH::$(go env GOPATH)"
+        echo "::add-path::$(go env GOPATH)/bin"
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
+      
+    - name: Get dependencies
+      run: go get -u -a golang.org/x/tools/cmd/stringer
 
     - name: Build
       run: make ci
-  
