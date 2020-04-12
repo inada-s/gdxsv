@@ -13,7 +13,7 @@ if [[ -f ~/Downloads/flycast.zip  ]]; then
   mv ~/Downloads/flycast.zip ./work/bin/
   pushd work/bin
     unzip flycast.zip
-    mv ./flycast.*.exe flycast.exe
+    mv ./flycast.*exe flycast.exe || true
   popd
 fi
 
