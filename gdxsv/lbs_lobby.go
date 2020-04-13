@@ -22,7 +22,7 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		Platform:   platform,
 		ID:         lobbyID,
 		Comment:    fmt.Sprintf("<B>Lobby %d<END>", lobbyID),
-		Rule:       RulePresetDefault,
+		Rule:       RulePresetDefault.Clone(),
 		Users:      make(map[string]*DBUser),
 		RenpoRooms: make(map[uint16]*LbsRoom),
 		ZeonRooms:  make(map[uint16]*LbsRoom),
