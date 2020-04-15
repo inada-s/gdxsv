@@ -54,34 +54,22 @@ func main() {
 	must(err)
 	r.Close()
 
-	atms := [][]byte{
+	reps := [][]byte{
 		[]byte("ATN3+MS=V34,1,14400,33600,14400,33600"),
 		[]byte("ATM1\r                                "),
-		/*
-			[]byte("AT+MS=V34,1,33600,33600,33600,33600"),
-			[]byte("ATM1\r                              "),
-			[]byte("AT+MS=V34,1,28800,33600,28800,33600"),
-			[]byte("ATM1\r                              "),
-			[]byte("AT+MS=V34,1,14400,33600,14400,33600"),
-			[]byte("ATM1\r                              "),
-			[]byte(`send"AT%C1`),
-			[]byte(`send"ATM1` + "\r"),
-			[]byte("ATX3&C1&D2"),
-			[]byte("ATM1\r     "),
-			[]byte("ATS46=136"),
-			[]byte("ATM1\r    "),
-			[]byte("AT&Q0\r"),
-			[]byte("ATM1\r\r"),
-		*/
 		[]byte("ca1203.mmcp6"),
 		[]byte("192.168.0.10"),
+		/*
+			append([]byte("ca1203.mmcp6"), 0, 0),
+			[]byte("153.121.44.150"),
+		*/
 	}
 
-	for i := 0; i < len(atms); i += 2 {
-		if len(atms[i]) != len(atms[i+1]) {
+	for i := 0; i < len(reps); i += 2 {
+		if len(reps[i]) != len(reps[i+1]) {
 			panic(fmt.Sprint("mismach length", i, i+1))
 		}
-		bin = bytes.ReplaceAll(bin, atms[i], atms[i+1])
+		bin = bytes.ReplaceAll(bin, reps[i], reps[i+1])
 	}
 
 	os.Remove(track03binDst)
