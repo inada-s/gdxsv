@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"sync"
 
 	"github.com/golang/glog"
@@ -32,7 +33,7 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 		other := r.peers[i]
 		if other != nil {
 			if glog.V(2) {
-				glog.Infof("[ROOM] %v>%v %v", peer.UserID(), other.UserID(), msg.GetBody())
+				glog.Infof("[ROOM] %v>%v %v", peer.UserID(), other.UserID(), hex.EncodeToString(msg.GetBody()))
 			}
 			other.AddSendMessage(msg)
 		}
