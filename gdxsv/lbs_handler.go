@@ -1191,18 +1191,22 @@ var _ = register(lbsTopRanking, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	// Note: <COLOR=N>
-	// 0: 白
-	// 1: 赤
-	// 2: 緑
-	// 3: 黄
-	// 4: 青
-	// 5: 紫
+	// 1: Red
+	// 2: Green
+	// 3: Yellow
+	// 4: Blue
+	// 5: Purple
+	// 6: SkyBule
+	// 7: White
 
 	rec := ranking[index]
 	topRankerNum := uint16(num2)
-	topRankStr := fmt.Sprintf("<SIZE=4><BODY>%3d位 <COLOR=3> %s <COLOR=4>%v<BR>", rec.Rank, width.Widen.String(rec.UserID), rec.Name) +
-		fmt.Sprintf("<SIZE=3><COLOR=0>%5d<COLOR=3>戦<COLOR=0> %5d<COLOR=3>勝<COLOR=0> %5d<COLOR=3>敗<COLOR=0> %5d<COLOR=3>無効<COLOR=0><END>",
-			rec.BattleCount, rec.WinCount, rec.LoseCount, rec.BattleCount-rec.WinCount-rec.LoseCount)
+	topRankStr := "" +
+		fmt.Sprintf(
+			"<COLOR=7><SIZE=4><BODY>%3d位 <COLOR=3> %s <COLOR=6>%v<BR>",
+			rec.Rank, width.Widen.String(rec.UserID), rec.Name) +
+		fmt.Sprintf("<SIZE=3><COLOR=7>%5d<COLOR=3>戦<COLOR=7> %5d<COLOR=3>勝<COLOR=7> %5d<COLOR=3>敗<COLOR=7> %5d<COLOR=3>無効<COLOR=7><END>",
+			rec.WinCount+rec.LoseCount, rec.WinCount, rec.LoseCount, rec.BattleCount-rec.WinCount-rec.LoseCount)
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(topRankerNum).
 		WriteString(topRankStr).Msg())
