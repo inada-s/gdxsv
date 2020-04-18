@@ -1,0 +1,21 @@
+{
+  "name": "mcsfunc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "watch": {
+    "startWatch": "*.js"
+  },
+  "scripts": {
+    "start": "npm-watch startWatch",
+    "startWatch": "functions-framework --target=cloudFunctionEntryPoint"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/compute": "^1.2.0",
+    "@google-cloud/functions-framework": "^1.5.1",
+    "npm-watch": "^0.6.0",
+    "querystring": "^0.2.0"
+  }
+}
