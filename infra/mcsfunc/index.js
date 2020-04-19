@@ -48,6 +48,7 @@ rm -f /etc/systemd/system/gdxsv-mcs.service
 cat << 'EOF' > /etc/systemd/system/gdxsv-mcs.service
 [Unit]
 Description=gdxsv mcs service
+After=systemd-networkd-wait-online.service
 
 [Service]
 Restart=on-failure
@@ -63,9 +64,18 @@ EOF
 cat << 'EOF' > /home/ubuntu/launch-mcs.sh
 #!/bin/bash
 
-trap 'shutdown now' EXIT
-
 set -eux
+
+function finish {
+  echo "finish"
+  sleep 1
+  sudo /sbin/shutdown now
+}
+trap finish EXIT
+
+if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
+  echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers"
+fi
 
 readonly LATEST_TAG=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
 readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
@@ -79,15 +89,22 @@ if [[ ! -d $LATEST_TAG/bin ]]; then
   popd
 fi
 
+readonly GCP_NAT_IP=$(curl -H "Metadata-Flavor: Google" http://metadata/computeMetadata/v1/instance/network-interfaces/0/ip)
+readonly GCP_ZONE=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
+
 export GDXSV_LOBBY_PUBLIC_ADDR="zdxsv.net:9876"
 export GDXSV_BATTLE_ADDR=":9877"
-# TODO: impl mcs
-$LATEST_TAG/bin/gdxsv app -v=3
+export GDXSV_BATTLE_ZONE=\${GCP_ZONE}
+export GDXSV_BATTLE_PUBLIC_ADDR="\${GCP_NAT_IP}:9877"
+$LATEST_TAG/bin/gdxsv mcs -v=3
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
 
 systemctl daemon-reload
+systemctl enable systemd-networkd
+systemctl enable systemd-networkd-wait-online
+systemctl enable gdxsv-mcs
 systemctl start gdxsv-mcs --no-block
 `
       },
@@ -113,6 +130,8 @@ function forResponse(vm) {
 // require GOOGLE_APPLICATION_CREDENTIALS environment variable
 const Compute = require('@google-cloud/compute');
 const url = require('url');
+
+
 
 exports.cloudFunctionEntryPoint = async (req, res) => {
   console.log(req.url);
@@ -165,7 +184,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     await Promise.all(deletes);
 
     res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(forResponse(vms), null, "  "));
+    res.send(JSON.stringify(vmlist, null, "  "));
     return;
   }
 
@@ -187,7 +206,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
 
     console.log("" + vms.length + "vms found.");
 
-    const vm = vms.find(vm => vm.metadata.status == "RUNNING");
+    let vm = vms.find(vm => vm.metadata.status == "RUNNING");
     if (vm) {
       res.setHeader('Content-Type', 'application/json');
       res.send(JSON.stringify(forResponse(vm), null, "  "));
@@ -196,8 +215,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
 
     console.log("running vm not found");
 
-    let terminated_vms = vms.filter(vm => vm.metadata.status == "TERMINATED")
-    for (let i = 0; i < terminated_vms; i++) {
+    for (let vm of vms.filter(vm => vm.metadata.status == "TERMINATED")){
       try {
         console.log("starting vm...", vm);
         const [operation] = await vm.start();
@@ -216,11 +234,11 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
 
     console.log("no available vm found in", region);
 
-    for (let i = 0; regionInfo.zones.length; i++) {
-      const zone_name = region + "-" + regionInfo.zones[i];
+    for (let z of regionInfo.zones) {
+      const zoneName = region + "-" + z;
       try {
-        console.log("trying to create new vm in", zone_name);
-        const zone = compute.zone(zone_name);
+        console.log("trying to create new vm in", zoneName);
+        const zone = compute.zone(zoneName);
         const [vm, operation] = await zone.createVM("gdxsv-mcs", createMcsVMConfig);
         await operation.promise();
         console.log("vm created");
@@ -234,13 +252,12 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
       res.send(JSON.stringify(forResponse(vm), null, "  "));
       return;
     }
+
+    console.log('failed to allocate vm');
+    res.status(503).send('failed to allocate vm');
+    return;
   }
 
-  console.log('failed to allocate vm');
-  res.status(503).send('failed to allocate vm');
+  res.status(400).send('bad request');
   return;
-}
-
-res.status(400).send('bad request');
-return;
 }
