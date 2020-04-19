@@ -1,0 +1,104 @@
+{
+	"folders": [
+		{
+			"path": "infra"
+		},
+		{
+			"path": "gdxsv"
+		},
+		{
+			"path": "ps2patch"
+		},
+		{
+			"path": "pcsx2"
+		},
+		{
+			"path": "flycast"
+		},
+		{
+			"path": "dcpatch"
+		},
+	],
+	"settings": {
+		"files.associations": {
+			"array": "c",
+			"bitset": "c",
+			"deque": "c",
+			"list": "c",
+			"string": "c",
+			"vector": "c",
+			"xhash": "c",
+			"xmemory": "c",
+			"xstring": "c",
+			"xtree": "c",
+			"chrono": "cpp",
+			"utility": "cpp",
+			"algorithm": "cpp",
+			"atomic": "cpp",
+			"cctype": "cpp",
+			"cinttypes": "cpp",
+			"cmath": "cpp",
+			"codecvt": "cpp",
+			"complex": "cpp",
+			"concepts": "cpp",
+			"condition_variable": "cpp",
+			"csetjmp": "cpp",
+			"csignal": "cpp",
+			"cstdarg": "cpp",
+			"cstddef": "cpp",
+			"cstdint": "cpp",
+			"cstdio": "cpp",
+			"cstdlib": "cpp",
+			"cstring": "cpp",
+			"ctime": "cpp",
+			"cwchar": "cpp",
+			"exception": "cpp",
+			"fstream": "cpp",
+			"functional": "cpp",
+			"hash_map": "cpp",
+			"hash_set": "cpp",
+			"initializer_list": "cpp",
+			"iomanip": "cpp",
+			"ios": "cpp",
+			"iosfwd": "cpp",
+			"iostream": "cpp",
+			"istream": "cpp",
+			"iterator": "cpp",
+			"limits": "cpp",
+			"locale": "cpp",
+			"map": "cpp",
+			"memory": "cpp",
+			"mutex": "cpp",
+			"new": "cpp",
+			"ostream": "cpp",
+			"queue": "cpp",
+			"random": "cpp",
+			"ratio": "cpp",
+			"set": "cpp",
+			"shared_mutex": "cpp",
+			"sstream": "cpp",
+			"stack": "cpp",
+			"stdexcept": "cpp",
+			"streambuf": "cpp",
+			"system_error": "cpp",
+			"thread": "cpp",
+			"tuple": "cpp",
+			"type_traits": "cpp",
+			"typeinfo": "cpp",
+			"unordered_map": "cpp",
+			"unordered_set": "cpp",
+			"xfacet": "cpp",
+			"xiosbase": "cpp",
+			"xlocale": "cpp",
+			"xlocbuf": "cpp",
+			"xlocinfo": "cpp",
+			"xlocmes": "cpp",
+			"xlocmon": "cpp",
+			"xlocnum": "cpp",
+			"xloctime": "cpp",
+			"xstddef": "cpp",
+			"xtr1common": "cpp",
+			"xutility": "cpp"
+		}
+	}
+}

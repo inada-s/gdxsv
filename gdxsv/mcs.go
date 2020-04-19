@@ -1,96 +1,16 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"gdxsv/gdxsv/proto"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/golang/glog"
+	"golang.org/x/net/context"
 )
-
-// Note: Shareing data between lobby server
-// In zdxsv, lobby and battle server processes are separeted, and they communicated using RPC.
-// However, after all, only one battle server is used.
-// It just got complicated.
-// So here, let's simply share global variable.
-var lobbySharedData struct {
-	sync.Mutex
-	battleUsers map[string]McsUser
-}
-
-func init() {
-	lobbySharedData.battleUsers = map[string]McsUser{}
-	go func() {
-		for {
-			removeZombieUserInfo()
-			time.Sleep(time.Minute)
-		}
-	}()
-}
-
-type McsUser struct {
-	BattleCode string    `json:"battle_code,omitempty"`
-	UserID     string    `json:"user_id,omitempty"`
-	Name       string    `json:"name,omitempty"`
-	Side       uint16    `json:"side,omitempty"`
-	SessionID  string    `json:"session_id,omitempty"`
-	AddTime    time.Time `json:"add_time,omitempty"`
-	InBattle   bool      `json:"in_battle,omitempty"`
-}
-
-func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, side uint16, sessionID string) {
-	lobbySharedData.Lock()
-	defer lobbySharedData.Unlock()
-	lobbySharedData.battleUsers[sessionID] = McsUser{
-		BattleCode: battleCode,
-		UserID:     userID,
-		Name:       name,
-		Side:       side,
-		SessionID:  sessionID,
-		AddTime:    time.Now(),
-	}
-}
-
-func GetInBattleUsers() []McsUser {
-	lobbySharedData.Lock()
-	defer lobbySharedData.Unlock()
-	ret := []McsUser{}
-	for _, u := range lobbySharedData.battleUsers {
-		ret = append(ret, u)
-	}
-	return ret
-}
-
-func getBattleUserInfo(sessionID string) (McsUser, bool) {
-	lobbySharedData.Lock()
-	defer lobbySharedData.Unlock()
-	u, ok := lobbySharedData.battleUsers[sessionID]
-	return u, ok
-}
-
-func removeBattleUserInfo(battleCode string) {
-	lobbySharedData.Lock()
-	defer lobbySharedData.Unlock()
-	for key, u := range lobbySharedData.battleUsers {
-		if u.BattleCode == battleCode {
-			delete(lobbySharedData.battleUsers, key)
-		}
-	}
-}
-
-func removeZombieUserInfo() {
-	lobbySharedData.Lock()
-	defer lobbySharedData.Unlock()
-	zombie := []string{}
-	for key, u := range lobbySharedData.battleUsers {
-		if 1.0 <= time.Since(u.AddTime).Hours() {
-			zombie = append(zombie, key)
-		}
-	}
-	for _, key := range zombie {
-		delete(lobbySharedData.battleUsers, key)
-	}
-}
 
 type McsPeer interface {
 	SetUserID(string)
@@ -147,25 +67,127 @@ func (p *BaseMcsPeer) McsRoomID() string {
 }
 
 type Mcs struct {
-	roomsMtx sync.Mutex
-	rooms    map[string]*McsRoom
+	mtx     sync.Mutex
+	updated time.Time
+	rooms   map[string]*McsRoom
 }
 
 func NewMcs() *Mcs {
-	l := &Mcs{}
-	l.rooms = map[string]*McsRoom{}
-	return l
+	return &Mcs{
+		updated: time.Now(),
+		rooms:   map[string]*McsRoom{},
+	}
 }
 
 func (mcs *Mcs) ListenAndServe(addr string) error {
-	glog.Info("ListenAndServeBattle", addr)
-
+	glog.Info("mcs.ListenAndServe", addr)
 	tcpSv := NewTCPServer(mcs)
 	return tcpSv.ListenAndServe(addr)
 }
 
+func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, battleRegion string) error {
+	conn, err := net.Dial("tcp4", lobbyAddr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	status := McsStatus{
+		PublicAddr: battlePublicAddr,
+		Region:     battleRegion,
+		Updated:    time.Now(),
+		Users:      []McsUser{},
+	}
+
+	sendMcsStatus := func() error {
+		glog.Info("Send Status", status)
+		statusBin, err := json.MarshalIndent(status, "", "  ")
+		if err != nil {
+			return err
+		}
+		buf := NewServerNotice(lbsExtNotifyMcsStatus).Writer().WriteBytes(statusBin).Msg().Serialize()
+		for sum := 0; sum < len(buf); {
+			conn.SetWriteDeadline(time.Now().Add(time.Second))
+			n, err := conn.Write(buf[sum:])
+			if err != nil {
+				return err
+			}
+			sum += n
+		}
+		return nil
+	}
+
+	err = sendMcsStatus()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func(conn net.Conn) {
+		defer cancel()
+		data := make([]byte, 128)
+		buf := make([]byte, 128)
+
+		for {
+			conn.SetReadDeadline(time.Now().Add(time.Second))
+			n, err := conn.Read(buf)
+			if err != nil {
+				glog.Error(err)
+				return
+			}
+			data = append(data, buf[:n]...)
+
+			m, msg := Deserialize(data)
+			data = data[m:]
+
+			if msg != nil {
+				switch msg.Command {
+				case lbsExtNotifyBattleUsers:
+					glog.Info("Recv lbsExtNotifyBattleUsers")
+					var users []McsUser
+					json.Unmarshal(msg.Reader().ReadBytes(), &users)
+					for _, u := range users {
+						glog.Info(u)
+						AddUserWhoIsGoingTobattle(u.BattleCode, u.UserID, u.Name, u.Side, u.SessionID)
+					}
+				}
+			}
+		}
+	}(conn)
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			status.Updated = mcs.LastUpdated()
+			status.Users = GetInBattleUsers()
+			err = sendMcsStatus()
+			if err != nil {
+				return err
+			}
+
+			if 15 <= time.Since(status.Updated).Minutes() && len(status.Users) == 0 {
+				fmt.Println("mcs exit")
+				return nil
+			}
+		}
+	}
+}
+
 func (mcs *Mcs) Quit() {
 	// TODO impl
+}
+
+func (mcs *Mcs) LastUpdated() time.Time {
+	mcs.mtx.Lock()
+	t := mcs.updated
+	mcs.mtx.Unlock()
+	return t
 }
 
 func (m *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
@@ -177,21 +199,23 @@ func (m *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	p.SetUserID(user.UserID)
 	p.SetSessionID(sessionID)
 
-	m.roomsMtx.Lock()
+	m.mtx.Lock()
+	m.updated = time.Now()
 	room := m.rooms[user.BattleCode]
 	if room == nil {
 		room = newMcsRoom(m, user.BattleCode)
 		m.rooms[user.BattleCode] = room
 	}
-	m.roomsMtx.Unlock()
+	m.mtx.Unlock()
 	room.Join(p)
 	return room
 }
 
 func (m *Mcs) OnMcsRoomClose(room *McsRoom) {
-	m.roomsMtx.Lock()
+	m.mtx.Lock()
+	m.updated = time.Now()
 	delete(m.rooms, room.battleCode)
-	m.roomsMtx.Unlock()
+	m.mtx.Unlock()
 	removeBattleUserInfo(room.battleCode)
 }
 

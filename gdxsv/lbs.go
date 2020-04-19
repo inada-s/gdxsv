@@ -33,6 +33,7 @@ type Lbs struct {
 	handlers map[CmdID]LbsHandler
 	users    map[string]*LbsPeer
 	lobbies  map[byte]map[uint16]*LbsLobby
+	mcs      map[string]*McsStatus
 	chEvent  chan interface{}
 	chQuit   chan interface{}
 }
@@ -42,6 +43,7 @@ func NewLbs() *Lbs {
 		handlers: defaultLbsHandlers,
 		users:    make(map[string]*LbsPeer),
 		lobbies:  make(map[byte]map[uint16]*LbsLobby),
+		mcs:      make(map[string]*McsStatus),
 		chEvent:  make(chan interface{}, 64),
 		chQuit:   make(chan interface{}),
 	}
@@ -166,7 +168,7 @@ type eventFunc struct {
 }
 
 func (lbs *Lbs) eventLoop() {
-	aliveCheck := time.Tick(10 * time.Second)
+	tick := time.Tick(1 * time.Second)
 	peers := map[string]*LbsPeer{}
 
 	for {
@@ -204,14 +206,33 @@ func (lbs *Lbs) eventLoop() {
 				args.f(lbs)
 				args.c <- struct{}{}
 			}
-		case <-aliveCheck:
+		case <-tick:
 			for _, p := range peers {
-				if time.Since(p.lastRecvTime).Minutes() >= 2.0 {
-					glog.Infoln("Recv Timeout", p)
+				if 1 <= time.Since(p.lastRecvTime).Minutes() {
+					glog.Infoln("Kick", p.Address())
+					if p.UserID != "" {
+						if p.Room != nil {
+							p.Room.Exit(p.UserID)
+							lbs.BroadcastRoomState(p.Room)
+							p.Room = nil
+						}
+						if p.Lobby != nil {
+							p.Lobby.Exit(p.UserID)
+							lbs.BroadcastLobbyUserCount(p.Lobby)
+							lbs.BroadcastLobbyMatchEntryUserCount(p.Lobby)
+							p.Lobby = nil
+						}
+					}
 					delete(peers, p.Address())
 					p.conn.Close()
 				} else {
 					RequestLineCheck(p)
+				}
+			}
+			for _, pfLobbies := range lbs.lobbies {
+				for _, lobby := range pfLobbies {
+					lobby.CheckLobbyBattleStart()
+					lobby.CheckRoomBattleStart()
 				}
 			}
 		}

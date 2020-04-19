@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,7 +15,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 	"github.com/jmoiron/sqlx"
-	"github.com/miekg/dns"
 )
 
 var (
@@ -31,6 +29,9 @@ type Config struct {
 	LobbyPublicAddr  string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"127.0.0.1:3333"`
 	BattleAddr       string `env:"GDXSV_BATTLE_ADDR" envDefault:"localhost:3334"`
 	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
+	BattleRegion     string `env:"GDXSV_BATTLE_REGION" envDefault:""`
+	McsFuncKey       string `env:"GDXSV_MCSFUNC_KEY" envDefault:""`
+	McsFuncURL       string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
 	DBName           string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }
 
@@ -46,17 +47,30 @@ func loadConfig() {
 
 func pprofPort(mode string) int {
 	switch mode {
-	case "app":
-		return 16061
-	case "dns":
-		return 16062
+	case "lbs":
+		return 26061
+	case "mcs":
+		return 26062
 	default:
-		return 16060
+		return 26060
 	}
 }
 
 func printUsage() {
-	glog.Info("Usage: ", os.Args[0], "[app, dns, initdb]")
+	glog.Info("")
+	glog.Info("Usage: gdxsv [lbs, mcs, initdb]")
+	glog.Info("")
+	glog.Info("	lbs: Serve lobby server and default battle server.")
+	glog.Info("	  A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.")
+	glog.Info("")
+	glog.Info("	mcs: Serve battle server.")
+	glog.Info("	  The mcs attempts to register itself with a lbs.")
+	glog.Info("	  When the mcs is vacant for a certain period, it will automatically end.")
+	glog.Info("	  It is supposed to host mcs in a different location than the lobby server.")
+	glog.Info("")
+	glog.Info("	initdb: Initialize database.")
+	glog.Info("	  It is supposed to run this command when first booting manually.")
+	glog.Info("	  Note that if the database file already exists it will be permanently deleted.")
 }
 
 func prepareOption(command string) {
@@ -92,7 +106,7 @@ func prepareDB() {
 	}
 }
 
-func mainApp() {
+func mainLbs() {
 	lbs := NewLbs()
 	go lbs.ListenAndServeLobby(stripHost(conf.LobbyAddr))
 	defer lbs.Quit()
@@ -121,37 +135,15 @@ func mainApp() {
 	fmt.Println("Got signal:", s)
 }
 
-func makeDNSHandler(record string) func(dns.ResponseWriter, *dns.Msg) {
-	glog.Info("[DNS] ", record)
-	return func(w dns.ResponseWriter, r *dns.Msg) {
-		glog.Info("request comming", r)
+func mainMcs() {
+	mcs := NewMcs()
+	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
+	defer mcs.Quit()
 
-		m := new(dns.Msg)
-		m.SetReply(r)
-		rr, err := dns.NewRR(record)
-		if err != nil {
-			glog.Error(err)
-		}
-		m.Answer = append(m.Answer, rr)
-		err = w.WriteMsg(m)
-		if err != nil {
-			glog.Error(err)
-		}
-	}
-}
-
-func mainDNS() {
-	ip, _, err := net.SplitHostPort(conf.LobbyPublicAddr)
+	err := mcs.DialAndSyncWithLbs(conf.LobbyPublicAddr, conf.BattlePublicAddr, conf.BattleRegion)
 	if err != nil {
-		glog.Errorln(err)
+		glog.Error(err)
 	}
-
-	dns.HandleFunc("ca1202.mmcp6", makeDNSHandler("ca1202.mmcp6. 3600 IN A "+ip))
-	dns.HandleFunc("ca1203.mmcp6", makeDNSHandler("ca1203.mmcp6. 3600 IN A "+ip))
-
-	server := &dns.Server{Addr: ":53", Net: "udp"}
-	err = server.ListenAndServe()
-	glog.Error(err)
 }
 
 func main() {
@@ -177,11 +169,11 @@ func main() {
 	prepareOption(command)
 
 	switch command {
-	case "dns":
-		mainDNS()
-	case "app":
+	case "lbs":
 		prepareDB()
-		mainApp()
+		mainLbs()
+	case "mcs":
+		mainMcs()
 	case "initdb":
 		os.Remove(conf.DBName)
 		prepareDB()

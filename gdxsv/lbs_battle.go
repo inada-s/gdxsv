@@ -30,18 +30,30 @@ type LbsBattle struct {
 	TestBattle bool
 }
 
-func NewBattle(app *Lbs, lobbyID uint16, rule *Rule) *LbsBattle {
-	host, portStr, err := net.SplitHostPort(conf.BattlePublicAddr)
+func splitIPPort(addr string) (net.IP, uint16, error) {
+	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
-		glog.Warningln(err)
+		return nil, 0, err
 	}
 
 	portNum, err := strconv.Atoi(portStr)
 	if err != nil {
-		glog.Warningln(err)
+		return nil, 0, err
 	}
 
-	ip, port := net.ParseIP(host), uint16(portNum)
+	return net.ParseIP(host), uint16(portNum), nil
+}
+
+func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsAddr string) *LbsBattle {
+	if mcsAddr == "" {
+		mcsAddr = conf.BattlePublicAddr
+	}
+
+	ip, port, err := splitIPPort(mcsAddr)
+	if err != nil {
+		glog.Warning(err)
+		return nil
+	}
 
 	if rule == nil {
 		rule = RulePresetDefault.Clone()
@@ -82,7 +94,12 @@ func (b *LbsBattle) NumOfEntryUsers() uint16 {
 	return uint16(len(b.RenpoIDs) + len(b.ZeonIDs))
 }
 
-func (b *LbsBattle) SetBattleServer(ip net.IP, port uint16) {
+func (b *LbsBattle) SetBattleServer(addr string) {
+	ip, port, err := splitIPPort(addr)
+	if err != nil {
+		glog.Error(err)
+		return
+	}
 	b.ServerIP = ip
 	b.ServerPort = port
 }

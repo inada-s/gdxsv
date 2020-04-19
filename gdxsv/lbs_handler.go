@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
@@ -152,6 +153,10 @@ const (
 	lbsAskMcsAddress   CmdID = 0x6916
 	lbsAskMcsVersion   CmdID = 0x6917
 	lbsMatchingCancel  CmdID = 0x6005
+
+	// gdxsv extended commands
+	lbsExtNotifyMcsStatus   CmdID = 0x9900
+	lbsExtNotifyBattleUsers CmdID = 0x9901
 )
 
 func RequestLineCheck(p *LbsPeer) {
@@ -848,7 +853,6 @@ var _ = register(lbsLobbyMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 	enable := m.Reader().Read8()
 	if enable == 1 {
 		p.Lobby.Entry(p)
-		p.Lobby.CheckLobbyBattleStart()
 	} else {
 		p.Lobby.EntryCancel(p.UserID)
 	}
@@ -1104,7 +1108,6 @@ var _ = register(lbsMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 
 	if r.Owner == p.UserID {
 		r.Ready(p, enable)
-		r.lobby.CheckRoomBattleStart()
 	} else if enable == 0 {
 		for _, u := range r.Users {
 			if q := p.app.FindPeer(u.UserID); p != nil {
@@ -1322,6 +1325,7 @@ var _ = register(lbsAskMcsAddress, func(p *LbsPeer, m *LbsMessage) {
 	port := p.Battle.ServerPort
 
 	if ip == nil || ip.To4() == nil || port == 0 {
+		glog.Error("Invalid mcs address", ip, port)
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
@@ -1348,4 +1352,16 @@ var _ = register(lbsAskMcsAddress, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsAskMcsVersion, func(p *LbsPeer, m *LbsMessage) {
 	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
+})
+
+var _ = register(lbsExtNotifyMcsStatus, func(p *LbsPeer, m *LbsMessage) {
+	var mcsStatus McsStatus
+	err := json.Unmarshal(m.Reader().ReadBytes(), &mcsStatus)
+	if err != nil {
+		glog.Error(err)
+		return
+	}
+
+	glog.Info(mcsStatus)
+	p.app.mcs[mcsStatus.Region] = &mcsStatus
 })

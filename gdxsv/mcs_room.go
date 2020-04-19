@@ -21,6 +21,13 @@ func newMcsRoom(mcs *Mcs, battleCode string) *McsRoom {
 	return &McsRoom{mcs: mcs, battleCode: battleCode}
 }
 
+func (r *McsRoom) PeerCount() int {
+	r.RLock()
+	n := len(r.peers)
+	r.RUnlock()
+	return n
+}
+
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 	k := peer.Position()
 

@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type LbsLobby struct {
 	app *Lbs
@@ -8,6 +11,7 @@ type LbsLobby struct {
 	Platform   uint8
 	ID         uint16
 	Comment    string
+	McsRegion  string
 	Rule       *Rule
 	Users      map[string]*DBUser
 	RenpoRooms map[uint16]*LbsRoom
@@ -22,6 +26,7 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		Platform:   platform,
 		ID:         lobbyID,
 		Comment:    fmt.Sprintf("<B>Lobby %d<END>", lobbyID),
+		McsRegion:  "",
 		Rule:       RulePresetDefault.Clone(),
 		Users:      make(map[string]*DBUser),
 		RenpoRooms: make(map[uint16]*LbsRoom),
@@ -49,34 +54,29 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		if platform != PlatformPS2 {
 			lobby.Comment = "<B>2人対戦<B><BR><B>TWO PLAYERS BATTLE<END>"
 		}
-	case 10:
-		lobby.Comment = "<B>難易度4 / ダメージレベル1<B><BR><B>DIFFICULTY4 / DAMAGELEVEL1<END>"
-		lobby.Rule.Difficulty = 3
-		lobby.Rule.DamageLevel = 0
-	case 11:
-		lobby.Comment = "<B>難易度4 / ダメージレベル2<B><BR><B>DIFFICULTY4 / DAMAGELEVEL2<END>"
-		lobby.Rule.Difficulty = 3
-		lobby.Rule.DamageLevel = 1
-	case 12:
-		lobby.Comment = "<B>難易度4 / ダメージレベル3<B><BR><B>DIFFICULTY4 / DAMAGELEVEL3<END>"
-		lobby.Rule.Difficulty = 3
-		lobby.Rule.DamageLevel = 2
-	case 13:
-		lobby.Comment = "<B>難易度4 / ダメージレベル4<B><BR><B>DIFFICULTY4 / DAMAGELEVEL4<END>"
-		lobby.Rule.Difficulty = 3
-		lobby.Rule.DamageLevel = 3
-	case 15:
-		lobby.Comment = "<B>難易度1 / ダメージレベル3<B><BR><B>DIFFICULTY1 / DAMAGELEVEL3<END>"
-		lobby.Rule.Difficulty = 0
-		lobby.Rule.DamageLevel = 2
-	case 16:
-		lobby.Comment = "<B>難易度8 / ダメージレベル3<B><BR><B>DIFFICULTY8 / DAMAGELEVEL3<END>"
-		lobby.Rule.Difficulty = 7
-		lobby.Rule.DamageLevel = 2
-	case 19:
-		lobby.Comment = "<B>弾無限(戦績なし)<B><BR><B>UNLIMITED AMMO (NO WIN/LOSE)<END>"
+	case 6:
+		lobby.Comment = "<B>弾無限<B><BR><B>UNLIMITED AMMO<END>"
 		lobby.Rule.NoRanking = 1
 		lobby.Rule.ReloadFlag = 1
+	case 10:
+		lobby.McsRegion = "asia-east1"
+	case 11:
+		lobby.McsRegion = "asia-east2"
+	case 12:
+		lobby.McsRegion = "asia-northeast1"
+	case 13:
+		lobby.McsRegion = "asia-northeast2"
+	case 14:
+		lobby.McsRegion = "australia-southeast1"
+	case 15:
+		lobby.McsRegion = "europe-west3"
+	case 16:
+		lobby.McsRegion = "us-central1"
+	case 17:
+		lobby.McsRegion = "us-east1"
+	case 19:
+		lobby.Comment = "<B>ダメージレベル4<B><BR><B>DAMAGELEVEL4<END>"
+		lobby.Rule.DamageLevel = 3
 	case 20:
 		if platform != PlatformPS2 {
 			lobby.Comment = "<B>弾無限(戦績なし) １人対戦<B><BR><B>UNLIMITED AMMO / SINGLE PLAYER<END>"
@@ -216,7 +216,23 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	if !l.canStartBattle() {
 		return
 	}
-	b := NewBattle(l.app, l.ID, l.Rule)
+
+	mcsAddr := conf.BattlePublicAddr
+
+	if McsFuncEnabled() && l.McsRegion != "" {
+		stat, ok := l.app.mcs[l.McsRegion]
+		if !ok {
+			GoMcsFuncAlloc(l.McsRegion)
+			return
+		}
+		if stat.PublicAddr != "" && 10 <= time.Since(stat.Updated).Seconds() {
+			return
+		}
+		mcsAddr = stat.PublicAddr
+	}
+
+	b := NewBattle(l.app, l.ID, l.Rule, mcsAddr)
+
 	participants := l.pickLobbyBattleParticipants()
 	for _, q := range participants {
 		b.Add(q)
@@ -286,7 +302,21 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		return
 	}
 
-	b := NewBattle(l.app, l.ID, l.Rule)
+	mcsAddr := conf.BattlePublicAddr
+	if McsFuncEnabled() && l.McsRegion != "" {
+		stat, ok := l.app.mcs[l.McsRegion]
+		if !ok {
+			GoMcsFuncAlloc(l.McsRegion)
+			return
+		}
+		if stat.PublicAddr != "" && 10 <= time.Since(stat.Updated).Seconds() {
+			return
+		}
+		mcsAddr = stat.PublicAddr
+	}
+
+	b := NewBattle(l.app, l.ID, l.Rule, mcsAddr)
+
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
