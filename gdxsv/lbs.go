@@ -527,7 +527,7 @@ func (c *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 		default:
 		}
 
-		c.conn.SetReadDeadline(time.Now().Add(time.Minute * 30))
+		c.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 		n, err := c.conn.Read(buf)
 		if err != nil {
 			glog.Infoln("TCP conn error:", err)

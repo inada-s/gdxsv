@@ -26,19 +26,7 @@ const gcpRegions = {
   "us-west3": { "zones": ["a", "b", "c"], "location": "Salt Lake City, Utah, USA" },
 }
 
-
-const createMcsVMConfig = {
-  os: "ubuntu",
-  http: true,
-  machineType: "g1-small",
-  scheduling: {
-    preemptible: true
-  },
-  metadata: {
-    items: [
-      {
-        key: "startup-script",
-        value: `\
+const startupScript = `\
 #!/bin/bash
 
 apt-get update
@@ -69,12 +57,12 @@ set -eux
 function finish {
   echo "finish"
   sleep 1
-  sudo /sbin/shutdown now
+  # sudo /sbin/shutdown now
 }
 trap finish EXIT
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
-  echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers"
+  echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
 fi
 
 readonly LATEST_TAG=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
@@ -89,14 +77,11 @@ if [[ ! -d $LATEST_TAG/bin ]]; then
   popd
 fi
 
-readonly GCP_NAT_IP=$(curl -H "Metadata-Flavor: Google" http://metadata/computeMetadata/v1/instance/network-interfaces/0/ip)
-readonly GCP_ZONE=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
-
 export GDXSV_LOBBY_PUBLIC_ADDR="zdxsv.net:9876"
 export GDXSV_BATTLE_ADDR=":9877"
-export GDXSV_BATTLE_ZONE=\${GCP_ZONE}
-export GDXSV_BATTLE_PUBLIC_ADDR="\${GCP_NAT_IP}:9877"
-$LATEST_TAG/bin/gdxsv mcs -v=3
+export GDXSV_BATTLE_ZONE=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
+export GDXSV_BATTLE_PUBLIC_ADDR="$(curl -s https://ipinfo.io/ip):9877"
+$LATEST_TAG/bin/gdxsv -v=3 mcs
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
@@ -107,6 +92,20 @@ systemctl enable systemd-networkd-wait-online
 systemctl enable gdxsv-mcs
 systemctl start gdxsv-mcs --no-block
 `
+
+const createMcsVMConfig = {
+  os: "ubuntu",
+  http: true,
+  tags: [ "gdxsv-mcs" ],
+  machineType: "g1-small",
+  scheduling: {
+    preemptible: true
+  },
+  metadata: {
+    items: [
+      {
+        key: "startup-script",
+        value: startupScript,
       },
     ],
   },
@@ -218,7 +217,9 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     for (let vm of vms.filter(vm => vm.metadata.status == "TERMINATED")){
       try {
         console.log("starting vm...", vm);
-        const [operation] = await vm.start();
+        let [operation] = await vm.setMetadata({ 'startup-script' : startupScript });
+        await operation.promise();
+        [operation] = await vm.start();
         await operation.promise();
         console.log("start vm done");
         [vm.metadata] = await vm.waitFor("RUNNING", { timeout: 30 });

@@ -1364,4 +1364,5 @@ var _ = register(lbsExtNotifyMcsStatus, func(p *LbsPeer, m *LbsMessage) {
 
 	glog.Info(mcsStatus)
 	p.app.mcs[mcsStatus.Region] = &mcsStatus
+	p.SendMessage(NewServerAnswer(m)) // pong
 })
