@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -112,6 +113,17 @@ func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 		outbuf:     make([]byte, 0, 1024),
 		inbuf:      make([]byte, 0, 1024),
 	}
+}
+
+func (lbs *Lbs) FindMcs(region string) *McsStatus {
+	for _, mcs := range lbs.mcs {
+		if strings.HasPrefix(mcs.Region, region) &&
+			mcs.PublicAddr != "" &&
+			time.Since(mcs.Updated).Seconds() <= 10 {
+			return mcs
+		}
+	}
+	return nil
 }
 
 func (lbs *Lbs) FindPeer(userID string) *LbsPeer {
