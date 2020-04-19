@@ -79,7 +79,7 @@ fi
 
 export GDXSV_LOBBY_PUBLIC_ADDR="zdxsv.net:9876"
 export GDXSV_BATTLE_ADDR=":9877"
-export GDXSV_BATTLE_ZONE=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
+export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
 export GDXSV_BATTLE_PUBLIC_ADDR="$(curl -s https://ipinfo.io/ip):9877"
 $LATEST_TAG/bin/gdxsv -v=3 mcs
 EOF

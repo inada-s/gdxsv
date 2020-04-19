@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 type LbsLobby struct {
@@ -306,10 +308,16 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	if McsFuncEnabled() && l.McsRegion != "" {
 		stat, ok := l.app.mcs[l.McsRegion]
 		if !ok {
+			glog.Info("mcs not found. request alloc", l.McsRegion)
 			GoMcsFuncAlloc(l.McsRegion)
 			return
 		}
-		if stat.PublicAddr != "" && 10 <= time.Since(stat.Updated).Seconds() {
+		if 10 <= time.Since(stat.Updated).Seconds() {
+			glog.Info("the mcs is too old.", stat)
+			return
+		}
+		if stat.PublicAddr == "" {
+			glog.Info("the mcs does not have public addr.", stat)
 			return
 		}
 		mcsAddr = stat.PublicAddr
