@@ -26,7 +26,8 @@ const gcpRegions = {
   "us-west3": { "zones": ["a", "b", "c"], "location": "Salt Lake City, Utah, USA" },
 }
 
-const startupScript = `\
+function getStartupScript(version) {
+  return `\
 #!/bin/bash
 
 apt-get update
@@ -46,45 +47,35 @@ function finish {
 }
 trap finish EXIT
 
-readonly LATEST_TAG=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
-readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
+readonly VERSION=${version}
 
-if [[ ! -d $LATEST_TAG/bin ]]; then
-  echo "Downloading latest version..."
-  mkdir -p $LATEST_TAG
-  pushd $LATEST_TAG
+if [[ -z $VERSION || $VERSION == "latest" ]]; then
+  readonly TAG_NAME=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
+  readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
+else
+  readonly TAG_NAME=$VERSION
+  readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/tags/$TAG_NAME | jq -r '.assets[].browser_download_url')
+fi
+
+if [[ ! -d $TAG_NAME/bin ]]; then
+  echo "Downloading $TAG_NAME"
+  mkdir -p $TAG_NAME
+  pushd $TAG_NAME
     wget $DOWNLOAD_URL
     tar xzvf bin.tgz && rm bin.tgz
   popd
 fi
 
-export GDXSV_LOBBY_PUBLIC_ADDR="zdxsv.net:9876"
-export GDXSV_BATTLE_ADDR=":9877"
+export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
+export GDXSV_BATTLE_ADDR=:9877
 export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
-export GDXSV_BATTLE_PUBLIC_ADDR="$(curl -s https://ipinfo.io/ip):9877"
-$LATEST_TAG/bin/gdxsv -v=3 mcs
+export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
+$TAG_NAME/bin/gdxsv -v=3 mcs
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
-su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh'
+su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh >> gdxsv.log &'
 `
-
-const createMcsVMConfig = {
-  os: "ubuntu",
-  http: true,
-  tags: [ "gdxsv-mcs" ],
-  machineType: "g1-small",
-  scheduling: {
-    preemptible: true
-  },
-  metadata: {
-    items: [
-      {
-        key: "startup-script",
-        value: startupScript,
-      },
-    ],
-  },
 }
 
 function forResponse(vm) {
@@ -121,7 +112,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     const [vms] = await compute.getVMs({
       autoPaginate: false,
       maxResults: 100,
-      filter: "name eq gdxsv-mcs*",
+      filter: "name eq gdxsv-mcs.*",
     });
 
     const vmlist = [];
@@ -145,7 +136,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     const [vms] = await compute.getVMs({
       autoPaginate: false,
       maxResults: 100,
-      filter: "name eq gdxsv-mcs*",
+      filter: "name eq gdxsv-mcs.*",
     });
 
     const vmlist = [];
@@ -164,7 +155,9 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
 
   if (req.url.startsWith("/alloc")) {
     const region = query["region"];
+    const version = query["version"] ? query["version"] : "latest";
     const regionInfo = gcpRegions[region];
+    const vmName = "gdxsv-mcs-" + region + "-" + version.replace(/\./g, "-")
 
     if (!regionInfo) {
       res.status(400).send('invalid region');
@@ -174,9 +167,8 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     let [vms] = await compute.getVMs({
       autoPaginate: false,
       maxResults: 100,
-      filter: "name eq gdxsv-mcs*",
+      filter: "name eq " + vmName,
     })
-    vms = vms.filter(vm => vm.metadata.zone.includes(region));
 
     console.log("" + vms.length + "vms found.");
 
@@ -189,10 +181,12 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
 
     console.log("running vm not found");
 
-    for (let vm of vms.filter(vm => vm.metadata.status == "TERMINATED")){
+    for (let vm of vms.filter(vm => vm.metadata.status == "TERMINATED")) {
       try {
         console.log("starting vm...", vm);
-        let [operation] = await vm.setMetadata({ 'startup-script' : startupScript });
+        let [operation] = await vm.setMetadata({
+          'startup-script': getStartupScript(version),
+        });
         await operation.promise();
         [operation] = await vm.start();
         await operation.promise();
@@ -215,18 +209,31 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
       try {
         console.log("trying to create new vm in", zoneName);
         const zone = compute.zone(zoneName);
-        const [vm, operation] = await zone.createVM("gdxsv-mcs", createMcsVMConfig);
+        const [vm, operation] = await zone.createVM(vmName, {
+          os: "ubuntu",
+          http: true,
+          tags: ["gdxsv-mcs"],
+          machineType: "g1-small",
+          scheduling: { preemptible: true },
+          metadata: {
+            items: [
+              { key: "startup-script", value: getStartupScript(version) },
+            ],
+          },
+        });
+
         await operation.promise();
         console.log("vm created");
-        [vm.metadata] = await vm.waitFor("RUNNING", { timeout: 30 });
+        const [metadata] = await vm.waitFor("RUNNING", { timeout: 30 });
+        vm.metadata = metadata
+        res.setHeader('Content-Type', 'application/json');
+        res.send(JSON.stringify(forResponse(vm), null, "  "));
         console.log("wait done");
+        return;
       } catch (e) {
         console.log(e);
         continue;
       }
-      res.setHeader('Content-Type', 'application/json');
-      res.send(JSON.stringify(forResponse(vm), null, "  "));
-      return;
     }
 
     console.log('failed to allocate vm');
