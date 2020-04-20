@@ -32,27 +32,12 @@ const startupScript = `\
 apt-get update
 apt-get install -y jq wget curl
 
-rm -f /etc/systemd/system/gdxsv-mcs.service
-cat << 'EOF' > /etc/systemd/system/gdxsv-mcs.service
-[Unit]
-Description=gdxsv mcs service
-#After=systemd-networkd-wait-online.service
-
-[Service]
-Restart=on-failure
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu
-ExecStart=/home/ubuntu/launch-mcs.sh
-
-[Install]
-WantedBy=multi-user.target
-EOF
+if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
+  echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
+fi
 
 cat << 'EOF' > /home/ubuntu/launch-mcs.sh
-#!/bin/bash
-
-set -eux
+#!/bin/bash -eux
 
 function finish {
   echo "finish"
@@ -60,10 +45,6 @@ function finish {
   # sudo /sbin/shutdown now
 }
 trap finish EXIT
-
-if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
-  echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
-fi
 
 readonly LATEST_TAG=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
 readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
@@ -85,12 +66,7 @@ $LATEST_TAG/bin/gdxsv -v=3 mcs
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
-
-systemctl daemon-reload
-systemctl enable systemd-networkd
-#systemctl enable systemd-networkd-wait-online
-systemctl enable gdxsv-mcs
-systemctl start gdxsv-mcs --no-block
+su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh'
 `
 
 const createMcsVMConfig = {
@@ -126,13 +102,11 @@ function forResponse(vm) {
   return v;
 }
 
-// require GOOGLE_APPLICATION_CREDENTIALS environment variable
-const Compute = require('@google-cloud/compute');
-const url = require('url');
-
-
-
 exports.cloudFunctionEntryPoint = async (req, res) => {
+  // require GOOGLE_APPLICATION_CREDENTIALS environment variable
+  const Compute = require('@google-cloud/compute');
+  const url = require('url');
+
   console.log(req.url);
 
   const query = url.parse(req.url, true).query
@@ -147,7 +121,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     const [vms] = await compute.getVMs({
       autoPaginate: false,
       maxResults: 100,
-      filter: "name eq gdxsv-mcs",
+      filter: "name eq gdxsv-mcs*",
     });
 
     const vmlist = [];
@@ -167,10 +141,11 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
   }
 
   if (req.url.startsWith("/deleteall")) {
+    // That's for debugging
     const [vms] = await compute.getVMs({
       autoPaginate: false,
       maxResults: 100,
-      filter: "name eq gdxsv-mcs",
+      filter: "name eq gdxsv-mcs*",
     });
 
     const vmlist = [];
@@ -199,7 +174,7 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
     let [vms] = await compute.getVMs({
       autoPaginate: false,
       maxResults: 100,
-      filter: "name eq gdxsv-mcs",
+      filter: "name eq gdxsv-mcs*",
     })
     vms = vms.filter(vm => vm.metadata.zone.includes(region));
 
