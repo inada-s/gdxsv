@@ -59,28 +59,28 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		lobby.Rule.ReloadFlag = 1
 	case 10:
 		lobby.McsRegion = "asia-east1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 11:
 		lobby.McsRegion = "asia-east2"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 12:
 		lobby.McsRegion = "asia-northeast1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 13:
 		lobby.McsRegion = "asia-northeast2"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 14:
 		lobby.McsRegion = "australia-southeast1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 15:
 		lobby.McsRegion = "europe-west3"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 16:
 		lobby.McsRegion = "us-central1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 17:
 		lobby.McsRegion = "us-east1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 19:
 		lobby.Comment = "<B>ダメージレベル4<B><BR><B>DAMAGELEVEL4<END>"
 		lobby.Rule.DamageLevel = 3
