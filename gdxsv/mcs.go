@@ -125,12 +125,19 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func(conn net.Conn) {
+	go func() {
 		defer cancel()
-		data := make([]byte, 128)
-		buf := make([]byte, 128)
+		buf := make([]byte, 4096)
+		data := make([]byte, 0)
 
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 			n, err := conn.Read(buf)
 			if err != nil {
 				glog.Error(err)
@@ -138,20 +145,26 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			}
 			data = append(data, buf[:n]...)
 
-			m, msg := Deserialize(data)
-			data = data[m:]
+			for len(data) >= HeaderSize {
+				n, msg := Deserialize(data)
+				if n == 0 {
+					// not enough data comming
+					break
+				}
 
-			if msg != nil {
-				switch msg.Command {
-				case lbsExtSyncSharedData:
-					glog.Info("Recv lbsExtSyncSharedData")
-					var lbsStatus LbsStatus
-					json.Unmarshal(msg.Reader().ReadBytes(), &lbsStatus)
-					SyncSharedDataLbsToMcs(&lbsStatus)
+				data = data[n:]
+				if msg != nil {
+					switch msg.Command {
+					case lbsExtSyncSharedData:
+						glog.Info("Recv lbsExtSyncSharedData")
+						var lbsStatus LbsStatus
+						json.Unmarshal(msg.Reader().ReadBytes(), &lbsStatus)
+						SyncSharedDataLbsToMcs(&lbsStatus)
+					}
 				}
 			}
 		}
-	}(conn)
+	}()
 
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()

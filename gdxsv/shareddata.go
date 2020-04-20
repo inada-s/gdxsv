@@ -88,6 +88,7 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 func GetMcsUsers() []McsUser {
 	sharedData.Lock()
 	defer sharedData.Unlock()
+
 	ret := []McsUser{}
 	for _, u := range sharedData.battleUsers {
 		ret = append(ret, u)

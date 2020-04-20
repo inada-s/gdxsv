@@ -1366,5 +1366,4 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 
 	SyncSharedDataMcsToLbs(&mcsStatus)
-	NotifyLatestLbsStatus(p)
 })
