@@ -31,22 +31,24 @@ const (
 )
 
 type Lbs struct {
-	handlers map[CmdID]LbsHandler
-	users    map[string]*LbsPeer
-	lobbies  map[byte]map[uint16]*LbsLobby
-	mcs      map[string]*McsStatus
-	chEvent  chan interface{}
-	chQuit   chan interface{}
+	handlers  map[CmdID]LbsHandler
+	users     map[string]*LbsPeer
+	lobbies   map[byte]map[uint16]*LbsLobby
+	mcsPeers  map[string]*LbsPeer   // publicAddr -> McsStatus
+	mcsStatus map[string]*McsStatus // region -> McsStatus
+	chEvent   chan interface{}
+	chQuit    chan interface{}
 }
 
 func NewLbs() *Lbs {
 	app := &Lbs{
-		handlers: defaultLbsHandlers,
-		users:    make(map[string]*LbsPeer),
-		lobbies:  make(map[byte]map[uint16]*LbsLobby),
-		mcs:      make(map[string]*McsStatus),
-		chEvent:  make(chan interface{}, 64),
-		chQuit:   make(chan interface{}),
+		handlers:  defaultLbsHandlers,
+		users:     make(map[string]*LbsPeer),
+		lobbies:   make(map[byte]map[uint16]*LbsLobby),
+		mcsPeers:  make(map[string]*LbsPeer),
+		mcsStatus: make(map[string]*McsStatus),
+		chEvent:   make(chan interface{}, 64),
+		chQuit:    make(chan interface{}),
 	}
 
 	app.lobbies[PlatformPS2] = make(map[uint16]*LbsLobby)
@@ -116,7 +118,7 @@ func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 }
 
 func (lbs *Lbs) FindMcs(region string) *McsStatus {
-	for _, mcs := range lbs.mcs {
+	for _, mcs := range lbs.mcsStatus {
 		if strings.HasPrefix(mcs.Region, region) &&
 			mcs.PublicAddr != "" &&
 			time.Since(mcs.Updated).Seconds() <= 10 {
@@ -128,6 +130,14 @@ func (lbs *Lbs) FindMcs(region string) *McsStatus {
 
 func (lbs *Lbs) FindPeer(userID string) *LbsPeer {
 	p, ok := lbs.users[userID]
+	if !ok {
+		return nil
+	}
+	return p
+}
+
+func (lbs *Lbs) FindMcsPeer(mcsAddr string) *LbsPeer {
+	p, ok := lbs.mcsPeers[mcsAddr]
 	if !ok {
 		return nil
 	}

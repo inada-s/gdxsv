@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 // sharing temporary data between lbs and mcs
@@ -90,6 +93,15 @@ func GetMcsUsers() []McsUser {
 		ret = append(ret, u)
 	}
 	return ret
+}
+
+func NotifyLatestLbsStatus(mcs *LbsPeer) {
+	lbsStatusBin, err := json.Marshal(&LbsStatus{Users: GetMcsUsers()})
+	if err != nil {
+		glog.Error(err)
+		return
+	}
+	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(lbsStatusBin).Msg())
 }
 
 func getBattleUserInfo(sessionID string) (McsUser, bool) {

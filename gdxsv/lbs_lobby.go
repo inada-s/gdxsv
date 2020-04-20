@@ -216,14 +216,20 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		return
 	}
 
-	mcsAddr := conf.BattlePublicAddr
+	var mcsPeer *LbsPeer
+	var mcsAddr = conf.BattlePublicAddr
+
 	if McsFuncEnabled() && l.McsRegion != "" {
 		stat := l.app.FindMcs(l.McsRegion)
 		if stat == nil {
 			GoMcsFuncAlloc(l.McsRegion)
 			return
 		}
-		mcsAddr = stat.PublicAddr
+		peer := l.app.FindMcsPeer(stat.PublicAddr)
+		if peer != nil {
+			mcsPeer = peer
+			mcsAddr = stat.PublicAddr
+		}
 	}
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
@@ -243,6 +249,10 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		AddUserWhoIsGoingTobattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
+	}
+
+	if mcsPeer != nil {
+		NotifyLatestLbsStatus(mcsPeer)
 	}
 }
 

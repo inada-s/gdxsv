@@ -1361,17 +1361,10 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	glog.Infof("update status: %+v", mcsStatus)
-	p.app.mcs[mcsStatus.Region] = &mcsStatus
+	glog.Infof("update mcs status: %+v", mcsStatus)
+	p.app.mcsStatus[mcsStatus.Region] = &mcsStatus
+	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 
 	SyncSharedDataMcsToLbs(&mcsStatus)
-
-	var lbsStatus LbsStatus
-	lbsStatus.Users = GetMcsUsers()
-	lbsStatusJson, err := json.Marshal(lbsStatus)
-	if err != nil {
-		glog.Error(err)
-		return
-	}
-	p.SendMessage(NewServerAnswer(m).Writer().WriteBytes(lbsStatusJson).Msg())
+	NotifyLatestLbsStatus(p)
 })
