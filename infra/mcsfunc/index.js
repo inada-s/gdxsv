@@ -36,7 +36,7 @@ rm -f /etc/systemd/system/gdxsv-mcs.service
 cat << 'EOF' > /etc/systemd/system/gdxsv-mcs.service
 [Unit]
 Description=gdxsv mcs service
-After=systemd-networkd-wait-online.service
+#After=systemd-networkd-wait-online.service
 
 [Service]
 Restart=on-failure
@@ -88,7 +88,7 @@ chmod +x /home/ubuntu/launch-mcs.sh
 
 systemctl daemon-reload
 systemctl enable systemd-networkd
-systemctl enable systemd-networkd-wait-online
+#systemctl enable systemd-networkd-wait-online
 systemctl enable gdxsv-mcs
 systemctl start gdxsv-mcs --no-block
 `
