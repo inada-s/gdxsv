@@ -17,6 +17,7 @@ type LbsBattle struct {
 	app *Lbs
 
 	BattleCode string
+	McsRegion  string
 	ServerIP   net.IP
 	ServerPort uint16
 	Users      []*DBUser
@@ -44,8 +45,9 @@ func splitIPPort(addr string) (net.IP, uint16, error) {
 	return net.ParseIP(host), uint16(portNum), nil
 }
 
-func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsAddr string) *LbsBattle {
+func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsRegion string, mcsAddr string) *LbsBattle {
 	if mcsAddr == "" {
+		mcsRegion = ""
 		mcsAddr = conf.BattlePublicAddr
 	}
 
@@ -63,6 +65,7 @@ func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsAddr string) *LbsBattle 
 		app: app,
 
 		BattleCode: genBattleCode(),
+		McsRegion:  mcsRegion,
 		ServerIP:   ip,
 		ServerPort: port,
 		Users:      make([]*DBUser, 0),

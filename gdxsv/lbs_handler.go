@@ -155,8 +155,7 @@ const (
 	lbsMatchingCancel  CmdID = 0x6005
 
 	// gdxsv extended commands
-	lbsExtNotifyMcsStatus   CmdID = 0x9900
-	lbsExtNotifyBattleUsers CmdID = 0x9901
+	lbsExtSyncSharedData CmdID = 0x9900
 )
 
 func RequestLineCheck(p *LbsPeer) {
@@ -1354,7 +1353,7 @@ var _ = register(lbsAskMcsVersion, func(p *LbsPeer, m *LbsMessage) {
 	p.SendMessage(NewServerAnswer(m).Writer().Write8(10).Msg())
 })
 
-var _ = register(lbsExtNotifyMcsStatus, func(p *LbsPeer, m *LbsMessage) {
+var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 	var mcsStatus McsStatus
 	err := json.Unmarshal(m.Reader().ReadBytes(), &mcsStatus)
 	if err != nil {
@@ -1362,7 +1361,17 @@ var _ = register(lbsExtNotifyMcsStatus, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	glog.Infof("mcs status: %+v", mcsStatus)
+	glog.Infof("update status: %+v", mcsStatus)
 	p.app.mcs[mcsStatus.Region] = &mcsStatus
-	p.SendMessage(NewServerAnswer(m)) // pong
+
+	SyncSharedDataMcsToLbs(&mcsStatus)
+
+	var lbsStatus LbsStatus
+	lbsStatus.Users = GetMcsUsers()
+	lbsStatusJson, err := json.Marshal(lbsStatus)
+	if err != nil {
+		glog.Error(err)
+		return
+	}
+	p.SendMessage(NewServerAnswer(m).Writer().WriteBytes(lbsStatusJson).Msg())
 })

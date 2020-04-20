@@ -226,14 +226,12 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		mcsAddr = stat.PublicAddr
 	}
 
-	b := NewBattle(l.app, l.ID, l.Rule, mcsAddr)
+	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
 
 	participants := l.pickLobbyBattleParticipants()
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
-		AddUserWhoIsGoingTobattle(
-			b.BattleCode, q.UserID, q.Name, q.Team, q.SessionID)
 		getDB().AddBattleRecord(&BattleRecord{
 			BattleCode: b.BattleCode,
 			UserID:     q.UserID,
@@ -242,6 +240,8 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 			Players:    len(participants),
 			Aggregate:  1,
 		})
+		AddUserWhoIsGoingTobattle(
+			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
 	}
 }
@@ -307,13 +307,11 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		mcsAddr = stat.PublicAddr
 	}
 
-	b := NewBattle(l.app, l.ID, l.Rule, mcsAddr)
+	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
 
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
-		AddUserWhoIsGoingTobattle(
-			b.BattleCode, q.UserID, q.Name, q.Team, q.SessionID)
 		getDB().AddBattleRecord(&BattleRecord{
 			BattleCode: b.BattleCode,
 			UserID:     q.UserID,
@@ -322,6 +320,8 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			Players:    len(participants),
 			Aggregate:  1,
 		})
+		AddUserWhoIsGoingTobattle(
+			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
 	}
 }

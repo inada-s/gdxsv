@@ -24,6 +24,7 @@ func init() {
 
 type McsUser struct {
 	BattleCode string    `json:"battle_code,omitempty"`
+	McsRegion  string    `json:"mcs_region,omitempty"`
 	UserID     string    `json:"user_id,omitempty"`
 	Name       string    `json:"name,omitempty"`
 	Side       uint16    `json:"side,omitempty"`
@@ -39,11 +40,16 @@ type McsStatus struct {
 	Users      []McsUser `json:"users,omitempty"`
 }
 
-func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, side uint16, sessionID string) {
+type LbsStatus struct {
+	Users []McsUser `json:"users,omitempty"`
+}
+
+func AddUserWhoIsGoingTobattle(battleCode string, mcsRegion string, userID string, name string, side uint16, sessionID string) {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 	sharedData.battleUsers[sessionID] = McsUser{
 		BattleCode: battleCode,
+		McsRegion:  mcsRegion,
 		UserID:     userID,
 		Name:       name,
 		Side:       side,
@@ -52,7 +58,31 @@ func AddUserWhoIsGoingTobattle(battleCode string, userID string, name string, si
 	}
 }
 
-func GetInBattleUsers() []McsUser {
+func SyncSharedDataMcsToLbs(status *McsStatus) {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+
+	for _, u := range status.Users {
+		_, ok := sharedData.battleUsers[u.SessionID]
+		if ok {
+			sharedData.battleUsers[u.SessionID] = u
+		}
+	}
+}
+
+func SyncSharedDataLbsToMcs(status *LbsStatus) {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+
+	for _, u := range status.Users {
+		_, ok := sharedData.battleUsers[u.SessionID]
+		if !ok {
+			sharedData.battleUsers[u.SessionID] = u
+		}
+	}
+}
+
+func GetMcsUsers() []McsUser {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 	ret := []McsUser{}

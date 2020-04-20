@@ -105,7 +105,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 		if err != nil {
 			return err
 		}
-		buf := NewServerNotice(lbsExtNotifyMcsStatus).Writer().WriteBytes(statusBin).Msg().Serialize()
+		buf := NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(statusBin).Msg().Serialize()
 		for sum := 0; sum < len(buf); {
 			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			n, err := conn.Write(buf[sum:])
@@ -143,14 +143,11 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 
 			if msg != nil {
 				switch msg.Command {
-				case lbsExtNotifyBattleUsers:
-					glog.Info("Recv lbsExtNotifyBattleUsers")
-					var users []McsUser
-					json.Unmarshal(msg.Reader().ReadBytes(), &users)
-					for _, u := range users {
-						glog.Info(u)
-						AddUserWhoIsGoingTobattle(u.BattleCode, u.UserID, u.Name, u.Side, u.SessionID)
-					}
+				case lbsExtSyncSharedData:
+					glog.Info("Recv lbsExtSyncSharedData")
+					var lbsStatus LbsStatus
+					json.Unmarshal(msg.Reader().ReadBytes(), &lbsStatus)
+					SyncSharedDataLbsToMcs(&lbsStatus)
 				}
 			}
 		}
@@ -164,7 +161,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			return ctx.Err()
 		case <-ticker.C:
 			status.Updated = mcs.LastUpdated()
-			status.Users = GetInBattleUsers()
+			status.Users = GetMcsUsers()
 			err = sendMcsStatus()
 			if err != nil {
 				return err
