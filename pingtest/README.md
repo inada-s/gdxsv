@@ -11,15 +11,18 @@ Then run the server:
 `go run pingserver.go`
 
 and the Flycast with the elf binary:
+
 Windows: `C:\flycast.exe "Full\Path\To\ping.elf"`
+
 macOS: `/Applications/Flycast.app/Contents/MacOS/Flycast Full/Path/To/ping.elf`
 
-p.s. remember to set 
 
 ## Compiling ping.c
 
-After installing & compiling KallistiOS
+After downloading & compiling KallistiOS (May be easier with the docker image?)
+
 `source /opt/toolchains/dc/kos/environ.sh`
+
 `make`
 
 
