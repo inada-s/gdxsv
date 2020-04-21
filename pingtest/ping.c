@@ -87,10 +87,10 @@ int main(){
     info.sin_family = AF_INET;
 
     /* Using the DNS address as server address */
-    char ip[16];
-    sprintf(ip, "%d.%d.%d.%d", net_default_dev->dns[0], net_default_dev->dns[1], net_default_dev->dns[2], net_default_dev->dns[3]);
-    info.sin_addr.s_addr = inet_addr(ip);
-    // info.sin_addr.s_addr = inet_addr("192.168.20.3");
+    // char ip[16];
+    // sprintf(ip, "%d.%d.%d.%d", net_default_dev->dns[0], net_default_dev->dns[1], net_default_dev->dns[2], net_default_dev->dns[3]);
+    // info.sin_addr.s_addr = inet_addr(ip);
+    info.sin_addr.s_addr = inet_addr("192.168.20.3");
     info.sin_port = htons(8888);
     
     int err = connect(sockfd, (struct sockaddr *) &info, sizeof(info));
