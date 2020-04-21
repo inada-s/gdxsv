@@ -109,9 +109,9 @@ int main(){
     for (int i=0; i<1000; i++) {
         printf("[ping] C->S: %s", message);
         struct timeval stop, start;
-        send(sockfd, message, sizeof(message), 0);
+        send(sockfd, message, sizeof(message) - 1, 0); //don't send \0
         gettimeofday(&start, NULL);
-        ssize_t size = recv(sockfd, receiveMessage, sizeof(receiveMessage) - 1, 0); //don't send \0
+        ssize_t size = recv(sockfd, receiveMessage, sizeof(receiveMessage), 0); 
         gettimeofday(&stop, NULL);
         receiveMessage[size] = '\0';
         printf("[ping] S->C: %s", receiveMessage);
