@@ -29,7 +29,7 @@ void *modem_reg_hack(void *param){
     }
     printf("[ping] Connection hack success!\n");
     
-    /* the below reg hack is replaced by the above while loop
+    /* not required anymore, fixed by the race condition while loop 
     int handshaked = 0;
 
     while( !modem_is_connected() || modem_is_connecting() ) {
@@ -57,6 +57,7 @@ int main(){
 
     thd_create(0, modem_reg_hack, NULL);
     
+    /* Not required anymore, fixed by the race condition while loop 
     //init modem manually
     modemHardReset();
     modemDataSetupBuffers();
@@ -64,7 +65,7 @@ int main(){
     modemConfigurationReset();
     modemCfg.eventHandler = NULL;
     modemCfg.inited       = 1;
-    
+    */
     
     ppp_modem_init("123", 1, NULL);
     ppp_set_login("dream", "cast");
@@ -86,11 +87,14 @@ int main(){
     bzero(&info,sizeof(info));
     info.sin_family = AF_INET;
 
+    #ifdef UseDNSAsServer
     /* Using the DNS address as server address */
-    // char ip[16];
-    // sprintf(ip, "%d.%d.%d.%d", net_default_dev->dns[0], net_default_dev->dns[1], net_default_dev->dns[2], net_default_dev->dns[3]);
-    // info.sin_addr.s_addr = inet_addr(ip);
+    char ip[16];
+    sprintf(ip, "%d.%d.%d.%d", net_default_dev->dns[0], net_default_dev->dns[1], net_default_dev->dns[2], net_default_dev->dns[3]);
+    info.sin_addr.s_addr = inet_addr(ip);
+    #else
     info.sin_addr.s_addr = inet_addr("192.168.20.3");
+    #endif
     info.sin_port = htons(8888);
     
     int err = connect(sockfd, (struct sockaddr *) &info, sizeof(info));
