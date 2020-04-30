@@ -22,6 +22,7 @@ var (
 	dump    = flag.Bool("dump", false, "enable var dump to dump.txt")
 	cpu     = flag.Int("cpu", 2, "setting GOMAXPROCS")
 	profile = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
+	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
 )
 
 type Config struct {
@@ -111,7 +112,7 @@ func mainLbs() {
 	go lbs.ListenAndServeLobby(stripHost(conf.LobbyAddr))
 	defer lbs.Quit()
 
-	mcs := NewMcs()
+	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
 
@@ -136,7 +137,7 @@ func mainLbs() {
 }
 
 func mainMcs() {
-	mcs := NewMcs()
+	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
 

@@ -64,7 +64,6 @@ func (u *McsTCPPeer) Close() error {
 
 func (u *McsTCPPeer) Serve(mcs *Mcs) {
 	glog.Infoln("[TCP]", u.Address(), "Serve Start")
-	time.Sleep(2 * time.Second)
 	defer glog.Infoln("[TCP]", u.Address(), "Serve End")
 	// c.f. ps2 symbol ReflectMsg
 	// 6X := category?
@@ -108,6 +107,12 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 	for {
 		u.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 		n, err := u.conn.Read(buf)
+
+		if 0 < mcs.delay {
+			// Read -> Room delay
+			time.Sleep(mcs.delay)
+		}
+
 		if err != nil {
 			if err != io.EOF {
 				glog.Errorf("%v read error: %v\n", u.Address(), err)

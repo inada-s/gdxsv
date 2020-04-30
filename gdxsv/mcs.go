@@ -70,12 +70,14 @@ type Mcs struct {
 	mtx     sync.Mutex
 	updated time.Time
 	rooms   map[string]*McsRoom
+	delay   time.Duration
 }
 
-func NewMcs() *Mcs {
+func NewMcs(delay time.Duration) *Mcs {
 	return &Mcs{
 		updated: time.Now(),
 		rooms:   map[string]*McsRoom{},
+		delay:   delay,
 	}
 }
 
