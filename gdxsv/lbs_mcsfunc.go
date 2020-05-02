@@ -31,7 +31,7 @@ var gcpLocationName = map[string]string{
 	"europe-west2":            "London, England, UK",
 	"europe-west3":            "Frankfurt, Germany",
 	"europe-west4":            "Eemshaven, Netherlands",
-	"europe-west6":            "Zürich, Switzerland",
+	"europe-west6":            "Zurich, Switzerland",
 	"northamerica-northeast1": "Montreal, Quebec, Canada",
 	"southamerica-east1":      "Osasco (Sao Paulo), Brazil",
 	"us-central1":             "Council Bluffs, Iowa, USA",

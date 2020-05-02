@@ -122,7 +122,7 @@ type DB interface {
 	RegisterAccount(ip string) (*DBAccount, error)
 
 	// RegisterAccountWithLoginKey creates new user account with specific login key.
-	// This function enables users to share login-key among different servers.
+	// This function enables userPeers to share login-key among different servers.
 	RegisterAccountWithLoginKey(ip string, loginKey string) (*DBAccount, error)
 
 	// GetAccountByLoginKey retrieves an account by login-key.
@@ -135,7 +135,7 @@ type DB interface {
 	LoginAccount(account *DBAccount, sessionID string) error
 
 	// RegisterUser creates new user.
-	// An account can hold three users.
+	// An account can hold three userPeers.
 	RegisterUser(loginKey string) (*DBUser, error)
 
 	// GetUserList returns user list that the account holds.
@@ -167,9 +167,9 @@ type DB interface {
 	// CalculateUserDailyBattleCount calculates daily battle count of the user.
 	CalculateUserDailyBattleCount(userID string) (ret BattleCountResult, err error)
 
-	// GetWinCountRanking returns top users of win count.
+	// GetWinCountRanking returns top userPeers of win count.
 	GetWinCountRanking(side byte) (ret []*RankingRecord, err error)
 
-	// GetWinCountRanking returns top users of kill count.
+	// GetWinCountRanking returns top userPeers of kill count.
 	GetKillCountRanking(side byte) (ret []*RankingRecord, err error)
 }

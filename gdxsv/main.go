@@ -141,7 +141,7 @@ func mainLbs() {
 		dumper.DisablePointerAddresses = true
 		go func() {
 			for {
-				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(lbs.users)), 0644)
+				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(lbs.userPeers)), 0644)
 				time.Sleep(time.Second)
 			}
 		}()

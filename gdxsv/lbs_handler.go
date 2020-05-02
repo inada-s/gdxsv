@@ -379,7 +379,7 @@ var _ = register(lbsUserRegist, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	p.DBUser = *u
-	p.app.users[p.UserID] = p
+	p.app.userPeers[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 })
 
@@ -410,7 +410,7 @@ var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	p.DBUser = *u
-	p.app.users[p.UserID] = p
+	p.app.userPeers[p.UserID] = p
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
 	p.SendMessage(NewServerQuestion(lbsAskGameCode))
 })
@@ -962,7 +962,7 @@ var _ = register(lbsSendMail, func(p *LbsPeer, m *LbsMessage) {
 	glog.Infoln("com1", comment1)
 	glog.Infoln("com2", comment2)
 
-	u, ok := p.app.users[userID]
+	u, ok := p.app.userPeers[userID]
 	if !ok {
 		p.SendMessage(NewServerAnswer(m).SetErr().Writer().
 			WriteString("<LF=6><BODY><CENTER>THE USER IS NOT IN LOBBY<END>").Msg())
@@ -1161,7 +1161,7 @@ var _ = register(lbsTopRankingTag, func(p *LbsPeer, m *LbsMessage) {
 })
 
 var _ = register(lbsTopRankingSuu, func(p *LbsPeer, m *LbsMessage) {
-	// How many users there is in the ranking
+	// How many userPeers there is in the ranking
 	// page: ranking kind?
 	page := m.Reader().Read8()
 	glog.Infoln("page", page)
@@ -1362,8 +1362,7 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	glog.Infof("update mcs status: %+v", mcsStatus)
-	p.app.mcsStatus[mcsStatus.Region] = &mcsStatus
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
-
+	p.mcsStatus = &mcsStatus
 	SyncSharedDataMcsToLbs(&mcsStatus)
 })

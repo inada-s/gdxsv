@@ -32,9 +32,16 @@ const gcpRegions = {
 function getStartupScript(version) {
     return `\
 #!/bin/bash
+echo "startup-script"
 
 apt-get update
 apt-get install -y jq wget curl
+
+curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh
+bash install-monitoring-agent.sh
+
+curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
+bash install-logging-agent.sh
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
@@ -42,6 +49,7 @@ fi
 
 cat << 'EOF' > /home/ubuntu/launch-mcs.sh
 #!/bin/bash -eux
+
 
 function finish {
   echo "finish"
@@ -78,6 +86,8 @@ EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
 su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh 2>&1 | logger &'
+
+echo "startup-script done"
 `
 }
 

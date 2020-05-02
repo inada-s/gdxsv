@@ -40,11 +40,11 @@ type McsStatus struct {
 	Region     string    `json:"region,omitempty"`
 	PublicAddr string    `json:"public_addr,omitempty"`
 	Updated    time.Time `json:"updated,omitempty"`
-	Users      []McsUser `json:"users,omitempty"`
+	Users      []McsUser `json:"userPeers,omitempty"`
 }
 
 type LbsStatus struct {
-	Users []McsUser `json:"users,omitempty"`
+	Users []McsUser `json:"userPeers,omitempty"`
 }
 
 func AddUserWhoIsGoingToBattle(battleCode string, mcsRegion string, userID string, name string, side uint16, sessionID string) {

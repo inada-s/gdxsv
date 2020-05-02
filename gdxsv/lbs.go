@@ -32,10 +32,9 @@ const (
 
 type Lbs struct {
 	handlers  map[CmdID]LbsHandler
-	users     map[string]*LbsPeer
+	userPeers map[string]*LbsPeer
+	mcsPeers  map[string]*LbsPeer
 	lobbies   map[byte]map[uint16]*LbsLobby
-	mcsPeers  map[string]*LbsPeer   // publicAddr -> McsStatus
-	mcsStatus map[string]*McsStatus // region -> McsStatus
 	chEvent   chan interface{}
 	chQuit    chan interface{}
 }
@@ -43,10 +42,9 @@ type Lbs struct {
 func NewLbs() *Lbs {
 	app := &Lbs{
 		handlers:  defaultLbsHandlers,
-		users:     make(map[string]*LbsPeer),
-		lobbies:   make(map[byte]map[uint16]*LbsLobby),
+		userPeers: make(map[string]*LbsPeer),
 		mcsPeers:  make(map[string]*LbsPeer),
-		mcsStatus: make(map[string]*McsStatus),
+		lobbies:   make(map[byte]map[uint16]*LbsLobby),
 		chEvent:   make(chan interface{}, 64),
 		chQuit:    make(chan interface{}),
 	}
@@ -82,26 +80,26 @@ func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
 	return lobby
 }
 
-func (s *Lbs) ListenAndServe(addr string) error {
+func (lbs *Lbs) ListenAndServe(addr string) error {
 	glog.Info("ListenAndServe", addr)
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return err
 	}
-	listner, err := net.ListenTCP("tcp", tcpAddr)
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return err
 	}
-	go s.eventLoop()
+	go lbs.eventLoop()
 	for {
-		tcpConn, err := listner.AcceptTCP()
+		tcpConn, err := listener.AcceptTCP()
 		if err != nil {
 			glog.Errorln(err)
 			continue
 		}
 		glog.Infoln("A new tcp connection open.", tcpConn.RemoteAddr())
-		peer := s.NewPeer(tcpConn)
+		peer := lbs.NewPeer(tcpConn)
 		go peer.serve()
 	}
 }
@@ -118,17 +116,19 @@ func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 }
 
 func (lbs *Lbs) FindMcs(region string) *McsStatus {
-	for _, mcs := range lbs.mcsStatus {
-		if strings.HasPrefix(mcs.Region, region) &&
-			mcs.PublicAddr != "" {
-			return mcs
+	for _, p := range lbs.mcsPeers {
+		if p.mcsStatus != nil {
+			if strings.HasPrefix(p.mcsStatus.Region, region) &&
+				p.mcsStatus.PublicAddr != "" {
+				return p.mcsStatus
+			}
 		}
 	}
 	return nil
 }
 
 func (lbs *Lbs) FindPeer(userID string) *LbsPeer {
-	p, ok := lbs.users[userID]
+	p, ok := lbs.userPeers[userID]
 	if !ok {
 		return nil
 	}
@@ -154,7 +154,7 @@ func (lbs *Lbs) Locked(f func(*Lbs)) {
 
 func (lbs *Lbs) Quit() {
 	lbs.Locked(func(app *Lbs) {
-		for _, p := range app.users {
+		for _, p := range app.userPeers {
 			SendServerShutDown(p)
 		}
 	})
@@ -186,6 +186,30 @@ type eventPeerMessage struct {
 type eventFunc struct {
 	f func(*Lbs)
 	c chan<- interface{}
+}
+
+func (lbs *Lbs) cleanPeer(p *LbsPeer) {
+	if p.UserID != "" {
+		if p.Room != nil {
+			p.Room.Exit(p.UserID)
+			lbs.BroadcastRoomState(p.Room)
+			p.Room = nil
+		}
+		if p.Lobby != nil {
+			p.Lobby.Exit(p.UserID)
+			lbs.BroadcastLobbyUserCount(p.Lobby)
+			lbs.BroadcastLobbyMatchEntryUserCount(p.Lobby)
+			p.Lobby = nil
+		}
+		delete(lbs.userPeers, p.UserID)
+	}
+
+	if p.mcsStatus != nil {
+		delete(p.app.mcsPeers, p.mcsStatus.PublicAddr)
+		p.mcsStatus = nil
+	}
+
+	p.conn.Close()
 }
 
 func (lbs *Lbs) eventLoop() {
@@ -221,7 +245,7 @@ func (lbs *Lbs) eventLoop() {
 				}
 			case eventPeerLeave:
 				glog.Infoln("eventPeerLeave")
-				delete(lbs.users, args.peer.UserID)
+				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
 			case eventFunc:
 				args.f(lbs)
@@ -229,24 +253,11 @@ func (lbs *Lbs) eventLoop() {
 			}
 		case <-tick:
 			for _, p := range peers {
-				if 1 <= time.Since(p.lastRecvTime).Minutes() {
-					glog.Infoln("Kick", p.Address())
-					if p.UserID != "" {
-						if p.Room != nil {
-							p.Room.Exit(p.UserID)
-							lbs.BroadcastRoomState(p.Room)
-							p.Room = nil
-						}
-						if p.Lobby != nil {
-							p.Lobby.Exit(p.UserID)
-							lbs.BroadcastLobbyUserCount(p.Lobby)
-							lbs.BroadcastLobbyMatchEntryUserCount(p.Lobby)
-							p.Lobby = nil
-						}
-					}
-					delete(peers, p.Address())
+				lastRecvSince := time.Since(p.lastRecvTime)
+				if 1 <= lastRecvSince.Minutes() {
+					glog.Infoln("Kick peer", p.Address())
 					p.conn.Close()
-				} else {
+				} else if 10 <= lastRecvSince.Seconds() {
 					RequestLineCheck(p)
 				}
 			}
@@ -268,7 +279,7 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	// For lobby select scene.
 	msg := NewServerNotice(lbsPlazaJoin).Writer().
 		Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
-	for _, u := range lbs.users {
+	for _, u := range lbs.userPeers {
 		if u.Platform == lobby.Platform {
 			u.SendMessage(msg)
 		}
@@ -484,6 +495,9 @@ type LbsPeer struct {
 
 	mInbuf sync.Mutex
 	inbuf  []byte
+
+	// used only mcs peer
+	mcsStatus *McsStatus
 }
 
 func (p *LbsPeer) InLobbyChat() bool {
