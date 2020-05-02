@@ -139,7 +139,6 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			default:
 			}
 
-			conn.SetReadDeadline(time.Now().Add(time.Minute))
 			n, err := conn.Read(buf)
 			if err != nil {
 				glog.Error(err)
