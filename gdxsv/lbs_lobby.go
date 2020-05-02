@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 )
 
 type LbsLobby struct {
@@ -227,14 +228,19 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	if McsFuncEnabled() && l.McsRegion != "" {
 		stat := l.app.FindMcs(l.McsRegion)
 		if stat == nil {
+			glog.Info("call mcsfunc alloc:", l.McsRegion)
 			GoMcsFuncAlloc(l.McsRegion)
 			return
 		}
+
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
-		if peer != nil {
-			mcsPeer = peer
-			mcsAddr = stat.PublicAddr
+		if peer == nil {
+			glog.Info("msc peer not found:", stat)
+			return
 		}
+
+		mcsPeer = peer
+		mcsAddr = stat.PublicAddr
 	}
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
