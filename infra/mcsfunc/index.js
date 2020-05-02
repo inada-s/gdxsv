@@ -46,7 +46,7 @@ cat << 'EOF' > /home/ubuntu/launch-mcs.sh
 function finish {
   echo "finish"
   sleep 1
-  # sudo /sbin/shutdown now
+  sudo /sbin/shutdown now
 }
 trap finish EXIT
 
@@ -73,11 +73,11 @@ export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
 export GDXSV_BATTLE_ADDR=:9877
 export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
 export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
-$TAG_NAME/bin/gdxsv -v=3 mcs
+$TAG_NAME/bin/gdxsv mcs
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
-su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh >> gdxsv.log &'
+su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh 2>&1 | logger &'
 `
 }
 
