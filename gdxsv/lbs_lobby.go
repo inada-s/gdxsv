@@ -19,13 +19,32 @@ type LbsLobby struct {
 	EntryUsers []string
 }
 
+var regionMapping = map[uint16]string{
+	4:  "asia-east1",
+	5:  "asia-east2",
+	6:  "asia-northeast1",
+	9:  "asia-northeast2",
+	10: "asia-northeast3",
+	11: "asia-south1",
+	12: "asia-southeast1",
+	13: "australia-southeast1",
+	14: "europe-north1",
+	15: "europe-west2",
+	16: "europe-west6",
+	17: "northamerica-northeast1",
+	19: "southamerica-east1",
+	20: "us-central1",
+	21: "us-east1",
+	22: "us-west3",
+}
+
 func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	lobby := &LbsLobby{
 		app: app,
 
 		Platform:   platform,
 		ID:         lobbyID,
-		Comment:    fmt.Sprintf("<B>Lobby %d<END>", lobbyID),
+		Comment:    fmt.Sprintf("<B>Lobby %d<BR><B>Default Server<END>", lobbyID),
 		McsRegion:  "",
 		Rule:       RulePresetDefault.Clone(),
 		Users:      make(map[string]*DBUser),
@@ -43,56 +62,8 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	// Apply special lobby settings
 	// PS2 LobbyID: 1-23
 	// DC2 LobbyID: 2, 4-6, 9-17, 19-22
-	switch lobbyID {
-	case 2:
-		lobby.Comment = "<B>戦績なし<B><BR><B>NO WIN/LOSE<END>"
-		lobby.Rule.NoRanking = 1
-	case 4:
-		if platform != PlatformPS2 {
-			lobby.Comment = "<B>1人対戦<B><BR><B>SINGLE PLAYER BATTLE<END>"
-		}
-	case 5:
-		if platform != PlatformPS2 {
-			lobby.Comment = "<B>2人対戦<B><BR><B>TWO PLAYERS BATTLE<END>"
-		}
-	case 6:
-		lobby.Comment = "<B>弾無限<B><BR><B>UNLIMITED AMMO<END>"
-		lobby.Rule.NoRanking = 1
-		lobby.Rule.ReloadFlag = 1
-	case 10:
-		lobby.McsRegion = "asia-east1"
-	case 11:
-		lobby.McsRegion = "asia-east2"
-	case 12:
-		lobby.McsRegion = "asia-northeast1"
-	case 13:
-		lobby.McsRegion = "asia-northeast2"
-	case 14:
-		lobby.McsRegion = "australia-southeast1"
-	case 15:
-		lobby.McsRegion = "europe-west3"
-	case 16:
-		lobby.McsRegion = "us-central1"
-	case 17:
-		lobby.McsRegion = "us-east1"
-	case 19:
-		lobby.Comment = "<B>ダメージレベル4<B><BR><B>DAMAGELEVEL4<END>"
-		lobby.Rule.DamageLevel = 3
-	case 20:
-		if platform != PlatformPS2 {
-			lobby.Comment = "<B>弾無限(戦績なし) １人対戦<B><BR><B>UNLIMITED AMMO / SINGLE PLAYER<END>"
-			lobby.Rule.NoRanking = 1
-			lobby.Rule.ReloadFlag = 1
-		}
-	case 21:
-		if platform != PlatformPS2 {
-			lobby.Comment = "<B>弾無限(戦績なし) ２人対戦<B><BR><B>UNLIMITED AMMO / TWO PLAYER<END>"
-			lobby.Rule.NoRanking = 1
-			lobby.Rule.ReloadFlag = 1
-		}
-	}
-
-	if lobby.McsRegion != "" {
+	if region, ok := regionMapping[lobby.ID]; ok {
+		lobby.McsRegion = region
 		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	}
 
@@ -103,9 +74,9 @@ func (l *LbsLobby) canStartBattle() bool {
 	a, b := l.GetLobbyMatchEntryUserCount()
 	if l.Platform != PlatformPS2 {
 		switch l.ID {
-		case 4, 20:
+		case 4:
 			return 1 <= a+b
-		case 5, 21:
+		case 5:
 			return 2 <= a+b
 		}
 	}
