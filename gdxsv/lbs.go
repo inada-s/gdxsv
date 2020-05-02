@@ -120,8 +120,7 @@ func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 func (lbs *Lbs) FindMcs(region string) *McsStatus {
 	for _, mcs := range lbs.mcsStatus {
 		if strings.HasPrefix(mcs.Region, region) &&
-			mcs.PublicAddr != "" &&
-			time.Since(mcs.Updated).Seconds() <= 10 {
+			mcs.PublicAddr != "" {
 			return mcs
 		}
 	}
