@@ -37,11 +37,15 @@ echo "startup-script"
 apt-get update
 apt-get install -y jq wget curl
 
-curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh
-bash install-monitoring-agent.sh
+if [[ ! -e install-monitoring-agent.sh ]]; then
+  curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh
+  bash install-monitoring-agent.sh
+fi
 
-curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
-bash install-logging-agent.sh
+if [[ ! -e install-logging-agent.sh ]]; then
+  curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
+  bash install-logging-agent.sh
+fi
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
@@ -49,7 +53,6 @@ fi
 
 cat << 'EOF' > /home/ubuntu/launch-mcs.sh
 #!/bin/bash -eux
-
 
 function finish {
   echo "finish"
