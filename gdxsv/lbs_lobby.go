@@ -32,6 +32,7 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		ZeonRooms:  make(map[uint16]*LbsRoom),
 		EntryUsers: make([]string, 0),
 	}
+
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
 		lobby.RenpoRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamRenpo)
@@ -59,28 +60,20 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		lobby.Rule.ReloadFlag = 1
 	case 10:
 		lobby.McsRegion = "asia-east1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 11:
 		lobby.McsRegion = "asia-east2"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 12:
 		lobby.McsRegion = "asia-northeast1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 13:
 		lobby.McsRegion = "asia-northeast2"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 14:
 		lobby.McsRegion = "australia-southeast1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 15:
 		lobby.McsRegion = "europe-west3"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 16:
 		lobby.McsRegion = "us-central1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 17:
 		lobby.McsRegion = "us-east1"
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	case 19:
 		lobby.Comment = "<B>ダメージレベル4<B><BR><B>DAMAGELEVEL4<END>"
 		lobby.Rule.DamageLevel = 3
@@ -96,6 +89,10 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 			lobby.Rule.NoRanking = 1
 			lobby.Rule.ReloadFlag = 1
 		}
+	}
+
+	if lobby.McsRegion != "" {
+		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
 	}
 
 	return lobby
@@ -196,7 +193,7 @@ func (l *LbsLobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	a := uint16(0)
 	b := uint16(0)
-	peers := []*LbsPeer{}
+	var peers []*LbsPeer
 	for _, userID := range l.EntryUsers {
 		if p := l.app.FindPeer(userID); p != nil {
 			switch p.Team {
@@ -254,7 +251,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 			Players:    len(participants),
 			Aggregate:  1,
 		})
-		AddUserWhoIsGoingTobattle(
+		AddUserWhoIsGoingToBattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
 	}
@@ -338,7 +335,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			Players:    len(participants),
 			Aggregate:  1,
 		})
-		AddUserWhoIsGoingTobattle(
+		AddUserWhoIsGoingToBattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
 	}

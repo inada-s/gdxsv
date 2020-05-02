@@ -47,7 +47,7 @@ type LbsStatus struct {
 	Users []McsUser `json:"users,omitempty"`
 }
 
-func AddUserWhoIsGoingTobattle(battleCode string, mcsRegion string, userID string, name string, side uint16, sessionID string) {
+func AddUserWhoIsGoingToBattle(battleCode string, mcsRegion string, userID string, name string, side uint16, sessionID string) {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 	sharedData.battleUsers[sessionID] = McsUser{

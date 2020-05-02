@@ -18,10 +18,16 @@ import (
 )
 
 var (
-	conf    Config
-	dump    = flag.Bool("dump", false, "enable var dump to dump.txt")
-	cpu     = flag.Int("cpu", 2, "setting GOMAXPROCS")
-	profile = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
+	// This will be overwritten via ldflags.
+	gdxsvVersion  string
+	gdxsvRevision string
+)
+
+var (
+	conf     Config
+	dump     = flag.Bool("dump", false, "enable var dump to dump.txt")
+	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
+	profile  = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
 )
 
@@ -34,6 +40,30 @@ type Config struct {
 	McsFuncKey       string `env:"GDXSV_MCSFUNC_KEY" envDefault:""`
 	McsFuncURL       string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
 	DBName           string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
+}
+
+func printHeader() {
+	glog.Infoln("========================================================================")
+	glog.Infoln(" gdxsv - Mobile Suit Gundam: Federation vs. Zeon&DX Private Game Server.")
+	glog.Infof(" Version: %v (%v)\n", gdxsvVersion, gdxsvRevision)
+	glog.Infoln("========================================================================")
+}
+
+func printUsage() {
+	glog.Info("")
+	glog.Info("Usage: gdxsv [lbs, mcs, initdb]")
+	glog.Info("")
+	glog.Info("	lbs: Serve lobby server and default battle server.")
+	glog.Info("	  A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.")
+	glog.Info("")
+	glog.Info("	mcs: Serve battle server.")
+	glog.Info("	  The mcs attempts to register itself with a lbs.")
+	glog.Info("	  When the mcs is vacant for a certain period, it will automatically end.")
+	glog.Info("	  It is supposed to host mcs in a different location than the lobby server.")
+	glog.Info("")
+	glog.Info("	initdb: Initialize database.")
+	glog.Info("	  It is supposed to run this command when first booting manually.")
+	glog.Info("	  Note that if the database file already exists it will be permanently deleted.")
 }
 
 func loadConfig() {
@@ -55,23 +85,6 @@ func pprofPort(mode string) int {
 	default:
 		return 26060
 	}
-}
-
-func printUsage() {
-	glog.Info("")
-	glog.Info("Usage: gdxsv [lbs, mcs, initdb]")
-	glog.Info("")
-	glog.Info("	lbs: Serve lobby server and default battle server.")
-	glog.Info("	  A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.")
-	glog.Info("")
-	glog.Info("	mcs: Serve battle server.")
-	glog.Info("	  The mcs attempts to register itself with a lbs.")
-	glog.Info("	  When the mcs is vacant for a certain period, it will automatically end.")
-	glog.Info("	  It is supposed to host mcs in a different location than the lobby server.")
-	glog.Info("")
-	glog.Info("	initdb: Initialize database.")
-	glog.Info("	  It is supposed to run this command when first booting manually.")
-	glog.Info("	  Note that if the database file already exists it will be permanently deleted.")
 }
 
 func prepareOption(command string) {
@@ -109,7 +122,7 @@ func prepareDB() {
 
 func mainLbs() {
 	lbs := NewLbs()
-	go lbs.ListenAndServeLobby(stripHost(conf.LobbyAddr))
+	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
 	defer lbs.Quit()
 
 	mcs := NewMcs(*mcsdelay)
@@ -152,9 +165,7 @@ func main() {
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
-	glog.Infoln("========================================================================")
-	glog.Infoln(" gdxsv - Mobile Suit Gundam: Federation vs. Zeon&DX Private Game Server.")
-	glog.Infoln("========================================================================")
+	printHeader()
 
 	args := flag.Args()
 	glog.Infoln(args, len(args))

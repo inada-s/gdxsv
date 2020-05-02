@@ -82,8 +82,8 @@ func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
 	return lobby
 }
 
-func (s *Lbs) ListenAndServeLobby(addr string) error {
-	glog.Info("ListenAndServeLobby", addr)
+func (s *Lbs) ListenAndServe(addr string) error {
+	glog.Info("ListenAndServe", addr)
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {

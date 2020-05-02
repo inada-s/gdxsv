@@ -24,7 +24,7 @@ jobs:
     - name: Get dependencies
       run: go get -u -a golang.org/x/tools/cmd/stringer
     - name: Build
-      run: make ci
+      run: make release
     - name: Release
       uses: meeDamian/github-release@2.0
       with:

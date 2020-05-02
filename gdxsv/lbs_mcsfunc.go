@@ -70,7 +70,7 @@ func McsFuncEnabled() bool {
 }
 
 func McsFuncAlloc(region string) error {
-	if time.Since(mcsFuncRequestTime["alloc/"+region]).Seconds() <= 10 {
+	if time.Since(mcsFuncRequestTime["alloc/"+region]).Seconds() <= 30 {
 		return nil
 	}
 	mcsFuncRequestTime["alloc/"+region] = time.Now()
@@ -80,7 +80,7 @@ func McsFuncAlloc(region string) error {
 		return err
 	}
 
-	resp, err := client.Get(conf.McsFuncURL + fmt.Sprintf("/alloc?region=%s", region))
+	resp, err := client.Get(conf.McsFuncURL + fmt.Sprintf("/alloc?region=%s&version=%s", region, gdxsvVersion))
 	if err != nil {
 		return err
 	}
