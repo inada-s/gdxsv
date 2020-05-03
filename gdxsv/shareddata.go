@@ -2,10 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"go.uber.org/zap"
 	"sync"
 	"time"
-
-	"github.com/golang/glog"
 )
 
 // sharing temporary data between lbs and mcs
@@ -99,7 +98,7 @@ func GetMcsUsers() []McsUser {
 func NotifyLatestLbsStatus(mcs *LbsPeer) {
 	lbsStatusBin, err := json.Marshal(&LbsStatus{Users: GetMcsUsers()})
 	if err != nil {
-		glog.Error(err)
+		logger.Error("json.Marshal", zap.Error(err))
 		return
 	}
 	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(lbsStatusBin).Msg())

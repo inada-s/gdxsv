@@ -51,6 +51,19 @@ if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
 fi
 
+cat << 'EOF' > /etc/google-fluentd/config.d/gdxsv.conf
+<source>
+  @type tail
+  format json
+  path /var/log/gdxsv.log
+  pos_file /var/lib/google-fluentd/pos/gdxsv.pos
+  read_from_head true
+  tag gdxsv-mcs
+</source>
+EOF
+sudo systemctl restart google-fluentd
+
+
 cat << 'EOF' > /home/ubuntu/launch-mcs.sh
 #!/bin/bash -eux
 
@@ -84,12 +97,15 @@ export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
 export GDXSV_BATTLE_ADDR=:9877
 export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
 export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
-$TAG_NAME/bin/gdxsv mcs
+
+touch /var/log/gdxsv-mcs.log
+truncate -s0 /var/log/gdxsv-mcs.log
+
+$TAG_NAME/bin/gdxsv -prodlog mcs > /var/log/gdxsv-mcs.log 2>&1
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
-su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh 2>&1 | logger &'
-
+su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh &'
 echo "startup-script done"
 `
 }

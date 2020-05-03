@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"net"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/golang/glog"
 )
 
 const (
@@ -81,7 +80,7 @@ func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
 }
 
 func (lbs *Lbs) ListenAndServe(addr string) error {
-	glog.Info("ListenAndServe", addr)
+	logger.Info("lbs.ListenAndServe", zap.String("addr", addr))
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
@@ -95,10 +94,10 @@ func (lbs *Lbs) ListenAndServe(addr string) error {
 	for {
 		tcpConn, err := listener.AcceptTCP()
 		if err != nil {
-			glog.Errorln(err)
+			logger.Error("failed to accept", zap.Error(err))
 			continue
 		}
-		glog.Infoln("A new tcp connection open.", tcpConn.RemoteAddr())
+		logger.Info("a new connection open", zap.String("addr", tcpConn.RemoteAddr().String()))
 		peer := lbs.NewPeer(tcpConn)
 		go peer.serve()
 	}
@@ -112,6 +111,7 @@ func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 		chDispatch: make(chan bool, 1),
 		outbuf:     make([]byte, 0, 1024),
 		inbuf:      make([]byte, 0, 1024),
+		logger:     logger.With(zap.String("addr", conn.RemoteAddr().String())),
 	}
 }
 
@@ -158,14 +158,14 @@ func (lbs *Lbs) Quit() {
 			SendServerShutDown(p)
 		}
 	})
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	close(lbs.chQuit)
 }
 
 func stripHost(addr string) string {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		glog.Fatal("err in splitPort", err)
+		logger.DPanic("failed to split host port", zap.Error(err))
 	}
 	return ":" + fmt.Sprint(port)
 }
@@ -223,28 +223,28 @@ func (lbs *Lbs) eventLoop() {
 		case e := <-lbs.chEvent:
 			switch args := e.(type) {
 			case eventPeerCome:
-				glog.Infoln("eventPeerCome")
+				args.peer.logger.Info("eventPeerCome")
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
 			case eventPeerMessage:
+				args.peer.logger.Info("eventPeerMessage", zap.Any("msg", args.msg))
 				args.peer.lastRecvTime = time.Now()
 				if f, ok := lbs.handlers[args.msg.Command]; ok {
 					f(args.peer, args.msg)
 				} else {
-					glog.Errorf("======================================")
-					glog.Errorf("======================================")
-					glog.Errorf("======================================")
-					glog.Errorf("Handler not found: 0x%04x %v msg:%v", uint16(args.msg.Command), args.msg.Command, args.msg)
-					glog.Errorf("======================================")
-					glog.Errorf("======================================")
-					glog.Errorf("======================================")
+					logger.Warn("handler not found",
+						zap.String("cmd", args.msg.Command.String()),
+						zap.String("cmd_id", fmt.Sprintf("0x%04x", uint16(args.msg.Command))),
+						zap.String("msg", args.msg.String()),
+						zap.Binary("body", args.msg.Body),
+					)
 					if args.msg.Category == CategoryQuestion {
 						args.peer.SendMessage(NewServerAnswer(args.msg))
 					}
 				}
 			case eventPeerLeave:
-				glog.Infoln("eventPeerLeave")
+				args.peer.logger.Info("eventPeerLeave")
 				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
 			case eventFunc:
@@ -255,7 +255,7 @@ func (lbs *Lbs) eventLoop() {
 			for _, p := range peers {
 				lastRecvSince := time.Since(p.lastRecvTime)
 				if 1 <= lastRecvSince.Minutes() {
-					glog.Infoln("Kick peer", p.Address())
+					logger.Info("kick peer", zap.String("addr", p.Address()))
 					p.conn.Close()
 				} else if 10 <= lastRecvSince.Seconds() {
 					RequestLineCheck(p)
@@ -386,15 +386,19 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	js, err := json.Marshal(result)
 	if err != nil {
-		glog.Errorln("Failed to marshal battle result", err)
-		glog.Infoln(result)
+		logger.Error("failed to marshal battle result",
+			zap.Error(err),
+			zap.String("battle_code", result.BattleCode),
+			zap.Any("battle_result", result))
 		return
 	}
 
 	record, err := getDB().GetBattleRecordUser(result.BattleCode, p.UserID)
 	if err != nil {
-		glog.Errorln("Failed to load battle record", err)
-		glog.Infoln(string(js))
+		logger.Error("failed to load battle record",
+			zap.Error(err),
+			zap.String("battle_code", result.BattleCode),
+			zap.Any("battle_result", result))
 		return
 	}
 
@@ -408,15 +412,20 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 
 	err = getDB().UpdateBattleRecord(record)
 	if err != nil {
-		glog.Errorln("Failed to save battle record", err)
-		glog.Infoln(record)
+		logger.Error("failed to save battle record",
+			zap.Error(err),
+			zap.String("battle_code", result.BattleCode),
+			zap.Any("battle_result", result))
 		return
 	}
 
-	glog.Infoln("before", p.DBUser)
+	logger.Info("update battle count",
+		zap.String("user_id", p.UserID),
+		zap.Any("before", p.DBUser))
+
 	rec, err := getDB().CalculateUserTotalBattleCount(p.UserID, 0)
 	if err != nil {
-		glog.Errorln("Failed to calculate battle count", err)
+		logger.Error("failed to calculate battle count", zap.Error(err))
 		return
 	}
 
@@ -428,7 +437,7 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 
 	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 1)
 	if err != nil {
-		glog.Errorln("Failed to calculate battle count", err)
+		logger.Error("failed to calculate battle count", zap.Error(err))
 		return
 	}
 
@@ -440,7 +449,7 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 
 	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 2)
 	if err != nil {
-		glog.Errorln("Failed to calculate battle count", err)
+		logger.Error("failed to calculate battle count", zap.Error(err))
 		return
 	}
 
@@ -452,7 +461,7 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 
 	rec, err = getDB().CalculateUserDailyBattleCount(p.UserID)
 	if err != nil {
-		glog.Errorln("Failed to calculate battle count", err)
+		logger.Error("failed to calculate battle count", zap.Error(err))
 		return
 	}
 
@@ -462,14 +471,18 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 
 	err = getDB().UpdateUser(&p.DBUser)
 	if err != nil {
-		glog.Errorln(err)
+		logger.Error("failed to update user", zap.Error(err))
 		return
 	}
-	glog.Infoln("after", p.DBUser)
+
+	logger.Info("update battle count",
+		zap.String("user_id", p.UserID),
+		zap.Any("after", p.DBUser))
 }
 
 type LbsPeer struct {
 	DBUser
+	logger *zap.Logger
 
 	conn   *net.TCPConn
 	app    *Lbs
@@ -483,8 +496,8 @@ type LbsPeer struct {
 	PilotName string
 	Rank      int
 
-	lastConnectionID string
-	lastRecvTime     time.Time
+	lastSessionID string
+	lastRecvTime  time.Time
 
 	chWrite    chan bool
 	chDispatch chan bool
@@ -537,7 +550,10 @@ func (c *LbsPeer) serve() {
 }
 
 func (c *LbsPeer) SendMessage(msg *LbsMessage) {
-	glog.V(2).Infof("\t->%v %v \n", c.Address(), msg)
+	logger.Debug("lobby -> client",
+		zap.String("addr", c.Address()),
+		zap.Any("msg", msg),
+	)
 	c.mOutbuf.Lock()
 	c.outbuf = append(c.outbuf, msg.Serialize()...)
 	c.mOutbuf.Unlock()
@@ -565,11 +581,11 @@ func (c *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 		c.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 		n, err := c.conn.Read(buf)
 		if err != nil {
-			glog.Infoln("TCP conn error:", err)
+			logger.Info("tcp read error", zap.Error(err))
 			return
 		}
 		if n == 0 {
-			glog.Infoln("TCP read zero")
+			logger.Info("tcp read zero")
 			return
 		}
 		c.mInbuf.Lock()
@@ -607,7 +623,7 @@ func (c *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 				c.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
 				n, err := c.conn.Write(buf[sum:])
 				if err != nil {
-					glog.Errorf("%v write error: %v\n", c.Address(), err)
+					c.logger.Info("tcp write error", zap.Error(err))
 					break
 				}
 				sum += n
@@ -635,7 +651,6 @@ func (c *LbsPeer) dispatchLoop(ctx context.Context, cancel func()) {
 
 				c.inbuf = c.inbuf[n:]
 				if msg != nil {
-					glog.V(2).Infof("%v %v\n", c.Address(), msg)
 					c.app.chEvent <- eventPeerMessage{peer: c, msg: msg}
 				}
 			}

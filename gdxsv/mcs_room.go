@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/hex"
+	"go.uber.org/zap"
 	"sync"
-
-	"github.com/golang/glog"
 
 	"gdxsv/gdxsv/proto"
 )
@@ -39,10 +37,12 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 
 		other := r.peers[i]
 		if other != nil {
-			if glog.V(2) {
-				glog.Infof("[ROOM] %v>%v %v", peer.UserID(), other.UserID(), hex.EncodeToString(msg.GetBody()))
-			}
 			other.AddSendMessage(msg)
+			logger.Debug("relay",
+				zap.String("from_user", peer.UserID()),
+				zap.String("to_user", other.UserID()),
+				zap.Uint32("seq", msg.GetSeq()),
+				zap.Binary("data", msg.GetBody()))
 		}
 	}
 	r.RUnlock()
@@ -84,5 +84,6 @@ func (r *McsRoom) Leave(p McsPeer) {
 		r.Dispose()
 	}
 
-	glog.Infof("leave peer %v", p.Address())
+	logger.Info("leave peer")
 }
+

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/golang/glog"
+	"go.uber.org/zap"
 )
 
 type LbsLobby struct {
@@ -191,14 +191,15 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	if McsFuncEnabled() && l.McsRegion != "" {
 		stat := l.app.FindMcs(l.McsRegion)
 		if stat == nil {
-			glog.Info("call mcsfunc alloc:", l.McsRegion)
+			logger.Info("mcs status not found")
 			GoMcsFuncAlloc(l.McsRegion)
 			return
 		}
 
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
 		if peer == nil {
-			glog.Info("msc peer not found:", stat)
+			logger.Info("mcs peer not found")
+			GoMcsFuncAlloc(l.McsRegion)
 			return
 		}
 
@@ -212,7 +213,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
-		getDB().AddBattleRecord(&BattleRecord{
+		err := getDB().AddBattleRecord(&BattleRecord{
 			BattleCode: b.BattleCode,
 			UserID:     q.UserID,
 			UserName:   q.Name,
@@ -220,6 +221,13 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 			Players:    len(participants),
 			Aggregate:  1,
 		})
+		if err != nil {
+			logger.Error("AddBattleRecord failed", zap.Error(err))
+			return
+		}
+	}
+
+	for _, q := range participants {
 		AddUserWhoIsGoingToBattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
@@ -281,13 +289,24 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		return
 	}
 
-	mcsAddr := conf.BattlePublicAddr
+	var mcsPeer *LbsPeer
+	var mcsAddr = conf.BattlePublicAddr
+
 	if McsFuncEnabled() && l.McsRegion != "" {
 		stat := l.app.FindMcs(l.McsRegion)
 		if stat == nil {
 			GoMcsFuncAlloc(l.McsRegion)
 			return
 		}
+
+		peer := l.app.FindMcsPeer(stat.PublicAddr)
+		if peer == nil {
+			logger.Info("mcs peer not found")
+			GoMcsFuncAlloc(l.McsRegion)
+			return
+		}
+
+		mcsPeer = peer
 		mcsAddr = stat.PublicAddr
 	}
 
@@ -296,7 +315,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
-		getDB().AddBattleRecord(&BattleRecord{
+		err := getDB().AddBattleRecord(&BattleRecord{
 			BattleCode: b.BattleCode,
 			UserID:     q.UserID,
 			UserName:   q.Name,
@@ -304,8 +323,19 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			Players:    len(participants),
 			Aggregate:  1,
 		})
+		if err != nil {
+			logger.Error("AddBattleRecord failed", zap.Error(err))
+			return
+		}
+	}
+
+	for _, q := range participants {
 		AddUserWhoIsGoingToBattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
+	}
+
+	if mcsPeer != nil {
+		NotifyLatestLbsStatus(mcsPeer)
 	}
 }

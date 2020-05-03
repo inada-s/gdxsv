@@ -5,11 +5,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"strings"
 	"sync/atomic"
 
-	"github.com/golang/glog"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 )
@@ -235,7 +235,7 @@ func (m *MessageBodyReader) ReadShiftJISString() string {
 	m.r.Read(buf)
 	ret, err := ioutil.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
 	if err != nil {
-		glog.Errorln(err)
+		logger.Error("failed to read sjis string", zap.Error(err), zap.Any("msg", m))
 	}
 	return string(bytes.Trim(ret, "\x00"))
 }
@@ -316,7 +316,8 @@ func (m *MessageBodyWriter) WriteBytes(bin []byte) *MessageBodyWriter {
 func (m *MessageBodyWriter) WriteString(v string) *MessageBodyWriter {
 	ret, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(v), japanese.ShiftJIS.NewEncoder()))
 	if err != nil {
-		glog.Errorln(err)
+		logger.Error("failed to write string",
+			zap.Error(err), zap.String("value", v), zap.Any("cmd", m.msg.Command))
 	}
 	binary.Write(m.buf, binary.BigEndian, uint16(len(ret)))
 	m.buf.WriteString(string(ret))

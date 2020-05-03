@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"hash/fnv"
 	"io/ioutil"
 	"math"
@@ -12,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/width"
@@ -185,7 +185,7 @@ func SendServerShutDown(p *LbsPeer) {
 	w := n.Writer()
 	w.WriteString("<LF=6><BODY><CENTER>サーバがシャットダウンしました<END>")
 	p.SendMessage(n)
-	glog.Infoln("Sending ShutDown")
+	p.logger.Info("sending shutdown")
 }
 
 func StartLoginFlow(p *LbsPeer) {
@@ -193,9 +193,13 @@ func StartLoginFlow(p *LbsPeer) {
 }
 
 var _ = register(lbsAskConnectionID, func(p *LbsPeer, m *LbsMessage) {
-	connID := m.Reader().ReadString()
-	p.lastConnectionID = connID
+	p.lastSessionID = m.Reader().ReadString()
 	p.SessionID = genSessionID()
+	p.logger = p.logger.With(
+		zap.String("last_session_id", p.lastSessionID),
+		zap.String("session_id", p.SessionID),
+	)
+	p.logger.Info("update session id")
 	p.SendMessage(NewServerQuestion(lbsConnectionID).Writer().
 		WriteString(p.SessionID).Msg())
 })
@@ -219,7 +223,7 @@ var _ = register(lbsRegulationHeader, func(p *LbsPeer, m *LbsMessage) {
 func sendUserList(p *LbsPeer) {
 	account, err := getDB().GetAccountBySessionID(p.SessionID)
 	if err != nil {
-		glog.Warning("failed to get account: ", p.SessionID)
+		p.logger.Warn("failed to get account", zap.Error(err))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
 		return
@@ -227,7 +231,7 @@ func sendUserList(p *LbsPeer) {
 
 	users, err := getDB().GetUserList(account.LoginKey)
 	if err != nil {
-		glog.Warning("failed to get user list", account.SessionID)
+		p.logger.Error("failed to get user list", zap.Error(err))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>FAILED TO GET USER LIST<END>").Msg())
 		return
@@ -258,13 +262,13 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		p.SendMessage(NewServerQuestion(lbsUserInfo1))
 	case 3:
 		// The user must have valid connection_id.
-		if p.lastConnectionID == "" {
+		if p.lastSessionID == "" {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>INVALID CONNECTION ID<END>").Msg())
 			return
 		}
 
-		account, err := getDB().GetAccountBySessionID(p.lastConnectionID)
+		account, err := getDB().GetAccountBySessionID(p.lastSessionID)
 		if err != nil {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT<END>").Msg())
@@ -281,7 +285,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 
 		sendUserList(p)
 	default:
-		glog.Warning("UNSUPPORTED LOGIN TYPE", loginType)
+		p.logger.Info("unsupported login type", zap.Any("login_type", loginType))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>UNSUPPORTED LOGIN TYPE<END>").Msg())
 	}
@@ -305,7 +309,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	if err != nil {
 		account, err = getDB().RegisterAccountWithLoginKey(p.Address(), loginKey)
 		if err != nil {
-			glog.Error("failed to create account", err)
+			p.logger.Error("failed to create account", zap.Error(err))
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
 			return
@@ -316,7 +320,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	// Update session_id that was generated when the first request.
 	err = getDB().LoginAccount(account, p.SessionID)
 	if err != nil {
-		glog.Error("failed to login account", err)
+		logger.Error("failed to login account", zap.Error(err))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>FAILED TO LOGIN<END>").Msg())
 		return
@@ -332,23 +336,23 @@ var _ = register(lbsUserInfo9, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsUserRegist, func(p *LbsPeer, m *LbsMessage) {
 	r := m.Reader()
-	userID := r.ReadString() // ******
+	userID := r.ReadString()
 	handleName := r.ReadShiftJISString()
-	glog.Infoln("UserRegist", userID, handleName)
+	logger.Info("create new user", zap.String("user_id", userID), zap.String("handle_name", handleName))
 
 	account, err := getDB().GetAccountBySessionID(p.SessionID)
 	if err != nil {
-		glog.Errorln("failed to get account :", err, p.SessionID)
+		p.logger.Error("failed to get account", zap.Error(err))
 		p.conn.Close()
 		return
 	}
 
 	if userID == "******" {
 		// The peer wants to create new user.
-		glog.Info("register new user :", err, account.SessionID)
+		p.logger.Info("register new user")
 		u, err := getDB().RegisterUser(account.LoginKey)
 		if err != nil {
-			glog.Errorln("failed to register user :", err, account.SessionID)
+			p.logger.Error("failed to register user :", zap.Error(err))
 			p.conn.Close()
 			return
 		}
@@ -357,14 +361,14 @@ var _ = register(lbsUserRegist, func(p *LbsPeer, m *LbsMessage) {
 
 	u, err := getDB().GetUser(userID)
 	if err != nil {
-		glog.Errorln("failed to get user :", err, userID)
+		logger.Error("failed to get user :", zap.Error(err), zap.String("user_id", userID))
 		p.conn.Close()
 		return
 	}
 
 	err = getDB().LoginUser(u)
 	if err != nil {
-		glog.Errorln("failed to login user :", err, userID)
+		logger.Error("failed to login user", zap.Error(err), zap.String("user_id", userID))
 		p.conn.Close()
 		return
 	}
@@ -373,30 +377,30 @@ var _ = register(lbsUserRegist, func(p *LbsPeer, m *LbsMessage) {
 	u.SessionID = p.SessionID
 	err = getDB().UpdateUser(u)
 	if err != nil {
-		glog.Errorln("failed to save user :", err, userID)
+		p.logger.Error("failed to update user", zap.Error(err), zap.String("user_id", userID))
 		p.conn.Close()
 		return
 	}
 
 	p.DBUser = *u
 	p.app.userPeers[p.UserID] = p
+	p.logger = p.logger.With(zap.String("user_id", p.UserID), zap.String("handle_name", p.Name))
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(userID).Msg())
 })
 
 var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 	userID := m.Reader().ReadString()
-	glog.Infoln("DecideUserId", userID)
 
 	u, err := getDB().GetUser(userID)
 	if err != nil {
-		glog.Errorln("failed to get user :", err, userID)
+		p.logger.Error("failed to get user", zap.String("user_id", userID), zap.Error(err))
 		p.conn.Close()
 		return
 	}
 
 	err = getDB().LoginUser(u)
 	if err != nil {
-		glog.Errorln("failed to login user :", err, userID)
+		p.logger.Error("failed to login user", zap.String("user_id", userID), zap.Error(err))
 		p.conn.Close()
 		return
 	}
@@ -404,13 +408,17 @@ var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 	u.SessionID = p.SessionID
 	err = getDB().UpdateUser(u)
 	if err != nil {
-		glog.Errorln("failed to save user :", err, userID)
+		p.logger.Error("failed to update user", zap.String("user_id", userID), zap.Error(err))
 		p.conn.Close()
 		return
 	}
 
 	p.DBUser = *u
 	p.app.userPeers[p.UserID] = p
+	p.logger = p.logger.With(
+		zap.String("user_id", p.UserID),
+		zap.String("handle_name", p.Name),
+	)
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
 	p.SendMessage(NewServerQuestion(lbsAskGameCode))
 })
@@ -431,10 +439,7 @@ var _ = register(lbsAskGameCode, func(p *LbsPeer, m *LbsMessage) {
 	case 0x0301:
 		p.Platform = PlatformDC2
 	default:
-		glog.Warning("============================")
-		glog.Warning(" UNKNOWN CLIENT PLATFORM ")
-		glog.Warning(code)
-		glog.Warning("============================")
+		p.logger.Warn("unknown client platform", zap.Any("code", code))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>UNKNOWN CLIENT PLATFORM<END>").Msg())
 		return
@@ -482,6 +487,7 @@ var _ = register(lbsAskBattleResult, func(p *LbsPeer, m *LbsMessage) {
 	}
 	p.app.RegisterBattleResult(p, result)
 	p.SendMessage(NewServerNotice(lbsLoginOk))
+	p.logger.Info("login ok")
 })
 
 var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
@@ -505,10 +511,10 @@ var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
 	}
 	bin, err := ioutil.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
 	if err != nil {
-		glog.Errorln(err)
+		logger.Error("failed to read pilot name", zap.Error(err))
 	}
 	p.PilotName = string(bin)
-
+	p.logger = p.logger.With(zap.String("pilot_name", p.PilotName))
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -613,6 +619,7 @@ var _ = register(lbsWinLose, func(p *LbsPeer, m *LbsMessage) {
 			Write32(userBattlePoint1).
 			Write32(userBattlePoint2).Msg())
 	} else {
+		p.logger.Warn("unknown top rank", zap.Any("now_top_rank", nowTopRank))
 		p.SendMessage(NewServerAnswer(m).Writer().
 			Write16(uint16(1)).
 			Write16(100).
@@ -635,8 +642,7 @@ var _ = register(lbsDeviceData, func(p *LbsPeer, m *LbsMessage) {
 	data6 := r.Read16()
 	data7 := r.Read16()
 	data8 := r.Read16()
-	glog.Info("DeviceData",
-		data1, data2, data3, data4, data5, data6, data7, data8)
+	p.logger.Sugar().Info("DeviceData", data1, data2, data3, data4, data5, data6, data7, data8)
 	// PS2: 0 0 0 999 1 0 0 0
 	// DC1: 0 0 0 0 1 0 0 0
 	// DC2: 0 0 0 0 1 0 0 0
@@ -958,9 +964,11 @@ var _ = register(lbsSendMail, func(p *LbsPeer, m *LbsMessage) {
 	userID := r.ReadString()
 	comment1 := r.ReadShiftJISString()
 	comment2 := r.ReadShiftJISString()
-	glog.Infoln("UserID", userID)
-	glog.Infoln("com1", comment1)
-	glog.Infoln("com2", comment2)
+
+	logger.Info("send mail",
+		zap.String("to_user_id", userID),
+		zap.String("comment1", comment1),
+		zap.String("comment2", comment2))
 
 	u, ok := p.app.userPeers[userID]
 	if !ok {
@@ -980,6 +988,7 @@ var _ = register(lbsUserSite, func(p *LbsPeer, m *LbsMessage) {
 	// TODO: Implement
 	userID := m.Reader().ReadString()
 	_ = userID
+	logger.Warn("not implemented lbsUserSite")
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(0).
 		Write16(1).
@@ -1130,9 +1139,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 
 	if p.Room != nil {
@@ -1164,7 +1173,7 @@ var _ = register(lbsTopRankingSuu, func(p *LbsPeer, m *LbsMessage) {
 	// How many userPeers there is in the ranking
 	// page: ranking kind?
 	page := m.Reader().Read8()
-	glog.Infoln("page", page)
+	p.logger.Info("lbsTopRankingSuu", zap.Any("page", page))
 
 	n := 0
 	if ranking, err := getDB().GetWinCountRanking(0); err == nil {
@@ -1178,7 +1187,7 @@ var _ = register(lbsTopRanking, func(p *LbsPeer, m *LbsMessage) {
 	num1 := r.Read8()
 	num2 := r.Read16()
 	num3 := r.Read16()
-	glog.Infoln("TopRanking", num1, num2, num3)
+	p.logger.Sugar().Info("TopRanking", num1, num2, num3)
 
 	ranking, err := getDB().GetWinCountRanking(0)
 	if err != nil {
@@ -1198,7 +1207,7 @@ var _ = register(lbsTopRanking, func(p *LbsPeer, m *LbsMessage) {
 	// 3: Yellow
 	// 4: Blue
 	// 5: Purple
-	// 6: SkyBule
+	// 6: SkyBlue
 	// 7: White
 
 	rec := ranking[index]
@@ -1324,7 +1333,7 @@ var _ = register(lbsAskMcsAddress, func(p *LbsPeer, m *LbsMessage) {
 	port := p.Battle.ServerPort
 
 	if ip == nil || ip.To4() == nil || port == 0 {
-		glog.Error("Invalid mcs address", ip, port)
+		logger.Error("invalid mcs address", zap.Any("ip", ip), zap.Any("port", port))
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
@@ -1357,11 +1366,12 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 	var mcsStatus McsStatus
 	err := json.Unmarshal(m.Reader().ReadBytes(), &mcsStatus)
 	if err != nil {
-		glog.Error(err)
+		p.logger.Error("failed to unmarshal mcs status", zap.Error(err))
 		return
 	}
 
-	glog.Infof("update mcs status: %+v", mcsStatus)
+	p.logger.Info( "update mcs status: %+v", zap.Any("mcs_status", mcsStatus))
+
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 	p.mcsStatus = &mcsStatus
 	SyncSharedDataMcsToLbs(&mcsStatus)
