@@ -72,14 +72,6 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 
 func (l *LbsLobby) canStartBattle() bool {
 	a, b := l.GetLobbyMatchEntryUserCount()
-	if l.Platform != PlatformPS2 {
-		switch l.ID {
-		case 4:
-			return 1 <= a+b
-		case 5:
-			return 2 <= a+b
-		}
-	}
 	return 2 <= a && 2 <= b
 }
 
