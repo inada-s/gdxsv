@@ -16,6 +16,7 @@ import (
 	"github.com/caarlos0/env"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jmoiron/sqlx"
+	"github.com/tommy351/zap-stackdriver"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +32,7 @@ var (
 	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
 	profile  = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
 	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
+	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
 )
 
@@ -173,23 +175,51 @@ func mainMcs() {
 	}
 }
 
+func prepareLogger() {
+	var err error
+	var zapConfig zap.Config
+
+	if *prodlog {
+		zapConfig = zap.NewProductionConfig()
+		zapConfig.EncoderConfig = stackdriver.EncoderConfig
+	} else {
+		zapConfig = zap.NewDevelopmentConfig()
+		zapConfig.Encoding = "console"
+	}
+
+	switch *loglevel {
+	case 0:
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	case 1:
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case 2:
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	default:
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	}
+
+	logger, err = zapConfig.Build()
+	if err != nil {
+		log.Fatalf("Failed to setup logger: %v", err)
+	}
+
+	if *prodlog {
+		logger = logger.With(
+			zap.String("gdxsv_version", gdxsvVersion),
+			zap.String("gdxsv_revision", gdxsvRevision))
+	}
+}
+
 func main() {
 	printHeader()
 	flag.Parse()
 
-	var err error
-	if *prodlog {
-		logger, err = zap.NewDevelopment()
-	} else {
-		logger, err = zap.NewProduction()
-		logger = logger.With(zap.String("version", gdxsvVersion), zap.String("revision", gdxsvRevision))
-	}
-	if err != nil {
-		log.Fatalf("Failed to setup logger: %v", err)
-	}
+	prepareLogger()
 	defer logger.Sync()
 
-	logger.Info("gdxsv", zap.String("version", gdxsvVersion), zap.String("revision", gdxsvRevision))
+	logger.Info("hello gdxsv",
+		zap.String("gdxsv_version", gdxsvVersion),
+		zap.String("gdxsv_revision", gdxsvRevision))
 
 	rand.Seed(time.Now().UnixNano())
 	args := flag.Args()

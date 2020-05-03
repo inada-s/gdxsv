@@ -80,7 +80,7 @@ func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
 }
 
 func (lbs *Lbs) ListenAndServe(addr string) error {
-	logger.Info("ListenAndServe", zap.String("addr", addr))
+	logger.Info("lbs.ListenAndServe", zap.String("addr", addr))
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
@@ -158,7 +158,7 @@ func (lbs *Lbs) Quit() {
 			SendServerShutDown(p)
 		}
 	})
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	close(lbs.chQuit)
 }
 
