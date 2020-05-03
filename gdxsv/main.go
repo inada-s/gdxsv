@@ -188,14 +188,14 @@ func prepareLogger() {
 	}
 
 	switch *loglevel {
-	case 0:
+	case 0,1:
 		zapConfig.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	case 1:
-		zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	case 2:
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case 3:
 		zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	default:
-		zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	}
 
 	logger, err = zapConfig.Build()
