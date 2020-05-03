@@ -2,13 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"gdxsv/gdxsv/proto"
+	"go.uber.org/zap"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	"golang.org/x/net/context"
 )
 
@@ -25,6 +24,7 @@ type McsPeer interface {
 	AddSendMessage(*proto.BattleMessage)
 	Address() string
 	Close() error
+	Logger() *zap.Logger
 }
 
 type BaseMcsPeer struct {
@@ -32,6 +32,7 @@ type BaseMcsPeer struct {
 	userID    string
 	roomID    string
 	position  int
+	logger    *zap.Logger
 }
 
 func (p *BaseMcsPeer) SetUserID(userID string) {
@@ -66,6 +67,10 @@ func (p *BaseMcsPeer) McsRoomID() string {
 	return p.roomID
 }
 
+func (p *BaseMcsPeer) Logger() *zap.Logger {
+	return p.logger
+}
+
 type Mcs struct {
 	mtx     sync.Mutex
 	updated time.Time
@@ -82,7 +87,7 @@ func NewMcs(delay time.Duration) *Mcs {
 }
 
 func (mcs *Mcs) ListenAndServe(addr string) error {
-	glog.Info("mcs.ListenAndServe", addr)
+	logger.Info("mcs.ListenAndServe", zap.String("addr", addr))
 	tcpSv := NewTCPServer(mcs)
 	return tcpSv.ListenAndServe(addr)
 }
@@ -102,16 +107,18 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 	}
 
 	sendMcsStatus := func() error {
-		glog.Info("Send Status", status)
 		statusBin, err := json.MarshalIndent(status, "", "  ")
 		if err != nil {
+			zap.Error(err)
 			return err
 		}
+		logger.Info("send status to lbs", zap.ByteString("status", statusBin))
 		buf := NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(statusBin).Msg().Serialize()
 		for sum := 0; sum < len(buf); {
 			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			n, err := conn.Write(buf[sum:])
 			if err != nil {
+				logger.Error("send status to lbs failed", zap.Error(err))
 				return err
 			}
 			sum += n
@@ -141,7 +148,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 
 			n, err := conn.Read(buf)
 			if err != nil {
-				glog.Error(err)
+				logger.Error("read from lbs failed", zap.Error(err))
 				return
 			}
 			data = append(data, buf[:n]...)
@@ -157,9 +164,14 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 				if msg != nil {
 					switch msg.Command {
 					case lbsExtSyncSharedData:
-						glog.Info("Recv lbsExtSyncSharedData")
+						lbsStatusBin := msg.Reader().ReadBytes()
+						logger.Info("recv lbs status", zap.ByteString("status", lbsStatusBin))
 						var lbsStatus LbsStatus
-						json.Unmarshal(msg.Reader().ReadBytes(), &lbsStatus)
+						err = json.Unmarshal(lbsStatusBin, &lbsStatus)
+						if err != nil {
+							logger.Error("json.Unmarshal", zap.Error(err))
+							continue
+						}
 						SyncSharedDataLbsToMcs(&lbsStatus)
 					}
 				}
@@ -182,7 +194,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			}
 
 			if 15 <= time.Since(status.Updated).Minutes() && len(status.Users) == 0 {
-				fmt.Println("mcs exit")
+				logger.Info("mcs exit")
 				return nil
 			}
 		}
@@ -200,7 +212,7 @@ func (mcs *Mcs) LastUpdated() time.Time {
 	return t
 }
 
-func (m *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
+func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	user, ok := getBattleUserInfo(sessionID)
 	if !ok {
 		return nil
@@ -209,33 +221,22 @@ func (m *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	p.SetUserID(user.UserID)
 	p.SetSessionID(sessionID)
 
-	m.mtx.Lock()
-	m.updated = time.Now()
-	room := m.rooms[user.BattleCode]
+	mcs.mtx.Lock()
+	mcs.updated = time.Now()
+	room := mcs.rooms[user.BattleCode]
 	if room == nil {
-		room = newMcsRoom(m, user.BattleCode)
-		m.rooms[user.BattleCode] = room
+		room = newMcsRoom(mcs, user.BattleCode)
+		mcs.rooms[user.BattleCode] = room
 	}
-	m.mtx.Unlock()
+	mcs.mtx.Unlock()
 	room.Join(p)
 	return room
 }
 
-func (m *Mcs) OnMcsRoomClose(room *McsRoom) {
-	m.mtx.Lock()
-	m.updated = time.Now()
-	delete(m.rooms, room.battleCode)
-	m.mtx.Unlock()
+func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
+	mcs.mtx.Lock()
+	mcs.updated = time.Now()
+	delete(mcs.rooms, room.battleCode)
+	mcs.mtx.Unlock()
 	removeBattleUserInfo(room.battleCode)
-}
-
-func IsFinData(buf []byte) bool {
-	if len(buf) == 4 &&
-		buf[0] == 4 &&
-		buf[1] == 240 &&
-		buf[2] == 0 &&
-		buf[3] == 0 {
-		return true
-	}
-	return false
 }

@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/hex"
+	"go.uber.org/zap"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	pb "github.com/golang/protobuf/proto"
 
 	"gdxsv/gdxsv/proto"
@@ -26,12 +26,12 @@ func (s *McsTCPServer) ListenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
-	listner, err := net.ListenTCP("tcp", tcpAddr)
+	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return err
 	}
 	for {
-		conn, err := listner.AcceptTCP()
+		conn, err := listener.AcceptTCP()
 		if err != nil {
 			continue
 		}
@@ -52,10 +52,15 @@ type McsTCPPeer struct {
 }
 
 func NewTCPPeer(conn *net.TCPConn) *McsTCPPeer {
-	return &McsTCPPeer{
+	p := &McsTCPPeer{
 		conn: conn,
 		seq:  1,
 	}
+	p.logger = logger.With(
+		zap.String("proto", "tcp"),
+		zap.String("addr", conn.RemoteAddr().String()),
+	)
+	return p
 }
 
 func (u *McsTCPPeer) Close() error {
@@ -63,8 +68,8 @@ func (u *McsTCPPeer) Close() error {
 }
 
 func (u *McsTCPPeer) Serve(mcs *Mcs) {
-	glog.Infoln("[TCP]", u.Address(), "Serve Start")
-	defer glog.Infoln("[TCP]", u.Address(), "Serve End")
+	u.logger.Info("Serve Start")
+	defer u.logger.Info("Serve End")
 	// c.f. ps2 symbol ReflectMsg
 	// 6X := category?
 	// 1031 := request connection ID
@@ -89,7 +94,7 @@ func (u *McsTCPPeer) AddSendData(data []byte) {
 	for sum := 0; sum < len(data); {
 		n, err := u.conn.Write(data[sum:])
 		if err != nil {
-			glog.Errorf("%v write error: %v\n", u.Address(), err)
+			u.logger.Warn("write error", zap.Error(err))
 			break
 		}
 		sum += n
@@ -115,7 +120,7 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 
 		if err != nil {
 			if err != io.EOF {
-				glog.Errorf("%v read error: %v\n", u.Address(), err)
+				u.logger.Error("read failed", zap.Error(err))
 			}
 			return
 		}
@@ -125,21 +130,20 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 		inbuf = append(inbuf, buf[:n]...)
 
 		if u.room == nil {
-			glog.Infoln("room nil: ", u.Address())
 			if len(inbuf) < 20 {
 				continue
 			}
 			// 14 30 00 00 00 08 99 88 00 ff ff ff 35 39 31 32 39 32 36 39
 			sessionID := string(inbuf[12:20])
 			inbuf = inbuf[:0]
-			glog.Infoln("[TCP] SessionID", sessionID, err)
+			u.logger.Info("recv first message", zap.String("session_id", sessionID), zap.Binary("first_data", inbuf[:20]))
 			u.room = mcs.Join(u, sessionID)
 			if u.room == nil {
-				glog.Infoln("failed to join room: ", u.UserID(), u.Address())
+				u.logger.Error("failed to join room")
 				u.conn.Close()
 				break
 			}
-			glog.Infoln("join success", u.Address())
+			u.logger.Info("entered a room")
 		} else {
 			var tmp []byte
 			for 0 < len(inbuf) {
@@ -158,7 +162,19 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 				msg.Seq = pb.Uint32(u.seq)
 				u.seq++
 				u.room.SendMessage(u, msg)
+				proto.PutBattleMessage(msg)
 			}
 		}
 	}
+}
+
+func IsFinData(buf []byte) bool {
+	if len(buf) == 4 &&
+		buf[0] == 4 &&
+		buf[1] == 240 &&
+		buf[2] == 0 &&
+		buf[3] == 0 {
+		return true
+	}
+	return false
 }

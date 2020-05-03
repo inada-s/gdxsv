@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -14,8 +15,8 @@ import (
 
 	"github.com/caarlos0/env"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/golang/glog"
 	"github.com/jmoiron/sqlx"
+	"go.uber.org/zap"
 )
 
 var (
@@ -29,7 +30,13 @@ var (
 	dump     = flag.Bool("dump", false, "enable var dump to dump.txt")
 	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
 	profile  = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
+	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
+)
+
+var (
+	logger *zap.Logger
+	sugger *zap.SugaredLogger
 )
 
 type Config struct {
@@ -44,36 +51,37 @@ type Config struct {
 }
 
 func printHeader() {
-	glog.Infoln("========================================================================")
-	glog.Infoln(" gdxsv - Mobile Suit Gundam: Federation vs. Zeon&DX Private Game Server.")
-	glog.Infof(" Version: %v (%v)\n", gdxsvVersion, gdxsvRevision)
-	glog.Infoln("========================================================================")
+	fmt.Println("   ========================================================================")
+	fmt.Println("    gdxsv - Mobile Suit Gundam: Federation vs. Zeon&DX Private Game Server.")
+	fmt.Printf("    Version: %v (%v)\n", gdxsvVersion, gdxsvRevision)
+	fmt.Println("   ========================================================================")
 }
 
 func printUsage() {
-	glog.Info("")
-	glog.Info("Usage: gdxsv [lbs, mcs, initdb]")
-	glog.Info("")
-	glog.Info("	lbs: Serve lobby server and default battle server.")
-	glog.Info("	  A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.")
-	glog.Info("")
-	glog.Info("	mcs: Serve battle server.")
-	glog.Info("	  The mcs attempts to register itself with a lbs.")
-	glog.Info("	  When the mcs is vacant for a certain period, it will automatically end.")
-	glog.Info("	  It is supposed to host mcs in a different location than the lobby server.")
-	glog.Info("")
-	glog.Info("	initdb: Initialize database.")
-	glog.Info("	  It is supposed to run this command when first booting manually.")
-	glog.Info("	  Note that if the database file already exists it will be permanently deleted.")
+	fmt.Print(`
+Usage: gdxsv [lbs, mcs, initdb]
+
+  lbs: Serve lobby server and default battle server.
+    A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.
+
+  mcs: Serve battle server.
+    The mcs attempts to register itself with a lbs.
+    When the mcs is vacant for a certain period, it will automatically end.
+    It is supposed to host mcs in a different location than the lobby server.
+
+  initdb: Initialize database.
+    It is supposed to run this command when first booting manually.
+    Note that if the database file already exists it will be permanently deleted.
+`)
 }
 
 func loadConfig() {
 	var c Config
 	if err := env.Parse(&c); err != nil {
-		glog.Fatal(err)
+		logger.Fatal("config load failed", zap.Error(err))
 	}
 
-	glog.Infof("%+v", c)
+	logger.Info("config loaded", zap.Any("config", c))
 	conf = c
 }
 
@@ -94,12 +102,14 @@ func prepareOption(command string) {
 		go func() {
 			port := pprofPort(command)
 			addr := fmt.Sprintf(":%v", port)
-			glog.Errorln(http.ListenAndServe(addr, nil))
+			err := http.ListenAndServe(addr, nil)
+			logger.Error("http.ListenAndServe error", zap.Error(err), zap.String("addr", addr))
 		}()
 	}
 	if *profile >= 2 {
 		runtime.MemProfileRate = 1
 		runtime.SetBlockProfileRate(1)
+		logger.Warn("mem profile mode enabled")
 	}
 }
 
@@ -112,7 +122,7 @@ func getDB() DB {
 func prepareDB() {
 	conn, err := sqlx.Open("sqlite3", conf.DBName)
 	if err != nil {
-		glog.Fatal(err)
+		logger.Fatal("failed to open database", zap.Error(err))
 	}
 
 	defaultdb = SQLiteDB{
@@ -129,6 +139,8 @@ func mainLbs() {
 	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
+
+	logger.Sugar()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -157,19 +169,30 @@ func mainMcs() {
 
 	err := mcs.DialAndSyncWithLbs(conf.LobbyPublicAddr, conf.BattlePublicAddr, conf.BattleRegion)
 	if err != nil {
-		glog.Error(err)
+		logger.Error("failed to dial lbs", zap.Error(err))
 	}
 }
 
 func main() {
-	flag.Set("logtostderr", "true")
-	flag.Parse()
-	rand.Seed(time.Now().UnixNano())
-
 	printHeader()
+	flag.Parse()
 
+	var err error
+	if *prodlog {
+		logger, err = zap.NewDevelopment()
+	} else {
+		logger, err = zap.NewProduction()
+		logger = logger.With(zap.String("version", gdxsvVersion), zap.String("revision", gdxsvRevision))
+	}
+	if err != nil {
+		log.Fatalf("Failed to setup logger: %v", err)
+	}
+	defer logger.Sync()
+
+	logger.Info("gdxsv", zap.String("version", gdxsvVersion), zap.String("revision", gdxsvRevision))
+
+	rand.Seed(time.Now().UnixNano())
 	args := flag.Args()
-	glog.Infoln(args, len(args))
 
 	if len(args) < 1 {
 		printUsage()

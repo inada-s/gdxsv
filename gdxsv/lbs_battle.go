@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"net"
 	"strconv"
 	"time"
-
-	"github.com/golang/glog"
 )
 
 func genBattleCode() string {
@@ -53,7 +52,7 @@ func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsRegion string, mcsAddr s
 
 	ip, port, err := splitIPPort(mcsAddr)
 	if err != nil {
-		glog.Warning(err)
+		logger.Error("failed to parse mcs addr", zap.Error(err))
 		return nil
 	}
 
@@ -100,7 +99,7 @@ func (b *LbsBattle) NumOfEntryUsers() uint16 {
 func (b *LbsBattle) SetBattleServer(addr string) {
 	ip, port, err := splitIPPort(addr)
 	if err != nil {
-		glog.Error(err)
+		logger.Error("failed to set battle server", zap.Error(err))
 		return
 	}
 	b.ServerIP = ip

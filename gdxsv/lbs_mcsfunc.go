@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"time"
 
-	"github.com/golang/glog"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -90,7 +90,7 @@ func McsFuncAlloc(region string) error {
 	if err != nil {
 		return err
 	}
-	glog.Info(string(body))
+	logger.Info("mcsfunc alloc", zap.ByteString("response", body))
 	return nil
 }
 
@@ -98,7 +98,7 @@ func GoMcsFuncAlloc(region string) {
 	go func() {
 		err := McsFuncAlloc(region)
 		if err != nil {
-			glog.Error(err)
+			logger.Error("mcsfunc alloc failed", zap.Error(err))
 		}
 	}()
 }
