@@ -101,7 +101,7 @@ export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
 touch /var/log/gdxsv-mcs.log
 truncate -s0 /var/log/gdxsv-mcs.log
 
-$TAG_NAME/bin/gdxsv -prodlog mcs 2>&1 > /var/log/gdxsv-mcs.log
+$TAG_NAME/bin/gdxsv -prodlog mcs > /var/log/gdxsv-mcs.log 2>&1
 EOF
 
 chmod +x /home/ubuntu/launch-mcs.sh
