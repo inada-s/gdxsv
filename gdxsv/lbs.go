@@ -210,6 +210,7 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 	}
 
 	p.conn.Close()
+	p.left = true
 }
 
 func (lbs *Lbs) eventLoop() {
@@ -229,6 +230,11 @@ func (lbs *Lbs) eventLoop() {
 				StartLoginFlow(args.peer)
 			case eventPeerMessage:
 				args.peer.logger.Info("eventPeerMessage", zap.Any("msg", args.msg))
+				if args.peer.left {
+					args.peer.logger.Warn("got message after left", zap.Any("msg", args.msg))
+					continue
+				}
+
 				args.peer.lastRecvTime = time.Now()
 				if f, ok := lbs.handlers[args.msg.Command]; ok {
 					f(args.peer, args.msg)
@@ -256,7 +262,8 @@ func (lbs *Lbs) eventLoop() {
 				lastRecvSince := time.Since(p.lastRecvTime)
 				if 1 <= lastRecvSince.Minutes() {
 					logger.Info("kick peer", zap.String("addr", p.Address()))
-					p.conn.Close()
+					lbs.cleanPeer(p)
+					delete(peers, p.Address())
 				} else if 10 <= lastRecvSince.Seconds() {
 					RequestLineCheck(p)
 				}
@@ -498,6 +505,7 @@ type LbsPeer struct {
 
 	lastSessionID string
 	lastRecvTime  time.Time
+	left bool
 
 	chWrite    chan bool
 	chDispatch chan bool
@@ -533,41 +541,41 @@ func (p *LbsPeer) IsDC2() bool {
 	return p.Platform == PlatformDC2
 }
 
-func (c *LbsPeer) serve() {
-	defer c.conn.Close()
+func (p *LbsPeer) serve() {
+	defer p.conn.Close()
 	defer func() {
-		c.app.chEvent <- eventPeerLeave{c}
+		p.app.chEvent <- eventPeerLeave{p}
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go c.dispatchLoop(ctx, cancel)
-	go c.writeLoop(ctx, cancel)
-	go c.readLoop(ctx, cancel)
+	go p.dispatchLoop(ctx, cancel)
+	go p.writeLoop(ctx, cancel)
+	go p.readLoop(ctx, cancel)
 
-	c.app.chEvent <- eventPeerCome{c}
+	p.app.chEvent <- eventPeerCome{p}
 	<-ctx.Done()
 }
 
-func (c *LbsPeer) SendMessage(msg *LbsMessage) {
+func (p *LbsPeer) SendMessage(msg *LbsMessage) {
 	logger.Debug("lobby -> client",
-		zap.String("addr", c.Address()),
+		zap.String("addr", p.Address()),
 		zap.Any("msg", msg),
 	)
-	c.mOutbuf.Lock()
-	c.outbuf = append(c.outbuf, msg.Serialize()...)
-	c.mOutbuf.Unlock()
+	p.mOutbuf.Lock()
+	p.outbuf = append(p.outbuf, msg.Serialize()...)
+	p.mOutbuf.Unlock()
 	select {
-	case c.chWrite <- true:
+	case p.chWrite <- true:
 	default:
 	}
 }
 
-func (c *LbsPeer) Address() string {
-	return c.conn.RemoteAddr().String()
+func (p *LbsPeer) Address() string {
+	return p.conn.RemoteAddr().String()
 }
 
-func (c *LbsPeer) readLoop(ctx context.Context, cancel func()) {
+func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 	defer cancel()
 
 	buf := make([]byte, 4096)
@@ -578,8 +586,8 @@ func (c *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 		default:
 		}
 
-		c.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
-		n, err := c.conn.Read(buf)
+		p.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+		n, err := p.conn.Read(buf)
 		if err != nil {
 			logger.Info("tcp read error", zap.Error(err))
 			return
@@ -588,18 +596,18 @@ func (c *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 			logger.Info("tcp read zero")
 			return
 		}
-		c.mInbuf.Lock()
-		c.inbuf = append(c.inbuf, buf[:n]...)
-		c.mInbuf.Unlock()
+		p.mInbuf.Lock()
+		p.inbuf = append(p.inbuf, buf[:n]...)
+		p.mInbuf.Unlock()
 
 		select {
-		case c.chDispatch <- true:
+		case p.chDispatch <- true:
 		default:
 		}
 	}
 }
 
-func (c *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
+func (p *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 	defer cancel()
 
 	buf := make([]byte, 0, 128)
@@ -607,23 +615,23 @@ func (c *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-c.chWrite:
-			c.mOutbuf.Lock()
-			if len(c.outbuf) == 0 {
-				c.mOutbuf.Unlock()
+		case <-p.chWrite:
+			p.mOutbuf.Lock()
+			if len(p.outbuf) == 0 {
+				p.mOutbuf.Unlock()
 				continue
 			}
-			buf = append(buf, c.outbuf...)
-			c.outbuf = c.outbuf[:0]
-			c.mOutbuf.Unlock()
+			buf = append(buf, p.outbuf...)
+			p.outbuf = p.outbuf[:0]
+			p.mOutbuf.Unlock()
 
 			sum := 0
 			size := len(buf)
 			for sum < size {
-				c.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
-				n, err := c.conn.Write(buf[sum:])
+				p.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+				n, err := p.conn.Write(buf[sum:])
 				if err != nil {
-					c.logger.Info("tcp write error", zap.Error(err))
+					p.logger.Info("tcp write error", zap.Error(err))
 					break
 				}
 				sum += n
@@ -633,28 +641,28 @@ func (c *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 	}
 }
 
-func (c *LbsPeer) dispatchLoop(ctx context.Context, cancel func()) {
+func (p *LbsPeer) dispatchLoop(ctx context.Context, cancel func()) {
 	defer cancel()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-c.chDispatch:
-			c.mInbuf.Lock()
-			for len(c.inbuf) >= HeaderSize {
-				n, msg := Deserialize(c.inbuf)
+		case <-p.chDispatch:
+			p.mInbuf.Lock()
+			for len(p.inbuf) >= HeaderSize {
+				n, msg := Deserialize(p.inbuf)
 				if n == 0 {
 					// not enough data comming
 					break
 				}
 
-				c.inbuf = c.inbuf[n:]
+				p.inbuf = p.inbuf[n:]
 				if msg != nil {
-					c.app.chEvent <- eventPeerMessage{peer: c, msg: msg}
+					p.app.chEvent <- eventPeerMessage{peer: p, msg: msg}
 				}
 			}
-			c.mInbuf.Unlock()
+			p.mInbuf.Unlock()
 		}
 	}
 }
