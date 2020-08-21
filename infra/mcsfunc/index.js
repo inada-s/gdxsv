@@ -86,9 +86,9 @@ fi
 
 if [[ ! -d $TAG_NAME/bin ]]; then
   echo "Downloading $TAG_NAME"
-  mkdir -p $TAG_NAME
-  pushd $TAG_NAME
-    wget $DOWNLOAD_URL
+  mkdir -p "$TAG_NAME"
+  pushd "$TAG_NAME"
+    wget "$DOWNLOAD_URL"
     tar xzvf bin.tgz && rm bin.tgz
   popd
 fi
@@ -98,7 +98,7 @@ export GDXSV_BATTLE_ADDR=:9877
 export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
 export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
 
-$TAG_NAME/bin/gdxsv -prodlog mcs >> /var/log/gdxsv-mcs.log 2>&1
+"$TAG_NAME"/bin/gdxsv -prodlog mcs >> /var/log/gdxsv-mcs.log 2>&1
 EOF
 
 touch /var/log/gdxsv-mcs.log
