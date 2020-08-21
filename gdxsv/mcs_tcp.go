@@ -110,7 +110,7 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 	inbuf := make([]byte, 0, 128)
 
 	for {
-		u.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+		u.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 		n, err := u.conn.Read(buf)
 
 		if 0 < mcs.delay {
