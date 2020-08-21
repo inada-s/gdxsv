@@ -1,0 +1,15 @@
+[Unit]
+Description=gdxsv lobby server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+Type=simple
+User=zdxsv
+WorkingDirectory=/home/zdxsv/gdxsv
+ExecStartPre=/usr/bin/truncate -s0 /var/log/gdxsv-lbs.log
+ExecStart=/home/zdxsv/gdxsv/launch-lbs.sh
+
+[Install]
+WantedBy=multi-user.target
