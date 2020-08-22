@@ -75,6 +75,29 @@ func (l *LbsLobby) canStartBattle() bool {
 	return 2 <= a && 2 <= b
 }
 
+func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
+	msgBody := text
+	if 0 < len(kind) {
+		msgBody = fmt.Sprintf("%-12s", kind) + text
+	}
+
+	msg := NewServerNotice(lbsChatMessage).Writer().
+		WriteString("").
+		WriteString("").
+		WriteString(msgBody).
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
+		Write8(0).Msg() // msg color
+	for userID := range l.Users {
+		peer := l.app.FindPeer(userID)
+		if peer.Room != nil {
+			continue
+		}
+		peer.SendMessage(msg)
+	}
+}
+
 func (l *LbsLobby) FindRoom(side, roomID uint16) *LbsRoom {
 	if side == TeamRenpo {
 		r, ok := l.RenpoRooms[roomID]
@@ -90,6 +113,17 @@ func (l *LbsLobby) FindRoom(side, roomID uint16) *LbsRoom {
 		return r
 	}
 	return nil
+}
+
+func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
+	switch p.Team {
+	case TeamNone:
+		l.NotifyLobbyEvent("EXIT", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
+	case TeamRenpo:
+		l.NotifyLobbyEvent("ENTER RENPO", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
+	case TeamZeon:
+		l.NotifyLobbyEvent("ENTER ZEON", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
+	}
 }
 
 func (l *LbsLobby) Enter(p *LbsPeer) {
@@ -109,17 +143,23 @@ func (l *LbsLobby) Exit(userID string) {
 	}
 }
 
-func (l *LbsLobby) Entry(u *LbsPeer) {
-	l.EntryUsers = append(l.EntryUsers, u.UserID)
+func (l *LbsLobby) Entry(p *LbsPeer) {
+	l.EntryUsers = append(l.EntryUsers, p.UserID)
+	if p.Team == TeamRenpo {
+		l.NotifyLobbyEvent("JOIN RENPO", p.Name)
+	} else if p.Team == TeamZeon {
+		l.NotifyLobbyEvent("JOIN ZEON", p.Name)
+	}
 }
 
-func (l *LbsLobby) EntryCancel(userID string) {
+func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 	for i, id := range l.EntryUsers {
-		if id == userID {
+		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 			break
 		}
 	}
+	l.NotifyLobbyEvent("CANCEL", p.Name)
 }
 
 func (l *LbsLobby) GetUserCountBySide() (uint16, uint16) {
@@ -175,7 +215,7 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 		}
 	}
 	for _, p := range peers {
-		l.EntryCancel(p.UserID)
+		l.EntryCancel(p)
 	}
 	return peers
 }
@@ -192,20 +232,25 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		stat := l.app.FindMcs(l.McsRegion)
 		if stat == nil {
 			logger.Info("mcs status not found")
-			GoMcsFuncAlloc(l.McsRegion)
+			if GoMcsFuncAlloc(l.McsRegion) {
+				l.NotifyLobbyEvent("", "Allocating game server...")
+			}
 			return
 		}
 
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
 		if peer == nil {
-			logger.Info("mcs peer not found")
-			GoMcsFuncAlloc(l.McsRegion)
+			if GoMcsFuncAlloc(l.McsRegion) {
+				l.NotifyLobbyEvent("", "Waiting game server...")
+			}
 			return
 		}
 
 		mcsPeer = peer
 		mcsAddr = stat.PublicAddr
 	}
+
+	l.NotifyLobbyEvent("", "Start lobby battle")
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
 
@@ -295,20 +340,28 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	if McsFuncEnabled() && l.McsRegion != "" {
 		stat := l.app.FindMcs(l.McsRegion)
 		if stat == nil {
-			GoMcsFuncAlloc(l.McsRegion)
+			if GoMcsFuncAlloc(l.McsRegion) {
+				renpoRoom.NotifyRoomEvent("", "Allocating game server...")
+				zeonRoom.NotifyRoomEvent("", "Allocating game server...")
+			}
 			return
 		}
 
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
 		if peer == nil {
 			logger.Info("mcs peer not found")
-			GoMcsFuncAlloc(l.McsRegion)
+			if GoMcsFuncAlloc(l.McsRegion) {
+				renpoRoom.NotifyRoomEvent("", "Waiting game server...")
+				zeonRoom.NotifyRoomEvent("", "Waiting game server...")
+			}
 			return
 		}
 
 		mcsPeer = peer
 		mcsAddr = stat.PublicAddr
 	}
+
+	l.NotifyLobbyEvent("", "Start room battle")
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
 

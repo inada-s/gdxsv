@@ -505,7 +505,7 @@ type LbsPeer struct {
 
 	lastSessionID string
 	lastRecvTime  time.Time
-	left bool
+	left          bool
 
 	chWrite    chan bool
 	chDispatch chan bool
@@ -562,6 +562,7 @@ func (p *LbsPeer) SendMessage(msg *LbsMessage) {
 		zap.String("addr", p.Address()),
 		zap.Any("msg", msg),
 	)
+
 	p.mOutbuf.Lock()
 	p.outbuf = append(p.outbuf, msg.Serialize()...)
 	p.mOutbuf.Unlock()

@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -14,6 +15,7 @@ import (
 var (
 	mcsFuncClientCreated time.Time
 	mcsFuncClientCache   *http.Client
+	mtxFuncRequestTime   sync.Mutex
 	mcsFuncRequestTime   = map[string]time.Time{}
 )
 
@@ -70,10 +72,13 @@ func McsFuncEnabled() bool {
 }
 
 func McsFuncAlloc(region string) error {
+	mtxFuncRequestTime.Lock()
 	if time.Since(mcsFuncRequestTime["alloc/"+region]).Seconds() <= 30 {
+		mtxFuncRequestTime.Unlock()
 		return nil
 	}
 	mcsFuncRequestTime["alloc/"+region] = time.Now()
+	mtxFuncRequestTime.Unlock()
 
 	client, err := getMcsFuncClient()
 	if err != nil {
@@ -94,11 +99,20 @@ func McsFuncAlloc(region string) error {
 	return nil
 }
 
-func GoMcsFuncAlloc(region string) {
+func GoMcsFuncAlloc(region string) bool {
+	mtxFuncRequestTime.Lock()
+	if time.Since(mcsFuncRequestTime["alloc/"+region]).Seconds() <= 30 {
+		mtxFuncRequestTime.Unlock()
+		return false
+	}
+	mtxFuncRequestTime.Unlock()
+
 	go func() {
 		err := McsFuncAlloc(region)
 		if err != nil {
 			logger.Error("mcsfunc alloc failed", zap.Error(err))
 		}
 	}()
+
+	return true
 }

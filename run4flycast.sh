@@ -5,6 +5,7 @@ set -eux
 
 cd $(dirname "$0")
 
+readonly GDXSV=${GDXSV:-"zdxsv.net"}
 #readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc2\gdx-disc2.gdi'}
 
 mkdir -p work/bin
@@ -38,6 +39,11 @@ fi
 for i in 1 2 3 4; do
   mkdir -p work/flycast${i}/data
   cp work/bin/flycast.exe work/flycast${i}/
+done
+
+for i in 1 2 3 4; do
+  sed -i "s/^server =.*$/server = ${GDXSV}/" work/flycast${i}/emu.cfg
+  echo "replacing emu.cfg 'server = ${GDXSV}'"
 done
 
 trap 'kill $(jobs -p)' EXIT

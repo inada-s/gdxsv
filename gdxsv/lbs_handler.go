@@ -762,6 +762,7 @@ var _ = register(lbsLobbyEntry, func(p *LbsPeer, m *LbsMessage) {
 	p.Team = side
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(p.Lobby)
+	p.Lobby.SwitchTeam(p)
 })
 
 var _ = register(lbsLobbyExit, func(p *LbsPeer, m *LbsMessage) {
@@ -777,6 +778,7 @@ var _ = register(lbsLobbyExit, func(p *LbsPeer, m *LbsMessage) {
 
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(p.Lobby)
+	p.Lobby.SwitchTeam(p)
 })
 
 var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
@@ -859,7 +861,7 @@ var _ = register(lbsLobbyMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 	if enable == 1 {
 		p.Lobby.Entry(p)
 	} else {
-		p.Lobby.EntryCancel(p.UserID)
+		p.Lobby.EntryCancel(p)
 	}
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby)
@@ -1107,7 +1109,10 @@ var _ = register(lbsRoomExit, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 	if p.Room == nil {
-		p.SendMessage(NewServerAnswer(m).SetErr())
+		// WORKAROUND FIX
+		// client freezes when two users trying to leave a room at the same time.
+		p.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(0).Msg())
+		p.SendMessage(NewServerAnswer(m))
 		return
 	}
 
@@ -1129,7 +1134,6 @@ var _ = register(lbsMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 		p.Room = nil
 		p.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(0).Msg())
 	}
-
 	p.SendMessage(NewServerAnswer(m))
 })
 

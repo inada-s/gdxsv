@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -58,6 +59,8 @@ func (r *LbsRoom) Enter(u *DBUser) {
 	}
 	if !userAlreadyExists {
 		r.Users = append(r.Users, u)
+		r.lobby.NotifyLobbyEvent("GO ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+		r.NotifyRoomEvent("ENTER ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
 	}
 
 	if len(r.Users) == int(r.MaxPlayer) {
@@ -71,6 +74,8 @@ func (r *LbsRoom) Exit(userID string) {
 	for i, u := range r.Users {
 		if u.UserID == userID {
 			r.Users, r.Users[len(r.Users)-1] = append(r.Users[:i], r.Users[i+1:]...), nil
+			r.NotifyRoomEvent("EXIT ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+			r.lobby.NotifyLobbyEvent("RETURN", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
 			break
 		}
 	}
@@ -87,6 +92,10 @@ func (r *LbsRoom) Exit(userID string) {
 }
 
 func (r *LbsRoom) Remove() {
+	for _, u := range r.Users {
+		r.NotifyRoomEvent("EXIT ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+		r.lobby.NotifyLobbyEvent("RETURN", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+	}
 	*r = *NewRoom(r.app, r.Platform, r.lobby, r.ID, r.Team)
 }
 
@@ -96,4 +105,30 @@ func (r *LbsRoom) Ready(u *LbsPeer, enable uint8) {
 
 func (r *LbsRoom) IsReady() bool {
 	return r.ready
+}
+
+func (r *LbsRoom) NotifyRoomEvent(kind string, text string) {
+	msgBody := text
+	if 0 < len(kind) {
+		msgBody = fmt.Sprintf("%-12s", kind) + text
+	}
+
+	msg := NewServerNotice(lbsChatMessage).Writer().
+		WriteString("").
+		WriteString("").
+		WriteString(msgBody).
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
+		Write8(0).Msg() // msg color
+	for _, u := range r.Users {
+		peer := r.app.FindPeer(u.UserID)
+		if peer.Room == nil {
+			continue
+		}
+		if peer.Room.ID != r.ID {
+			continue
+		}
+		peer.SendMessage(msg)
+	}
 }
