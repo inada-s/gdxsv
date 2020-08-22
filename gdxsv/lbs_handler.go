@@ -861,7 +861,7 @@ var _ = register(lbsLobbyMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 	if enable == 1 {
 		p.Lobby.Entry(p)
 	} else {
-		p.Lobby.EntryCancel(p)
+		p.Lobby.EntryCancel(p, true)
 	}
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby)

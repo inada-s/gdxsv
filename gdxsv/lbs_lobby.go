@@ -152,14 +152,16 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 	}
 }
 
-func (l *LbsLobby) EntryCancel(p *LbsPeer) {
+func (l *LbsLobby) EntryCancel(p *LbsPeer, notify bool) {
 	for i, id := range l.EntryUsers {
 		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 			break
 		}
 	}
-	l.NotifyLobbyEvent("CANCEL", p.Name)
+	if notify {
+		l.NotifyLobbyEvent("CANCEL", p.Name)
+	}
 }
 
 func (l *LbsLobby) GetUserCountBySide() (uint16, uint16) {
@@ -215,7 +217,7 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 		}
 	}
 	for _, p := range peers {
-		l.EntryCancel(p)
+		l.EntryCancel(p, false)
 	}
 	return peers
 }
@@ -250,7 +252,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		mcsAddr = stat.PublicAddr
 	}
 
-	l.NotifyLobbyEvent("", "Start lobby battle")
+	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
 
@@ -276,11 +278,13 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		AddUserWhoIsGoingToBattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
+		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", q.UserID, q.Name))
 	}
 
 	if mcsPeer != nil {
 		NotifyLatestLbsStatus(mcsPeer)
 	}
+
 }
 
 func (l *LbsLobby) CheckRoomBattleStart() {
@@ -361,7 +365,8 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		mcsAddr = stat.PublicAddr
 	}
 
-	l.NotifyLobbyEvent("", "Start room battle")
+	renpoRoom.NotifyRoomEvent("", "START ROOM BATTLE")
+	zeonRoom.NotifyRoomEvent("", "START ROOM BATTLE")
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
 
@@ -386,6 +391,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		AddUserWhoIsGoingToBattle(
 			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
 		NotifyReadyBattle(q)
+		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", q.UserID, q.Name))
 	}
 
 	if mcsPeer != nil {
