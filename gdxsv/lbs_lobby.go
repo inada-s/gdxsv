@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+
 	"go.uber.org/zap"
 )
 
@@ -17,6 +19,8 @@ type LbsLobby struct {
 	RenpoRooms map[uint16]*LbsRoom
 	ZeonRooms  map[uint16]*LbsRoom
 	EntryUsers []string
+	ForceStart bool
+	CountDown  int
 }
 
 var regionMapping = map[uint16]string{
@@ -51,6 +55,8 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		RenpoRooms: make(map[uint16]*LbsRoom),
 		ZeonRooms:  make(map[uint16]*LbsRoom),
 		EntryUsers: make([]string, 0),
+		ForceStart: false,
+		CountDown:  10,
 	}
 
 	for i := 1; i <= maxRoomCount; i++ {
@@ -124,6 +130,7 @@ func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
 	case TeamZeon:
 		l.NotifyLobbyEvent("ENTER ZEON", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 	}
+	l.ForceStart = false
 }
 
 func (l *LbsLobby) Enter(p *LbsPeer) {
@@ -150,6 +157,7 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 	} else if p.Team == TeamZeon {
 		l.NotifyLobbyEvent("JOIN ZEON", p.Name)
 	}
+	l.ForceStart = false
 }
 
 func (l *LbsLobby) EntryCancel(p *LbsPeer, notify bool) {
@@ -161,6 +169,7 @@ func (l *LbsLobby) EntryCancel(p *LbsPeer, notify bool) {
 	}
 	if notify {
 		l.NotifyLobbyEvent("CANCEL", p.Name)
+		l.ForceStart = false
 	}
 }
 
@@ -223,7 +232,12 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 }
 
 func (l *LbsLobby) CheckLobbyBattleStart() {
-	if !l.canStartBattle() {
+	if l.ForceStart && l.CountDown > 0 {
+		l.NotifyLobbyEvent("", "Force start battle in "+strconv.Itoa(l.CountDown))
+		l.CountDown--
+	}
+
+	if !l.canStartBattle() && !(l.ForceStart == true && l.CountDown == 0) {
 		return
 	}
 
@@ -250,6 +264,11 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 
 		mcsPeer = peer
 		mcsAddr = stat.PublicAddr
+	}
+
+	if l.ForceStart {
+		l.ForceStart = false
+		l.CountDown = 10
 	}
 
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")

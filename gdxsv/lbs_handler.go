@@ -1162,6 +1162,10 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				}
 			}
 		}
+		if text == "／ｆ" || text == "／Ｆ" {
+			p.Lobby.CountDown = 10
+			p.Lobby.ForceStart = true
+		}
 	}
 })
 
