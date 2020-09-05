@@ -1180,8 +1180,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			if userHasJoinedForce && twoOrMorePlayers {
 				//Print accepted command + induced action to all users (for clarity + educational purpose)
 				postInLobby(msg)
-				p.Lobby.CountDown = 10
-				p.Lobby.ForceStart = true
+				p.Lobby.ForceStartBattle()
 				p.Lobby.NotifyLobbyEvent("", fmt.Sprintf("%v starts battle countdown!", p.Name))
 			} else {
 				//only print unaccepted command + hint to sender
