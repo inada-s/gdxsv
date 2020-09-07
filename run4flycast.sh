@@ -6,7 +6,8 @@ set -eux
 cd $(dirname "$0")
 
 readonly GDXSV=${GDXSV:-"zdxsv.net"}
-#readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc2\gdx-disc2.gdi'}
+readonly MAXLAG=${MAXLAG:-"8"}
+readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc2\gdx-disc2.gdi'}
 
 mkdir -p work/bin
 
@@ -43,12 +44,14 @@ done
 
 for i in 1 2 3 4; do
   sed -i "s/^server =.*$/server = ${GDXSV}/" work/flycast${i}/emu.cfg
+  sed -i "s/^maxlag =.*$/maxlag = ${MAXLAG}/" work/flycast${i}/emu.cfg
   echo "replacing emu.cfg 'server = ${GDXSV}'"
+  echo "replacing emu.cfg 'maxlag= ${MAXLAG}'"
 done
 
 trap 'kill $(jobs -p)' EXIT
 for i in 1 2 3 4; do
-  cd work/flycast${i} && MSYS_NO_PATHCONV=1 ./flycast.exe &
+  cd work/flycast${i} && MSYS_NO_PATHCONV=1 ./flycast.exe ${GDX_ROM_PATH} &
 done
 
 rm -f work/flycast1/flycast.log
