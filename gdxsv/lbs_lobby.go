@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+
 	"go.uber.org/zap"
 )
 
 type LbsLobby struct {
-	app *Lbs
+	app        *Lbs
+	forceStart bool
+	countDown  int
 
 	Platform   uint8
 	ID         uint16
@@ -40,7 +43,9 @@ var regionMapping = map[uint16]string{
 
 func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	lobby := &LbsLobby{
-		app: app,
+		app:        app,
+		forceStart: false,
+		countDown:  10,
 
 		Platform:   platform,
 		ID:         lobbyID,
@@ -75,6 +80,15 @@ func (l *LbsLobby) canStartBattle() bool {
 	return 2 <= a && 2 <= b
 }
 
+func (l *LbsLobby) ForceStartBattle() {
+	l.countDown = 10
+	l.forceStart = true
+}
+
+func (l *LbsLobby) CancelForceStartBattle() {
+	l.forceStart = false
+}
+
 func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 	msgBody := text
 	if 0 < len(kind) {
@@ -95,6 +109,11 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 			continue
 		}
 		peer.SendMessage(msg)
+	}
+
+	switch kind {
+	case "ENTER RENPO", "ENTER ZEON", "JOIN RENPO", "JOIN ZEON", "CANCEL", "RETURN":
+		l.CancelForceStartBattle()
 	}
 }
 
@@ -223,7 +242,12 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 }
 
 func (l *LbsLobby) CheckLobbyBattleStart() {
-	if !l.canStartBattle() {
+	if l.forceStart && l.countDown > 0 {
+		l.NotifyLobbyEvent("", fmt.Sprintf("Force start battle in %d", l.countDown))
+		l.countDown--
+	}
+
+	if !l.canStartBattle() && !(l.forceStart == true && l.countDown == 0) {
 		return
 	}
 
@@ -260,17 +284,20 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
-		err := getDB().AddBattleRecord(&BattleRecord{
-			BattleCode: b.BattleCode,
-			UserID:     q.UserID,
-			UserName:   q.Name,
-			PilotName:  q.PilotName,
-			Players:    len(participants),
-			Aggregate:  1,
-		})
-		if err != nil {
-			logger.Error("AddBattleRecord failed", zap.Error(err))
-			return
+		if l.forceStart == false {
+			//Do not record battle records for force started battle
+			err := getDB().AddBattleRecord(&BattleRecord{
+				BattleCode: b.BattleCode,
+				UserID:     q.UserID,
+				UserName:   q.Name,
+				PilotName:  q.PilotName,
+				Players:    len(participants),
+				Aggregate:  1,
+			})
+			if err != nil {
+				logger.Error("AddBattleRecord failed", zap.Error(err))
+				return
+			}
 		}
 	}
 
@@ -285,6 +312,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		NotifyLatestLbsStatus(mcsPeer)
 	}
 
+	l.CancelForceStartBattle() //battle started, reset forceStart flag
 }
 
 func (l *LbsLobby) CheckRoomBattleStart() {

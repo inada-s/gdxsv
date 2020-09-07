@@ -1155,12 +1155,59 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			}
 		}
 	} else if p.Lobby != nil {
-		for _, u := range p.Lobby.Users {
-			if q := p.app.FindPeer(u.UserID); q != nil {
-				if q.InLobbyChat() {
-					q.SendMessage(msg)
+		postInLobby := func(msg *LbsMessage) {
+			for _, u := range p.Lobby.Users {
+				if q := p.app.FindPeer(u.UserID); q != nil {
+					if q.InLobbyChat() {
+						q.SendMessage(msg)
+					}
 				}
 			}
+		}
+
+		if text == "／ｆ" || text == "／Ｆ" {
+			//intercept message if it is a command
+
+			userHasJoinedForce := false
+			for _, userID := range p.Lobby.EntryUsers {
+				if p.UserID == userID {
+					userHasJoinedForce = true
+					break
+				}
+			}
+			twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
+
+			if userHasJoinedForce && twoOrMorePlayers {
+				//Print accepted command + induced action to all users (for clarity + educational purpose)
+				postInLobby(msg)
+				p.Lobby.ForceStartBattle()
+				p.Lobby.NotifyLobbyEvent("", fmt.Sprintf("%v starts battle countdown!", p.Name))
+			} else {
+				//only print unaccepted command + hint to sender
+				p.SendMessage(msg)
+
+				hintMsgBuilder := func(hint string) *LbsMessage {
+					return NewServerNotice(lbsChatMessage).Writer().
+						WriteString("").
+						WriteString("").
+						WriteString(hint).
+						Write8(0).      // chat_type
+						Write8(0).      // id color
+						Write8(0).      // handle color
+						Write8(0).Msg() // msg color
+				}
+
+				if userHasJoinedForce == false {
+					hint := hintMsgBuilder("Join a force first! (自動選抜→待機)")
+					p.SendMessage(hint)
+				} else if twoOrMorePlayers == false {
+					hint := hintMsgBuilder("Battle requires at least 2 players!")
+					p.SendMessage(hint)
+				}
+
+			}
+		} else {
+			postInLobby(msg)
 		}
 	}
 })
