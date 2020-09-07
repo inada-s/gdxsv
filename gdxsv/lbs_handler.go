@@ -156,6 +156,7 @@ const (
 
 	// gdxsv extended commands
 	lbsExtSyncSharedData CmdID = 0x9900
+	lbsPlatformInfo      CmdID = 0x9950
 )
 
 func RequestLineCheck(p *LbsPeer) {
@@ -327,6 +328,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	// skip 2~8 that's ok.
+	p.SendMessage(NewServerQuestion(lbsUserInfo2))
 	p.SendMessage(NewServerQuestion(lbsUserInfo9))
 })
 
@@ -1191,9 +1193,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 						WriteString("").
 						WriteString("").
 						WriteString(hint).
-						Write8(0).      // chat_type
-						Write8(0).      // id color
-						Write8(0).      // handle color
+						Write8(0). // chat_type
+						Write8(0). // id color
+						Write8(0). // handle color
 						Write8(0).Msg() // msg color
 				}
 
@@ -1421,9 +1423,26 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	p.logger.Info( "update mcs status", zap.Any("mcs_status", mcsStatus))
+	p.logger.Info("update mcs status", zap.Any("mcs_status", mcsStatus))
 
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 	p.mcsStatus = &mcsStatus
 	SyncSharedDataMcsToLbs(&mcsStatus)
+})
+
+var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
+	// patched client sends client-platform information
+	platformInfo := m.Reader().ReadString()
+	for _, line := range strings.Split(strings.TrimSuffix(platformInfo, "\n"), "\n") {
+		kv := strings.SplitN(line, "=", 2)
+		if len(kv) == 2 {
+			p.PlatformInfo[kv[0]] = kv[1]
+		}
+	}
+	logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
+	p.logger = p.logger.With(
+		zap.String("flycast", p.PlatformInfo["flycast"]),
+		zap.String("os", p.PlatformInfo["os"]),
+		zap.String("cpu", p.PlatformInfo["cpu"]),
+	)
 })

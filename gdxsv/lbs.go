@@ -105,13 +105,14 @@ func (lbs *Lbs) ListenAndServe(addr string) error {
 
 func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 	return &LbsPeer{
-		app:        lbs,
-		conn:       conn,
-		chWrite:    make(chan bool, 1),
-		chDispatch: make(chan bool, 1),
-		outbuf:     make([]byte, 0, 1024),
-		inbuf:      make([]byte, 0, 1024),
-		logger:     logger.With(zap.String("addr", conn.RemoteAddr().String())),
+		app:          lbs,
+		conn:         conn,
+		PlatformInfo: map[string]string{},
+		chWrite:      make(chan bool, 1),
+		chDispatch:   make(chan bool, 1),
+		outbuf:       make([]byte, 0, 1024),
+		inbuf:        make([]byte, 0, 1024),
+		logger:       logger.With(zap.String("addr", conn.RemoteAddr().String())),
 	}
 }
 
@@ -497,11 +498,12 @@ type LbsPeer struct {
 	Lobby  *LbsLobby
 	Battle *LbsBattle
 
-	Platform  byte
-	Team      uint16
-	GameParam []byte
-	PilotName string
-	Rank      int
+	Platform     byte
+	PlatformInfo map[string]string
+	Team         uint16
+	GameParam    []byte
+	PilotName    string
+	Rank         int
 
 	lastSessionID string
 	lastRecvTime  time.Time
