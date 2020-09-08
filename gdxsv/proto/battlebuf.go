@@ -2,8 +2,6 @@ package proto
 
 import (
 	"sync"
-
-	pb "github.com/golang/protobuf/proto"
 )
 
 const ringSize = 4096
@@ -94,8 +92,8 @@ func (m *MessageFilter) GenerateMessage(userID string, data []byte) *BattleMessa
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	msg := GetBattleMessage()
-	msg.Seq = pb.Uint32(m.seq)
-	msg.UserId = pb.String(userID)
+	msg.Seq = m.seq
+	msg.UserId = userID
 	msg.Body = data
 	m.seq++
 	return msg

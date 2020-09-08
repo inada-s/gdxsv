@@ -1,0 +1,44 @@
+syntax = "proto3";
+package proto;
+
+enum MessageType {
+  None = 0;
+  HelloServer = 1;
+  Ping = 2;
+  Pong = 3;
+  Battle = 4;
+}
+
+message BattleMessage {
+  string user_id = 1;
+  uint32 seq = 2;
+  bytes body = 3;
+}
+
+message PingMessage {
+  int64 timestamp = 1;
+  string user_id = 2;
+}
+
+message PongMessage {
+  int64 timestamp = 1;
+  string user_id = 2;
+  string public_addr = 3;
+}
+
+message HelloServerMessage {
+  string session_id = 1;
+  bool ok = 2;
+}
+
+message Packet {
+  MessageType type = 1;
+  uint32 seq = 2;
+  uint32 ack = 3;
+
+  HelloServerMessage hello_server_data = 10;
+  PingMessage ping_data = 11;
+  PongMessage pong_data = 12;
+  repeated BattleMessage battle_data = 13;
+}
+

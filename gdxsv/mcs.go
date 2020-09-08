@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
 	"net"
 	"sync"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 type McsPeer interface {
@@ -89,7 +88,24 @@ func NewMcs(delay time.Duration) *Mcs {
 func (mcs *Mcs) ListenAndServe(addr string) error {
 	logger.Info("mcs.ListenAndServe", zap.String("addr", addr))
 	tcpSv := NewTCPServer(mcs)
-	return tcpSv.ListenAndServe(addr)
+	udpSv := NewUDPServer(mcs)
+	var err error
+
+	go func(addr string) {
+		err1 := tcpSv.ListenAndServe(addr)
+		if err1 != nil {
+			err = err1
+		}
+	}(addr)
+
+	go func(addr string) {
+		err1 := udpSv.ListenAndServe(addr)
+		if err1 != nil {
+			err = err1
+		}
+	}(addr)
+
+	return err
 }
 
 func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, battleRegion string) error {
