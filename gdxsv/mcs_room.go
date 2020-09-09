@@ -83,7 +83,5 @@ func (r *McsRoom) Leave(p McsPeer) {
 	if empty {
 		r.Dispose()
 	}
-
-	logger.Info("leave peer")
 }
 

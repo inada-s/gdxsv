@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/golang/protobuf/proto"
-
 	"gdxsv/gdxsv/proto"
 )
 
@@ -158,8 +156,8 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 			if 0 < len(tmp) {
 				msg := proto.GetBattleMessage()
 				msg.Body = tmp
-				msg.UserId = pb.String(u.UserID())
-				msg.Seq = pb.Uint32(u.seq)
+				msg.UserId = u.UserID()
+				msg.Seq = u.seq
 				u.seq++
 				u.room.SendMessage(u, msg)
 				proto.PutBattleMessage(msg)
