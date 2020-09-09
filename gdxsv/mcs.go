@@ -229,7 +229,7 @@ func (mcs *Mcs) LastUpdated() time.Time {
 }
 
 func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
-	user, ok := getBattleUserInfo(sessionID)
+	user, ok := getBattleUserInfoBySessionID(sessionID)
 	if !ok {
 		return nil
 	}

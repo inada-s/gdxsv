@@ -104,11 +104,23 @@ func NotifyLatestLbsStatus(mcs *LbsPeer) {
 	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(lbsStatusBin).Msg())
 }
 
-func getBattleUserInfo(sessionID string) (McsUser, bool) {
+func getBattleUserInfoBySessionID(sessionID string) (McsUser, bool) {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 	u, ok := sharedData.battleUsers[sessionID]
 	return u, ok
+}
+
+func getBattleUserInfoByBattleCode(battleCode string) []McsUser {
+	var users []McsUser
+	sharedData.Lock()
+	defer sharedData.Unlock()
+	for _, u := range sharedData.battleUsers {
+		if u.BattleCode == battleCode {
+			users = append(users, u)
+		}
+	}
+	return users
 }
 
 func removeBattleUserInfo(battleCode string) {

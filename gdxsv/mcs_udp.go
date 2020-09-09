@@ -73,7 +73,7 @@ func (s *McsUDPServer) readLoop() error {
 			sessionID := pkt.HelloServerData.GetSessionId()
 			ok := found
 			if !found && sessionID != "" {
-				peer := NewMcsUDPPeer(s.conn, addr, sessionID)
+				peer = NewMcsUDPPeer(s.conn, addr, sessionID)
 				peer.room = s.mcs.Join(peer, sessionID)
 				if peer.room != nil {
 					logger.Info("join udp peer", zap.String("addr", key))
@@ -102,6 +102,16 @@ func (s *McsUDPServer) readLoop() error {
 			pkt.Type = proto.MessageType_HelloServer
 			pkt.HelloServerData = &proto.HelloServerMessage{
 				Ok: ok,
+			}
+			if ok {
+				me, _ := getBattleUserInfoBySessionID(sessionID)
+				participants := getBattleUserInfoByBattleCode(me.BattleCode)
+
+				pkt.HelloServerData.SessionId = me.SessionID
+				pkt.HelloServerData.UserId = me.UserID
+				for i := 0; i < len(participants); i++ {
+					pkt.HelloServerData.Participants = append(pkt.HelloServerData.Participants, participants[i].UserID)
+				}
 			}
 			if data, err := pb.Marshal(pkt); err != nil {
 				logger.Error("pb.Marshal", zap.Error(err))

@@ -29,6 +29,8 @@ message PongMessage {
 message HelloServerMessage {
   string session_id = 1;
   bool ok = 2;
+  string user_id = 3;
+  repeated string participants = 4;
 }
 
 message Packet {
