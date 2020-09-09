@@ -188,7 +188,6 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		case <-ticker.C:
 			timeout := time.Since(lastRecv).Seconds() > 10.0
 			if timeout {
-				u.logger.Info("UDP peer timeout")
 				return
 			}
 			if time.Since(lastSend).Seconds() >= 0.016 {
