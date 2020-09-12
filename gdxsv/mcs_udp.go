@@ -69,6 +69,18 @@ func (s *McsUDPServer) readLoop() error {
 		}
 
 		switch pkt.GetType() {
+		case proto.MessageType_Ping:
+			ts := pkt.PingData.Timestamp
+			pkt.Reset()
+			pkt.Type = proto.MessageType_Pong
+			pkt.PongData = &proto.PongMessage{
+				Timestamp: ts,
+			}
+			if data, err := pb.Marshal(pkt); err != nil {
+				logger.Error("pb.Marshal", zap.Error(err))
+			} else {
+				s.conn.WriteToUDP(data, addr)
+			}
 		case proto.MessageType_HelloServer:
 			sessionID := pkt.HelloServerData.GetSessionId()
 			ok := found
