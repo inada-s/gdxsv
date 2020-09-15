@@ -1,8 +1,10 @@
 package main
 
 import (
-	"go.uber.org/zap"
+	"encoding/hex"
 	"sync"
+
+	"go.uber.org/zap"
 
 	"gdxsv/gdxsv/proto"
 )
@@ -42,7 +44,7 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 				zap.String("from_user", peer.UserID()),
 				zap.String("to_user", other.UserID()),
 				zap.Uint32("seq", msg.GetSeq()),
-				zap.Binary("data", msg.GetBody()))
+				zap.String("data", hex.EncodeToString(msg.GetBody())))
 		}
 	}
 	r.RUnlock()
@@ -84,4 +86,3 @@ func (r *McsRoom) Leave(p McsPeer) {
 		r.Dispose()
 	}
 }
-
