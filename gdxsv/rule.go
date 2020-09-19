@@ -18,29 +18,29 @@ func init() {
 }
 
 type Rule struct {
-	Difficulty   byte
-	DamageLevel  byte
-	Timer        byte
-	TeamFlag     byte
-	StageFlag    byte
-	MsFlag       byte
-	RenpoVital   uint16
-	ZeonVital    uint16
-	MaFlag       byte
-	ReloadFlag   byte
-	BoostKeep    byte
-	RedarFlag    byte
-	LockonFlag   byte
-	Onematch     byte
-	RenpoMaskPS2 uint32
-	ZeonMaskPS2  uint32
-	AutoRebattle byte
-	NoRanking    byte
-	CPUFlag      byte
-	SelectLook   byte
-	RenpoMaskDC  uint32
-	ZeonMaskDC   uint32
-	StageNo      byte
+	Difficulty   byte   `json:"difficulty,omitempty"`
+	DamageLevel  byte   `json:"damage_level,omitempty"`
+	Timer        byte   `json:"timer,omitempty"`
+	TeamFlag     byte   `json:"team_flag,omitempty"`
+	StageFlag    byte   `json:"stage_flag,omitempty"`
+	MsFlag       byte   `json:"ms_flag,omitempty"`
+	RenpoVital   uint16 `json:"renpo_vital,omitempty"`
+	ZeonVital    uint16 `json:"zeon_vital,omitempty"`
+	MaFlag       byte   `json:"ma_flag,omitempty"`
+	ReloadFlag   byte   `json:"reload_flag,omitempty"`
+	BoostKeep    byte   `json:"boost_keep,omitempty"`
+	RedarFlag    byte   `json:"redar_flag,omitempty"`
+	LockonFlag   byte   `json:"lockon_flag,omitempty"`
+	Onematch     byte   `json:"onematch,omitempty"`
+	RenpoMaskPS2 uint32 `json:"renpo_mask_ps_2,omitempty"`
+	ZeonMaskPS2  uint32 `json:"zeon_mask_ps_2,omitempty"`
+	AutoRebattle byte   `json:"auto_rebattle,omitempty"`
+	NoRanking    byte   `json:"no_ranking,omitempty"`
+	CPUFlag      byte   `json:"cpu_flag,omitempty"`
+	SelectLook   byte   `json:"select_look,omitempty"`
+	RenpoMaskDC  uint32 `json:"renpo_mask_dc,omitempty"`
+	ZeonMaskDC   uint32 `json:"zeon_mask_dc,omitempty"`
+	StageNo      byte   `json:"stage_no,omitempty"`
 }
 
 var baseRule = &Rule{

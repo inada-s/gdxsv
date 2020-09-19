@@ -11,11 +11,13 @@ import (
 
 var sharedData struct {
 	sync.Mutex
-	battleUsers map[string]McsUser
+	battleUsers map[string]McsUser // session_id -> user info
+	battleGames map[string]McsGame // battle_code -> game info
 }
 
 func init() {
 	sharedData.battleUsers = map[string]McsUser{}
+	sharedData.battleGames = map[string]McsGame{}
 	go func() {
 		for {
 			removeZombieUserInfo()
@@ -25,14 +27,25 @@ func init() {
 }
 
 type McsUser struct {
-	BattleCode string    `json:"battle_code,omitempty"`
-	McsRegion  string    `json:"mcs_region,omitempty"`
-	UserID     string    `json:"user_id,omitempty"`
-	Name       string    `json:"name,omitempty"`
-	Side       uint16    `json:"side,omitempty"`
-	SessionID  string    `json:"session_id,omitempty"`
-	AddTime    time.Time `json:"add_time,omitempty"`
-	InBattle   bool      `json:"in_battle,omitempty"`
+	BattleCode  string    `json:"battle_code,omitempty"`
+	McsRegion   string    `json:"mcs_region,omitempty"`
+	UserID      string    `json:"user_id,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	PilotName   string    `json:"pilot_name,omitempty"`
+	GameParam   []byte    `json:"game_param,omitempty"`
+	BattleCount int       `json:"battle_count,omitempty"`
+	WinCount    int       `json:"win_count,omitempty"`
+	LoseCount   int       `json:"lose_count,omitempty"`
+	Side        uint16    `json:"side,omitempty"`
+	SessionID   string    `json:"session_id,omitempty"`
+	AddTime     time.Time `json:"add_time,omitempty"`
+	InBattle    bool      `json:"in_battle,omitempty"`
+}
+
+type McsGame struct {
+	BattleCode string `json:"battle_code,omitempty"`
+	GameDisk   int    `json:"game_disk"`
+	Rule       Rule   `json:"rule,omitempty"`
 }
 
 type McsStatus struct {
@@ -46,18 +59,16 @@ type LbsStatus struct {
 	Users []McsUser `json:"userPeers,omitempty"`
 }
 
-func AddUserWhoIsGoingToBattle(battleCode string, mcsRegion string, userID string, name string, side uint16, sessionID string) {
+func ShareMcsGame(g McsGame) {
 	sharedData.Lock()
 	defer sharedData.Unlock()
-	sharedData.battleUsers[sessionID] = McsUser{
-		BattleCode: battleCode,
-		McsRegion:  mcsRegion,
-		UserID:     userID,
-		Name:       name,
-		Side:       side,
-		SessionID:  sessionID,
-		AddTime:    time.Now(),
-	}
+	sharedData.battleGames[g.BattleCode] = g
+}
+
+func ShareUserWhoIsGoingToBattle(u McsUser) {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+	sharedData.battleUsers[u.SessionID] = u
 }
 
 func SyncSharedDataMcsToLbs(status *McsStatus) {
@@ -104,11 +115,24 @@ func NotifyLatestLbsStatus(mcs *LbsPeer) {
 	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(lbsStatusBin).Msg())
 }
 
+func getBattleGameInfo(battleCode string) (McsGame, bool) {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+	g, ok := sharedData.battleGames[battleCode]
+	return g, ok
+}
+
 func getBattleUserInfo(sessionID string) (McsUser, bool) {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 	u, ok := sharedData.battleUsers[sessionID]
 	return u, ok
+}
+
+func removeBattleGameInfo(battleCode string) {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+	delete(sharedData.battleGames, battleCode)
 }
 
 func removeBattleUserInfo(battleCode string) {
