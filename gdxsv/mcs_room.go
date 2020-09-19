@@ -14,7 +14,7 @@ import (
 )
 
 type McsRoom struct {
-	sync.Mutex
+	sync.RWMutex
 
 	mcs       *Mcs
 	game      *McsGame
@@ -37,9 +37,9 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 }
 
 func (r *McsRoom) PeerCount() int {
-	r.Lock()
+	r.RLock()
 	n := len(r.peers)
-	r.Unlock()
+	r.RUnlock()
 	return n
 }
 
@@ -52,7 +52,7 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 	}
 
 	k := peer.Position()
-	r.Lock()
+	r.RLock()
 	for i := 0; i < len(r.peers); i++ {
 		if i == k {
 			continue
@@ -68,6 +68,9 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 				zap.String("data", hex.EncodeToString(msg.GetBody())))
 		}
 	}
+	r.RUnlock()
+
+	r.Lock()
 	r.battleLog.BattleData = append(r.battleLog.BattleData, logMsg)
 	r.Unlock()
 }
@@ -99,7 +102,7 @@ func (r *McsRoom) Finalize() {
 	r.Lock()
 	r.battleLog.EndAt = time.Now().UnixNano()
 
-	fileName := fmt.Sprintf("%v-%v.pb", r.battleLog.BattleCode, r.battleLog.GameDisk)
+	fileName := fmt.Sprintf("disk%v-%v.pb", r.battleLog.GameDisk, r.battleLog.BattleCode)
 	err := r.saveBattleLogLocked(path.Join(conf.BattleLogPath, fileName))
 	if err != nil {
 		logger.Error("Failed to save battle log", zap.Error(err))
