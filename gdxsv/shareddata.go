@@ -111,6 +111,19 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 	}
 }
 
+func GetMcsUsers() []McsUser {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+
+	var ret []McsUser
+
+	for _, u := range sharedData.battleUsers {
+		ret = append(ret, u)
+	}
+
+	return ret
+}
+
 func GetLbsStatus() *LbsStatus {
 	sharedData.Lock()
 	defer sharedData.Unlock()
