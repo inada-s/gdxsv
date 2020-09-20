@@ -242,7 +242,7 @@ async function getAlloc(req, res) {
                 os: "ubuntu",
                 http: true,
                 tags: ["gdxsv-mcs"],
-                machineType: "g1-small",
+                machineType: "e2-medium",
                 scheduling: {preemptible: true},
                 metadata: {
                     items: [
