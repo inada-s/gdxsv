@@ -111,19 +111,24 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 	}
 }
 
-func GetMcsUsers() []McsUser {
+func GetLbsStatus() *LbsStatus {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 
-	ret := []McsUser{}
+	ret := new(LbsStatus)
 	for _, u := range sharedData.battleUsers {
-		ret = append(ret, u)
+		ret.Users = append(ret.Users, u)
 	}
+
+	for _, g := range sharedData.battleGames {
+		ret.Games = append(ret.Games, g)
+	}
+
 	return ret
 }
 
 func NotifyLatestLbsStatus(mcs *LbsPeer) {
-	lbsStatusBin, err := json.Marshal(&LbsStatus{Users: GetMcsUsers()})
+	lbsStatusBin, err := json.Marshal(GetLbsStatus())
 	if err != nil {
 		logger.Error("json.Marshal", zap.Error(err))
 		return
