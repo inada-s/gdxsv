@@ -435,11 +435,11 @@ var _ = register(lbsAskGameCode, func(p *LbsPeer, m *LbsMessage) {
 
 	switch code {
 	case 0x02:
-		p.Platform = PlatformPS2
+		p.Platform = GameDiskPS2
 	case 0x0300:
-		p.Platform = PlatformDC1
+		p.Platform = GameDiskDC1
 	case 0x0301:
-		p.Platform = PlatformDC2
+		p.Platform = GameDiskDC2
 	default:
 		p.logger.Warn("unknown client platform", zap.Any("code", code))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
@@ -687,8 +687,8 @@ var _ = register(lbsPlazaJoin, func(p *LbsPeer, m *LbsMessage) {
 			Write16(lobbyID).
 			Write16(uint16(len(lobby.Users))).Msg())
 	} else if p.IsDC() {
-		lobby1 := p.app.GetLobby(PlatformDC1, lobbyID)
-		lobby2 := p.app.GetLobby(PlatformDC2, lobbyID)
+		lobby1 := p.app.GetLobby(GameDiskDC1, lobbyID)
+		lobby2 := p.app.GetLobby(GameDiskDC2, lobbyID)
 		if lobby1 == nil || lobby2 == nil {
 			p.SendMessage(NewServerAnswer(m).SetErr())
 			return
@@ -790,8 +790,8 @@ var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	side := m.Reader().Read16()
-	switch p.Lobby.Platform {
-	case PlatformPS2:
+	switch p.Lobby.GameDisk {
+	case GameDiskPS2:
 		renpo, zeon := p.Lobby.GetUserCountBySide()
 		if p.InLobbyChat() {
 			p.SendMessage(NewServerAnswer(m).Writer().
@@ -805,9 +805,9 @@ var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
 					Write16(side).Write16(zeon).Msg())
 			}
 		}
-	case PlatformDC1, PlatformDC2:
-		lobby1 := p.app.GetLobby(PlatformDC1, p.Lobby.ID)
-		lobby2 := p.app.GetLobby(PlatformDC2, p.Lobby.ID)
+	case GameDiskDC1, GameDiskDC2:
+		lobby1 := p.app.GetLobby(GameDiskDC1, p.Lobby.ID)
+		lobby2 := p.app.GetLobby(GameDiskDC2, p.Lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
 			p.SendMessage(NewServerAnswer(m).SetErr())
 			return

@@ -234,6 +234,11 @@ func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 		return nil
 	}
 
+	game, ok := getBattleGameInfo(user.BattleCode)
+	if !ok {
+		return nil
+	}
+
 	p.SetUserID(user.UserID)
 	p.SetSessionID(sessionID)
 
@@ -241,18 +246,19 @@ func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	mcs.updated = time.Now()
 	room := mcs.rooms[user.BattleCode]
 	if room == nil {
-		room = newMcsRoom(mcs, user.BattleCode)
+		room = newMcsRoom(mcs, &game)
 		mcs.rooms[user.BattleCode] = room
 	}
 	mcs.mtx.Unlock()
-	room.Join(p)
+	room.Join(p, user)
 	return room
 }
 
 func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
 	mcs.mtx.Lock()
 	mcs.updated = time.Now()
-	delete(mcs.rooms, room.battleCode)
+	delete(mcs.rooms, room.game.BattleCode)
 	mcs.mtx.Unlock()
-	removeBattleUserInfo(room.battleCode)
+	removeBattleUserInfo(room.game.BattleCode)
+	removeBattleGameInfo(room.game.BattleCode)
 }

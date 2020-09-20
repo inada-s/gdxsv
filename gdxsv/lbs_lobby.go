@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -11,7 +12,7 @@ type LbsLobby struct {
 	forceStart bool
 	countDown  int
 
-	Platform   uint8
+	GameDisk   uint8
 	ID         uint16
 	Comment    string
 	McsRegion  string
@@ -47,7 +48,7 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		forceStart: false,
 		countDown:  10,
 
-		Platform:   platform,
+		GameDisk:   platform,
 		ID:         lobbyID,
 		Comment:    fmt.Sprintf("<B>Lobby %d<BR><B>Default Server<END>", lobbyID),
 		McsRegion:  "",
@@ -301,9 +302,28 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		}
 	}
 
+	ShareMcsGame(McsGame{
+		BattleCode: b.BattleCode,
+		Rule:       *b.Rule,
+		GameDisk:   int(l.GameDisk),
+	})
+
 	for _, q := range participants {
-		AddUserWhoIsGoingToBattle(
-			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
+		ShareUserWhoIsGoingToBattle(McsUser{
+			BattleCode:  b.BattleCode,
+			McsRegion:   b.McsRegion,
+			UserID:      q.UserID,
+			Name:        q.Name,
+			PilotName:   q.PilotName,
+			GameParam:   q.GameParam,
+			BattleCount: q.BattleCount,
+			WinCount:    q.WinCount,
+			LoseCount:   q.LoseCount,
+			Side:        q.Team,
+			SessionID:   q.SessionID,
+			AddTime:     time.Now(),
+			InBattle:    false,
+		})
 		NotifyReadyBattle(q)
 		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", q.UserID, q.Name))
 	}
@@ -415,9 +435,28 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		}
 	}
 
+	ShareMcsGame(McsGame{
+		BattleCode: b.BattleCode,
+		Rule:       *b.Rule,
+		GameDisk:   int(l.GameDisk),
+	})
+
 	for _, q := range participants {
-		AddUserWhoIsGoingToBattle(
-			b.BattleCode, b.McsRegion, q.UserID, q.Name, q.Team, q.SessionID)
+		ShareUserWhoIsGoingToBattle(McsUser{
+			BattleCode:  b.BattleCode,
+			McsRegion:   b.McsRegion,
+			UserID:      q.UserID,
+			Name:        q.Name,
+			PilotName:   q.PilotName,
+			GameParam:   q.GameParam,
+			BattleCount: q.BattleCount,
+			WinCount:    q.WinCount,
+			LoseCount:   q.LoseCount,
+			Side:        q.Team,
+			SessionID:   q.SessionID,
+			AddTime:     time.Now(),
+			InBattle:    false,
+		})
 		NotifyReadyBattle(q)
 		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", q.UserID, q.Name))
 	}

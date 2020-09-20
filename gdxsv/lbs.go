@@ -17,10 +17,10 @@ const (
 )
 
 const (
-	PlatformUnk = 0 // Unknown
-	PlatformDC1 = 1 // Dreamcast
-	PlatformDC2 = 2 // Dreamcast DX
-	PlatformPS2 = 3 // PS2 DX
+	GameDiskUnk = 0 // Unknown
+	GameDiskDC1 = 1 // Dreamcast
+	GameDiskDC2 = 2 // Dreamcast DX
+	GameDiskPS2 = 3 // PS2 DX
 )
 
 const (
@@ -48,18 +48,18 @@ func NewLbs() *Lbs {
 		chQuit:    make(chan interface{}),
 	}
 
-	app.lobbies[PlatformPS2] = make(map[uint16]*LbsLobby)
-	app.lobbies[PlatformDC1] = make(map[uint16]*LbsLobby)
-	app.lobbies[PlatformDC2] = make(map[uint16]*LbsLobby)
+	app.lobbies[GameDiskPS2] = make(map[uint16]*LbsLobby)
+	app.lobbies[GameDiskDC1] = make(map[uint16]*LbsLobby)
+	app.lobbies[GameDiskDC2] = make(map[uint16]*LbsLobby)
 
 	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbies[PlatformPS2][uint16(i)] = NewLobby(app, PlatformPS2, uint16(i))
+		app.lobbies[GameDiskPS2][uint16(i)] = NewLobby(app, GameDiskPS2, uint16(i))
 	}
 	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbies[PlatformDC1][uint16(i)] = NewLobby(app, PlatformDC1, uint16(i))
+		app.lobbies[GameDiskDC1][uint16(i)] = NewLobby(app, GameDiskDC1, uint16(i))
 	}
 	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbies[PlatformDC2][uint16(i)] = NewLobby(app, PlatformDC2, uint16(i))
+		app.lobbies[GameDiskDC2][uint16(i)] = NewLobby(app, GameDiskDC2, uint16(i))
 	}
 
 	return app
@@ -288,13 +288,13 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	msg := NewServerNotice(lbsPlazaJoin).Writer().
 		Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
 	for _, u := range lbs.userPeers {
-		if u.Platform == lobby.Platform {
+		if u.Platform == lobby.GameDisk {
 			u.SendMessage(msg)
 		}
 	}
 
 	// For lobby chat scene.
-	if lobby.Platform == PlatformPS2 {
+	if lobby.GameDisk == GameDiskPS2 {
 		renpo, zeon := lobby.GetUserCountBySide()
 		msgSum1 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamRenpo).Write16(renpo + zeon).Msg()
 		msgSum2 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamZeon).Write16(renpo + zeon).Msg()
@@ -311,9 +311,9 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 				}
 			}
 		}
-	} else if lobby.Platform == PlatformDC1 || lobby.Platform == PlatformDC2 {
-		lobby1 := lbs.GetLobby(PlatformDC1, lobby.ID)
-		lobby2 := lbs.GetLobby(PlatformDC2, lobby.ID)
+	} else if lobby.GameDisk == GameDiskDC1 || lobby.GameDisk == GameDiskDC2 {
+		lobby1 := lbs.GetLobby(GameDiskDC1, lobby.ID)
+		lobby2 := lbs.GetLobby(GameDiskDC2, lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
 			return
 		}
@@ -528,19 +528,19 @@ func (p *LbsPeer) InLobbyChat() bool {
 }
 
 func (p *LbsPeer) IsPS2() bool {
-	return p.Platform == PlatformPS2
+	return p.Platform == GameDiskPS2
 }
 
 func (p *LbsPeer) IsDC() bool {
-	return p.Platform == PlatformDC1 || p.Platform == PlatformDC2
+	return p.Platform == GameDiskDC1 || p.Platform == GameDiskDC2
 }
 
 func (p *LbsPeer) IsDC1() bool {
-	return p.Platform == PlatformDC1
+	return p.Platform == GameDiskDC1
 }
 
 func (p *LbsPeer) IsDC2() bool {
-	return p.Platform == PlatformDC2
+	return p.Platform == GameDiskDC2
 }
 
 func (p *LbsPeer) serve() {

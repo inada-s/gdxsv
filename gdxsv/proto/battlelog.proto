@@ -1,0 +1,33 @@
+syntax = "proto3";
+package proto;
+
+message BattleLogUser {
+  string user_id = 1;
+  string user_name = 2;
+  string pilot_name = 3;
+  bytes game_param = 4;
+  int32 battle_count = 5;
+  int32 win_count = 6;
+  int32 lose_count = 7;
+}
+
+message BattleLogMessage {
+  string user_id = 1;
+  bytes body = 2;
+  uint32 seq = 3;
+
+  int64 timestamp = 10;
+}
+
+message BattleLogFile {
+  int32 game_disk = 1;
+  string gdxsv_version = 2;
+  string battle_code = 3;
+
+  bytes rule_bin = 10;
+  repeated BattleLogUser users = 11;
+  repeated BattleLogMessage battle_data = 12;
+
+  int64 start_at = 20;
+  int64 end_at = 21;
+}

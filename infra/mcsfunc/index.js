@@ -97,8 +97,17 @@ export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
 export GDXSV_BATTLE_ADDR=:9877
 export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
 export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
+export GDXSV_BATTLE_LOG_PATH=/home/ubuntu/battlelog
+mkdir -p $GDXSV_BATTLE_LOG_PATH
 
 "$TAG_NAME"/bin/gdxsv -prodlog mcs >> /var/log/gdxsv-mcs.log 2>&1
+EOF
+
+cat << 'EOF' > /home/ubuntu/upload-battlelog.sh
+while :; do
+  sleep 1m
+  gsutil -m mv -r -z pb /home/ubuntu/battlelog gs://gdxsv/battlelog
+done
 EOF
 
 touch /var/log/gdxsv-mcs.log
@@ -106,7 +115,9 @@ truncate -s0 /var/log/gdxsv-mcs.log
 chown ubuntu:ubuntu /var/log/gdxsv-mcs.log
 
 chmod +x /home/ubuntu/launch-mcs.sh
+chmod +x /home/ubuntu/upload-battlelog.sh
 su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh &'
+su ubuntu -c 'cd /home/ubuntu && nohup ./upload-battlelog.sh &'
 echo "startup-script done"
 `
 }

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"gdxsv/gdxsv/proto"
+	pb "github.com/golang/protobuf/proto"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -47,6 +50,7 @@ type Config struct {
 	BattleAddr       string `env:"GDXSV_BATTLE_ADDR" envDefault:"localhost:3334"`
 	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
 	BattleRegion     string `env:"GDXSV_BATTLE_REGION" envDefault:""`
+	BattleLogPath    string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
 	McsFuncKey       string `env:"GDXSV_MCSFUNC_KEY" envDefault:""`
 	McsFuncURL       string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
 	DBName           string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
@@ -74,6 +78,8 @@ Usage: gdxsv [lbs, mcs, initdb]
   initdb: Initialize database.
     It is supposed to run this command when first booting manually.
     Note that if the database file already exists it will be permanently deleted.
+
+  battlelog2json: Convert battle log file to json.
 `)
 }
 
@@ -188,7 +194,7 @@ func prepareLogger() {
 	}
 
 	switch *loglevel {
-	case 0,1:
+	case 0, 1:
 		zapConfig.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	case 2:
 		zapConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
@@ -244,6 +250,21 @@ func main() {
 		os.Remove(conf.DBName)
 		prepareDB()
 		getDB().Init()
+	case "battlelog2json":
+		b, err := ioutil.ReadFile(args[1])
+		if err != nil {
+			logger.Fatal("Failed to open log file", zap.Error(err))
+		}
+		logfile := proto.BattleLogFile{}
+		err = pb.Unmarshal(b, &logfile)
+		if err != nil {
+			logger.Fatal("Failed to Unmarshal", zap.Error(err))
+		}
+		js, err := json.MarshalIndent(logfile, "", "  ")
+		if err != nil {
+			logger.Fatal("Failed to Unmarshal", zap.Error(err))
+		}
+		fmt.Print(string(js))
 	default:
 		printUsage()
 		os.Exit(1)
