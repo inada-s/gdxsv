@@ -52,11 +52,13 @@ type McsStatus struct {
 	Region     string    `json:"region,omitempty"`
 	PublicAddr string    `json:"public_addr,omitempty"`
 	Updated    time.Time `json:"updated,omitempty"`
-	Users      []McsUser `json:"userPeers,omitempty"`
+	Users      []McsUser `json:"users,omitempty"`
+	Games      []McsGame `json:"games,omitempty"`
 }
 
 type LbsStatus struct {
-	Users []McsUser `json:"userPeers,omitempty"`
+	Users []McsUser `json:"users,omitempty"`
+	Games []McsGame `json:"games,omitempty"`
 }
 
 func ShareMcsGame(g McsGame) {
@@ -81,6 +83,13 @@ func SyncSharedDataMcsToLbs(status *McsStatus) {
 			sharedData.battleUsers[u.SessionID] = u
 		}
 	}
+
+	for _, g := range status.Games {
+		_, ok := sharedData.battleGames[g.BattleCode]
+		if ok {
+			sharedData.battleGames[g.BattleCode] = g
+		}
+	}
 }
 
 func SyncSharedDataLbsToMcs(status *LbsStatus) {
@@ -91,6 +100,13 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 		_, ok := sharedData.battleUsers[u.SessionID]
 		if !ok {
 			sharedData.battleUsers[u.SessionID] = u
+		}
+	}
+
+	for _, g := range status.Games {
+		_, ok := sharedData.battleGames[g.BattleCode]
+		if !ok {
+			sharedData.battleGames[g.BattleCode] = g
 		}
 	}
 }
