@@ -11,6 +11,8 @@ type LbsLobby struct {
 	app        *Lbs
 	forceStart bool
 	countDown  int
+	extraCost  bool
+	ecTimeout  int
 
 	GameDisk   uint8
 	ID         uint16
@@ -47,6 +49,8 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		app:        app,
 		forceStart: false,
 		countDown:  10,
+		extraCost:  false,
+		ecTimeout:  0,
 
 		GameDisk:   platform,
 		ID:         lobbyID,
@@ -88,6 +92,16 @@ func (l *LbsLobby) ForceStartBattle() {
 
 func (l *LbsLobby) CancelForceStartBattle() {
 	l.forceStart = false
+}
+
+func (l *LbsLobby) EnableExtraCost() {
+	l.ecTimeout = 120
+	l.extraCost = true
+}
+
+func (l *LbsLobby) DisableExtraCost() {
+	l.ecTimeout = 0
+	l.extraCost = false
 }
 
 func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
@@ -248,6 +262,12 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		l.countDown--
 	}
 
+	if l.ecTimeout > 0 {
+		l.ecTimeout--
+	} else {
+		l.extraCost = false
+	}
+
 	if !l.canStartBattle() && !(l.forceStart == true && l.countDown == 0) {
 		return
 	}
@@ -280,6 +300,14 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
 
 	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
+
+	if l.extraCost {
+		ecRule := *l.Rule
+		ecRule.RenpoVital = 630
+		ecRule.ZeonVital = 630
+		b.SetRule(&ecRule)
+		l.extraCost = false
+	}
 
 	participants := l.pickLobbyBattleParticipants()
 	for _, q := range participants {

@@ -1167,6 +1167,17 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			}
 		}
 
+		hintMsgBuilder := func(hint string) *LbsMessage {
+			return NewServerNotice(lbsChatMessage).Writer().
+				WriteString("").
+				WriteString("").
+				WriteString(hint).
+				Write8(0).      // chat_type
+				Write8(0).      // id color
+				Write8(0).      // handle color
+				Write8(0).Msg() // msg color
+		}
+
 		if text == "／ｆ" || text == "／Ｆ" {
 			//intercept message if it is a command
 
@@ -1188,17 +1199,6 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				//only print unaccepted command + hint to sender
 				p.SendMessage(msg)
 
-				hintMsgBuilder := func(hint string) *LbsMessage {
-					return NewServerNotice(lbsChatMessage).Writer().
-						WriteString("").
-						WriteString("").
-						WriteString(hint).
-						Write8(0). // chat_type
-						Write8(0). // id color
-						Write8(0). // handle color
-						Write8(0).Msg() // msg color
-				}
-
 				if userHasJoinedForce == false {
 					hint := hintMsgBuilder("Join a force first! (自動選抜→待機)")
 					p.SendMessage(hint)
@@ -1208,6 +1208,18 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				}
 
 			}
+		} else if text == "／ｅｃ" || text == "／ＥＣ" {
+			//Extra Cost
+			postInLobby(msg)
+			hint := hintMsgBuilder("Cost is set to 630!")
+			postInLobby(hint)
+			p.Lobby.EnableExtraCost()
+		} else if text == "／ｎｃ" || text == "／ＮＣ" {
+			//Normal cost
+			postInLobby(msg)
+			hint := hintMsgBuilder("Cost is set to 600!")
+			postInLobby(hint)
+			p.Lobby.DisableExtraCost()
 		} else {
 			postInLobby(msg)
 		}
