@@ -283,13 +283,22 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	if lobby == nil {
 		return
 	}
-
 	// For lobby select scene.
-	msg := NewServerNotice(lbsPlazaJoin).Writer().
+	ps2msg := NewServerNotice(lbsPlazaJoin).Writer().
 		Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
+
+	dclobby1 := lbs.GetLobby(GameDiskDC1, lobby.ID)
+	dclobby2 := lbs.GetLobby(GameDiskDC2, lobby.ID)
+	dcmsg := NewServerNotice(lbsPlazaJoin).Writer().
+		Write16(lobby.ID).
+		Write16(uint16(len(dclobby1.Users))).
+		Write16(uint16(len(dclobby2.Users))).Msg()
+
 	for _, u := range lbs.userPeers {
-		if u.Platform == lobby.GameDisk {
-			u.SendMessage(msg)
+		if u.IsPS2() {
+			u.SendMessage(ps2msg)
+		} else if u.IsDC() {
+			u.SendMessage(dcmsg)
 		}
 	}
 
