@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"go.uber.org/zap"
@@ -114,9 +115,9 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 		WriteString("").
 		WriteString("").
 		WriteString(msgBody).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 	for userID := range l.Users {
 		peer := l.app.FindPeer(userID)
@@ -186,16 +187,24 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 	}
 }
 
-func (l *LbsLobby) EntryCancel(p *LbsPeer, notify bool) {
+func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 	for i, id := range l.EntryUsers {
 		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 			break
 		}
 	}
-	if notify {
-		l.NotifyLobbyEvent("CANCEL", p.Name)
+	l.NotifyLobbyEvent("CANCEL", p.Name)
+}
+
+func (l *LbsLobby) EntryPicked(p *LbsPeer) {
+	for i, id := range l.EntryUsers {
+		if id == p.UserID {
+			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
+			break
+		}
 	}
+	l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 }
 
 func (l *LbsLobby) GetUserCountBySide() (uint16, uint16) {
@@ -251,8 +260,13 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 		}
 	}
 	for _, p := range peers {
-		l.EntryCancel(p, false)
+		l.EntryPicked(p)
 	}
+
+	sort.SliceStable(peers, func(i, j int) bool {
+		return peers[i].Team < peers[j].Team
+	})
+
 	return peers
 }
 
@@ -313,20 +327,21 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
-		if l.forceStart == false {
-			//Do not record battle records for force started battle
-			err := getDB().AddBattleRecord(&BattleRecord{
-				BattleCode: b.BattleCode,
-				UserID:     q.UserID,
-				UserName:   q.Name,
-				PilotName:  q.PilotName,
-				Players:    len(participants),
-				Aggregate:  1,
-			})
-			if err != nil {
-				logger.Error("AddBattleRecord failed", zap.Error(err))
-				return
-			}
+		aggregate := 1
+		if l.forceStart {
+			aggregate = 0
+		}
+		err := getDB().AddBattleRecord(&BattleRecord{
+			BattleCode: b.BattleCode,
+			UserID:     q.UserID,
+			UserName:   q.Name,
+			PilotName:  q.PilotName,
+			Players:    len(participants),
+			Aggregate:  aggregate,
+		})
+		if err != nil {
+			logger.Error("AddBattleRecord failed", zap.Error(err))
+			return
 		}
 	}
 
@@ -353,12 +368,14 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 			InBattle:    false,
 		})
 		NotifyReadyBattle(q)
-		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", q.UserID, q.Name))
 	}
 
 	if mcsPeer != nil {
 		NotifyLatestLbsStatus(mcsPeer)
 	}
+
+	l.app.BroadcastLobbyUserCount(l)
+	l.app.BroadcastLobbyMatchEntryUserCount(l)
 
 	l.CancelForceStartBattle() //battle started, reset forceStart flag
 }
@@ -486,7 +503,6 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			InBattle:    false,
 		})
 		NotifyReadyBattle(q)
-		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", q.UserID, q.Name))
 	}
 
 	if mcsPeer != nil {

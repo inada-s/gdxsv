@@ -5,13 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"hash/fnv"
 	"io/ioutil"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+
+	"go.uber.org/zap"
 
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
@@ -863,7 +864,7 @@ var _ = register(lbsLobbyMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 	if enable == 1 {
 		p.Lobby.Entry(p)
 	} else {
-		p.Lobby.EntryCancel(p, true)
+		p.Lobby.EntryCancel(p)
 	}
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyMatchEntryUserCount(p.Lobby)
@@ -1145,9 +1146,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 
 	if p.Room != nil {
