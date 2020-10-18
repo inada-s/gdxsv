@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"net"
 	"strconv"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 func genBattleCode() string {
