@@ -225,6 +225,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 		case <-ticker.C:
 			status.UpdatedAt = mcs.LastUpdated()
 			status.Users = GetMcsUsers()
+			status.Games = GetMcsGames()
 			err = sendMcsStatus()
 			if err != nil {
 				return err

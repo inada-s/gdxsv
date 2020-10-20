@@ -169,7 +169,9 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 		}
 	}
 
-	logger.Info("SyncSharedDataLbsToMcs", zap.Any("shareddata_users", sharedData.battleUsers), zap.Any("shareddata_games", sharedData.battleGames))
+	logger.Info("SyncSharedDataLbsToMcs",
+		zap.Any("users", sharedData.battleUsers),
+		zap.Any("games", sharedData.battleGames))
 }
 
 func GetMcsUsers() []McsUser {
@@ -179,6 +181,19 @@ func GetMcsUsers() []McsUser {
 	var ret []McsUser
 
 	for _, u := range sharedData.battleUsers {
+		ret = append(ret, u)
+	}
+
+	return ret
+}
+
+func GetMcsGames() []McsGame {
+	sharedData.Lock()
+	defer sharedData.Unlock()
+
+	var ret []McsGame
+
+	for _, u := range sharedData.battleGames {
 		ret = append(ret, u)
 	}
 
