@@ -122,6 +122,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 		Region:     battleRegion,
 		UpdatedAt:  time.Now(),
 		Users:      []McsUser{},
+		Games:      []McsGame{},
 	}
 
 	var sendStatusBuf bytes.Buffer

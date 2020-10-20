@@ -125,6 +125,7 @@ func SyncSharedDataMcsToLbs(status *McsStatus) {
 	for k, u := range sharedData.battleUsers {
 		if closedBattleCodes[u.BattleCode] {
 			delete(sharedData.battleUsers, k)
+			logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
 		}
 	}
 }
@@ -193,8 +194,8 @@ func GetMcsGames() []McsGame {
 
 	var ret []McsGame
 
-	for _, u := range sharedData.battleGames {
-		ret = append(ret, u)
+	for _, g := range sharedData.battleGames {
+		ret = append(ret, g)
 	}
 
 	return ret
