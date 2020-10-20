@@ -216,7 +216,10 @@ func NotifyLatestLbsStatus(mcs *LbsPeer) {
 	zw := gzip.NewWriter(&buf)
 	jw := json.NewEncoder(zw)
 
-	err := jw.Encode(getLbsStatusFiltered(mcs.mcsStatus.PublicAddr))
+	lbsStatus := getLbsStatusFiltered(mcs.mcsStatus.PublicAddr)
+	logger.Info("NotifyLatestLbsStatus", zap.Any("lbs_status", lbsStatus), zap.String("public_addr", mcs.mcsStatus.PublicAddr))
+
+	err := jw.Encode(lbsStatus)
 	if err != nil {
 		logger.Error("json encode failed", zap.Error(err))
 		return
