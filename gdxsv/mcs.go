@@ -1,7 +1,7 @@
 package main
 
 import (
-	bytes "bytes"
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"gdxsv/gdxsv/proto"

@@ -134,7 +134,7 @@ func GetMcsUsers() []McsUser {
 
 func GetSerializedLbsStatus() []byte {
 	sharedData.Lock()
-	defer sharedData.Lock()
+	defer sharedData.Unlock()
 
 	if 1 <= time.Since(sharedData.lbsStatusCacheTime).Seconds() {
 		st := new(LbsStatus)

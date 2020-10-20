@@ -44,13 +44,11 @@ func (r *McsRoom) PeerCount() int {
 }
 
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
-	now := time.Now()
-
 	logMsg := &proto.BattleLogMessage{
 		UserId:    peer.UserID(),
 		Body:      msg.Body,
 		Seq:       msg.Seq,
-		Timestamp: now.UnixNano(),
+		Timestamp: time.Now().UnixNano(),
 	}
 
 	k := peer.Position()
