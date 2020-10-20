@@ -1,6 +1,8 @@
 package main
 
 import (
+	bytes "bytes"
+	"compress/gzip"
 	"encoding/json"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
@@ -118,18 +120,28 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 	status := McsStatus{
 		PublicAddr: battlePublicAddr,
 		Region:     battleRegion,
-		Updated:    time.Now(),
+		UpdatedAt:  time.Now(),
 		Users:      []McsUser{},
 	}
 
+	var sendStatusBuf bytes.Buffer
 	sendMcsStatus := func() error {
-		statusBin, err := json.MarshalIndent(status, "", "  ")
+		sendStatusBuf.Reset()
+		gw := gzip.NewWriter(&sendStatusBuf)
+		jw := json.NewEncoder(gw)
+		err := jw.Encode(status)
 		if err != nil {
-			zap.Error(err)
+			logger.Error("json.Encode", zap.Error(err))
 			return err
 		}
-		logger.Info("send status to lbs", zap.ByteString("status", statusBin))
-		buf := NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(statusBin).Msg().Serialize()
+
+		err = gw.Close()
+		if err != nil {
+			logger.Error("GzipWriter.Close", zap.Error(err))
+			return err
+		}
+
+		buf := NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(sendStatusBuf.Bytes()).Msg().Serialize()
 		for sum := 0; sum < len(buf); {
 			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			n, err := conn.Write(buf[sum:])
@@ -172,7 +184,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			for len(data) >= HeaderSize {
 				n, msg := Deserialize(data)
 				if n == 0 {
-					// not enough data comming
+					// not enough data coming
 					break
 				}
 
@@ -180,14 +192,21 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 				if msg != nil {
 					switch msg.Command {
 					case lbsExtSyncSharedData:
-						lbsStatusBin := msg.Reader().ReadBytes()
-						logger.Info("recv lbs status", zap.ByteString("status", lbsStatusBin))
-						var lbsStatus LbsStatus
-						err = json.Unmarshal(lbsStatusBin, &lbsStatus)
+						body := msg.Reader().ReadBytes()
+						gr, err := gzip.NewReader(bytes.NewReader(body))
 						if err != nil {
-							logger.Error("json.Unmarshal", zap.Error(err))
+							logger.Error("gzip.NewReader", zap.Error(err), zap.Binary("body", body))
 							continue
 						}
+
+						var lbsStatus LbsStatus
+						jr := json.NewDecoder(gr)
+						err = jr.Decode(&lbsStatus)
+						if err != nil {
+							logger.Error("jr.Decode", zap.Error(err), zap.Binary("body", body))
+							continue
+						}
+
 						SyncSharedDataLbsToMcs(&lbsStatus)
 					}
 				}
@@ -202,14 +221,14 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			status.Updated = mcs.LastUpdated()
+			status.UpdatedAt = mcs.LastUpdated()
 			status.Users = GetMcsUsers()
 			err = sendMcsStatus()
 			if err != nil {
 				return err
 			}
 
-			if 15 <= time.Since(status.Updated).Minutes() && len(status.Users) == 0 {
+			if 15 <= time.Since(status.UpdatedAt).Minutes() && len(status.Users) == 0 {
 				logger.Info("mcs exit")
 				return nil
 			}

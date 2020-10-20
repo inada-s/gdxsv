@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"go.uber.org/zap"
 	"sync"
@@ -13,6 +15,9 @@ var sharedData struct {
 	sync.Mutex
 	battleUsers map[string]McsUser // session_id -> user info
 	battleGames map[string]McsGame // battle_code -> game info
+
+	lbsStatusCacheTime time.Time
+	lbsStatusCache     []byte
 }
 
 func init() {
@@ -20,7 +25,7 @@ func init() {
 	sharedData.battleGames = map[string]McsGame{}
 	go func() {
 		for {
-			removeZombieUserInfo()
+			removeOldSharedData()
 			time.Sleep(time.Minute)
 		}
 	}()
@@ -38,22 +43,23 @@ type McsUser struct {
 	LoseCount   int       `json:"lose_count,omitempty"`
 	Side        uint16    `json:"side,omitempty"`
 	SessionID   string    `json:"session_id,omitempty"`
-	AddTime     time.Time `json:"add_time,omitempty"`
 	InBattle    bool      `json:"in_battle,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }
 
 type McsGame struct {
-	BattleCode string `json:"battle_code,omitempty"`
-	GameDisk   int    `json:"game_disk"`
-	Rule       Rule   `json:"rule,omitempty"`
+	BattleCode string    `json:"battle_code,omitempty"`
+	GameDisk   int       `json:"game_disk"`
+	Rule       Rule      `json:"rule,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at,omitempty"`
 }
 
 type McsStatus struct {
 	Region     string    `json:"region,omitempty"`
 	PublicAddr string    `json:"public_addr,omitempty"`
-	Updated    time.Time `json:"updated,omitempty"`
 	Users      []McsUser `json:"users,omitempty"`
 	Games      []McsGame `json:"games,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at,omitempty"`
 }
 
 type LbsStatus struct {
@@ -80,6 +86,7 @@ func SyncSharedDataMcsToLbs(status *McsStatus) {
 	for _, u := range status.Users {
 		_, ok := sharedData.battleUsers[u.SessionID]
 		if ok {
+			u.UpdatedAt = status.UpdatedAt
 			sharedData.battleUsers[u.SessionID] = u
 		}
 	}
@@ -87,6 +94,7 @@ func SyncSharedDataMcsToLbs(status *McsStatus) {
 	for _, g := range status.Games {
 		_, ok := sharedData.battleGames[g.BattleCode]
 		if ok {
+			g.UpdatedAt = status.UpdatedAt
 			sharedData.battleGames[g.BattleCode] = g
 		}
 	}
@@ -124,29 +132,50 @@ func GetMcsUsers() []McsUser {
 	return ret
 }
 
-func GetLbsStatus() *LbsStatus {
+func GetSerializedLbsStatus() []byte {
 	sharedData.Lock()
-	defer sharedData.Unlock()
+	defer sharedData.Lock()
 
-	ret := new(LbsStatus)
-	for _, u := range sharedData.battleUsers {
-		ret.Users = append(ret.Users, u)
+	if 1 <= time.Since(sharedData.lbsStatusCacheTime).Seconds() {
+		st := new(LbsStatus)
+		for _, u := range sharedData.battleUsers {
+			st.Users = append(st.Users, u)
+		}
+
+		for _, g := range sharedData.battleGames {
+			st.Games = append(st.Games, g)
+		}
+
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		jw := json.NewEncoder(zw)
+
+		err := jw.Encode(st)
+		if err != nil {
+			logger.Error("jw.Encode", zap.Error(err))
+			return nil
+		}
+
+		err = zw.Close()
+		if err != nil {
+			logger.Error("zw.Close", zap.Error(err))
+			return nil
+		}
+
+		if (1 << 16) <= buf.Len() {
+			logger.Error("too large data", zap.Int("size", buf.Len()))
+			return nil
+		}
+
+		sharedData.lbsStatusCache = buf.Bytes()
+		sharedData.lbsStatusCacheTime = time.Now()
 	}
 
-	for _, g := range sharedData.battleGames {
-		ret.Games = append(ret.Games, g)
-	}
-
-	return ret
+	return sharedData.lbsStatusCache
 }
 
 func NotifyLatestLbsStatus(mcs *LbsPeer) {
-	lbsStatusBin, err := json.Marshal(GetLbsStatus())
-	if err != nil {
-		logger.Error("json.Marshal", zap.Error(err))
-		return
-	}
-	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(lbsStatusBin).Msg())
+	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(GetSerializedLbsStatus()).Msg())
 }
 
 func getBattleGameInfo(battleCode string) (McsGame, bool) {
@@ -179,16 +208,19 @@ func removeBattleUserInfo(battleCode string) {
 	}
 }
 
-func removeZombieUserInfo() {
+func removeOldSharedData() {
 	sharedData.Lock()
 	defer sharedData.Unlock()
-	zombie := []string{}
+
 	for key, u := range sharedData.battleUsers {
-		if 1.0 <= time.Since(u.AddTime).Hours() {
-			zombie = append(zombie, key)
+		if 1.0 <= time.Since(u.UpdatedAt).Minutes() {
+			delete(sharedData.battleUsers, key)
 		}
 	}
-	for _, key := range zombie {
-		delete(sharedData.battleUsers, key)
+
+	for key, g := range sharedData.battleGames {
+		if 1.0 <= time.Since(g.UpdatedAt).Minutes() {
+			delete(sharedData.battleGames, key)
+		}
 	}
 }
