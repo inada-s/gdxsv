@@ -172,6 +172,8 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 			delete(sharedData.battleUsers, k)
 		}
 	}
+
+	logger.Info("SyncSharedDataLbsToMcs", zap.Any("shareddata_users", sharedData.battleUsers), zap.Any("shareddata_games", sharedData.battleGames))
 }
 
 func GetMcsUsers() []McsUser {

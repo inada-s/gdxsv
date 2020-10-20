@@ -207,6 +207,8 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 							continue
 						}
 
+						logger.Info("lbs_status updated", zap.Any("lbs_status", &lbsStatus))
+
 						SyncSharedDataLbsToMcs(&lbsStatus)
 					}
 				}
