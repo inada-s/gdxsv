@@ -190,50 +190,53 @@ func GetMcsUsers() []McsUser {
 	return ret
 }
 
-func GetSerializedLbsStatus() []byte {
+func getLbsStatusFiltered(mcsAddr string) *LbsStatus {
 	sharedData.Lock()
 	defer sharedData.Unlock()
 
-	if 1 <= time.Since(sharedData.lbsStatusCacheTime).Seconds() {
-		st := new(LbsStatus)
-		for _, u := range sharedData.battleUsers {
-			st.Users = append(st.Users, u)
-		}
+	st := new(LbsStatus)
 
-		for _, g := range sharedData.battleGames {
+	targetBattleCodes := map[string]bool{}
+
+	for _, g := range sharedData.battleGames {
+		if g.McsAddr == mcsAddr {
 			st.Games = append(st.Games, g)
+			targetBattleCodes[g.BattleCode] = true
 		}
-
-		var buf bytes.Buffer
-		zw := gzip.NewWriter(&buf)
-		jw := json.NewEncoder(zw)
-
-		err := jw.Encode(st)
-		if err != nil {
-			logger.Error("jw.Encode", zap.Error(err))
-			return nil
-		}
-
-		err = zw.Close()
-		if err != nil {
-			logger.Error("zw.Close", zap.Error(err))
-			return nil
-		}
-
-		if (1 << 16) <= buf.Len() {
-			logger.Error("too large data", zap.Int("size", buf.Len()))
-			return nil
-		}
-
-		sharedData.lbsStatusCache = buf.Bytes()
-		sharedData.lbsStatusCacheTime = time.Now()
 	}
 
-	return sharedData.lbsStatusCache
+	for _, u := range sharedData.battleUsers {
+		if targetBattleCodes[u.BattleCode] {
+			st.Users = append(st.Users, u)
+		}
+	}
+
+	return st
 }
 
 func NotifyLatestLbsStatus(mcs *LbsPeer) {
-	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(GetSerializedLbsStatus()).Msg())
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	jw := json.NewEncoder(zw)
+
+	err := jw.Encode(getLbsStatusFiltered(mcs.mcsStatus.PublicAddr))
+	if err != nil {
+		logger.Error("json encode failed", zap.Error(err))
+		return
+	}
+
+	err = zw.Close()
+	if err != nil {
+		logger.Error("gzip close failed", zap.Error(err))
+		return
+	}
+
+	if (1 << 16) <= buf.Len() {
+		logger.Error("too large data", zap.Int("size", buf.Len()))
+		return
+	}
+
+	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(buf.Bytes()).Msg())
 }
 
 func getBattleGameInfo(battleCode string) (McsGame, bool) {
