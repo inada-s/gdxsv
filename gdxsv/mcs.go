@@ -270,7 +270,15 @@ func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	}
 	mcs.mtx.Unlock()
 	room.Join(p, user)
+
+	updateMcsUserState(sessionID, McsUserStateJoined)
+	updateMcsGameState(user.BattleCode, McsGameStateOpened)
+
 	return room
+}
+
+func (mcs *Mcs) OnUserLeft(room *McsRoom, sessionID string) {
+	updateMcsUserState(sessionID, McsUserStateLeft)
 }
 
 func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
@@ -278,6 +286,11 @@ func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
 	mcs.updated = time.Now()
 	delete(mcs.rooms, room.game.BattleCode)
 	mcs.mtx.Unlock()
-	removeBattleUserInfo(room.game.BattleCode)
-	removeBattleGameInfo(room.game.BattleCode)
+
+	if mcsMode {
+		updateMcsGameState(room.game.BattleCode, McsGameStateClosed)
+	} else {
+		removeBattleUserInfo(room.game.BattleCode)
+		removeBattleGameInfo(room.game.BattleCode)
+	}
 }

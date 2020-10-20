@@ -350,6 +350,8 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		Rule:       *b.Rule,
 		GameDisk:   int(l.GameDisk),
 		UpdatedAt:  time.Now(),
+		State:      McsGameStateCreated,
+		McsAddr:    mcsAddr,
 	})
 
 	for _, q := range participants {
@@ -366,7 +368,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 			Side:        q.Team,
 			SessionID:   q.SessionID,
 			UpdatedAt:   time.Now(),
-			InBattle:    false,
+			State:       McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
 	}
@@ -485,6 +487,9 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
 		GameDisk:   int(l.GameDisk),
+		UpdatedAt:  time.Now(),
+		State:      McsGameStateCreated,
+		McsAddr:    mcsAddr,
 	})
 
 	for _, q := range participants {
@@ -501,7 +506,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			Side:        q.Team,
 			SessionID:   q.SessionID,
 			UpdatedAt:   time.Now(),
-			InBattle:    false,
+			State:       McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
 	}

@@ -30,7 +30,9 @@ var (
 )
 
 var (
-	conf     Config
+	conf    Config
+	mcsMode bool
+
 	dump     = flag.Bool("dump", false, "enable var dump to dump.txt")
 	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
 	profile  = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
@@ -171,6 +173,7 @@ func mainLbs() {
 }
 
 func mainMcs() {
+	mcsMode = true
 	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
