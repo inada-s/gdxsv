@@ -137,28 +137,24 @@ func SyncSharedDataLbsToMcs(status *LbsStatus) {
 	activeSessionIDs := map[string]bool{}
 
 	for _, g := range status.Games {
+		if g.McsAddr != conf.BattlePublicAddr {
+			continue // not my game
+		}
 		activeBattleCodes[g.BattleCode] = true
 
-		h, ok := sharedData.battleGames[g.BattleCode]
-		if ok {
-			continue
+		if _, ok := sharedData.battleGames[g.BattleCode]; ok {
+			continue // already exist
 		}
-		if h.McsAddr == conf.BattlePublicAddr {
-			sharedData.battleGames[g.BattleCode] = g
-		}
+		sharedData.battleGames[g.BattleCode] = g
 	}
 
 	for _, u := range status.Users {
 		activeSessionIDs[u.SessionID] = true
 
-		v, ok := sharedData.battleUsers[u.SessionID]
-		if ok {
-			continue
+		if _, ok := sharedData.battleUsers[u.SessionID]; ok {
+			continue // already exist
 		}
-		_, ok = sharedData.battleGames[v.BattleCode]
-		if ok {
-			sharedData.battleUsers[u.SessionID] = u
-		}
+		sharedData.battleUsers[u.SessionID] = u
 	}
 
 	for k, g := range sharedData.battleGames {
