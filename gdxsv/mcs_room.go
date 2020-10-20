@@ -61,11 +61,14 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 		other := r.peers[i]
 		if other != nil {
 			other.AddSendMessage(msg)
-			logger.Debug("relay",
-				zap.String("from_user", peer.UserID()),
-				zap.String("to_user", other.UserID()),
-				zap.Uint32("seq", msg.GetSeq()),
-				zap.String("data", hex.EncodeToString(msg.GetBody())))
+
+			if ce := logger.Check(zap.DebugLevel, ""); ce != nil {
+				logger.Debug("relay",
+					zap.String("from_user", peer.UserID()),
+					zap.String("to_user", other.UserID()),
+					zap.Uint32("seq", msg.GetSeq()),
+					zap.String("data", hex.EncodeToString(msg.GetBody())))
+			}
 		}
 	}
 	r.RUnlock()
@@ -134,6 +137,7 @@ func (r *McsRoom) Join(p McsPeer, u McsUser) {
 
 func (r *McsRoom) Leave(p McsPeer) {
 	pos := p.Position()
+	sessionID := p.SessionID()
 
 	r.Lock()
 	if pos < len(r.peers) {
@@ -147,6 +151,8 @@ func (r *McsRoom) Leave(p McsPeer) {
 		}
 	}
 	r.Unlock()
+
+	r.mcs.OnUserLeft(r, sessionID)
 
 	if empty {
 		r.Finalize()

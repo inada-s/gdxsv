@@ -665,7 +665,7 @@ func (p *LbsPeer) dispatchLoop(ctx context.Context, cancel func()) {
 			for len(p.inbuf) >= HeaderSize {
 				n, msg := Deserialize(p.inbuf)
 				if n == 0 {
-					// not enough data comming
+					// not enough data coming
 					break
 				}
 

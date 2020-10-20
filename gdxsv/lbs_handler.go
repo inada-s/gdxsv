@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -1146,9 +1147,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 
 	if p.Room != nil {
@@ -1173,9 +1174,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0).      // chat_type
-				Write8(0).      // id color
-				Write8(0).      // handle color
+				Write8(0). // chat_type
+				Write8(0). // id color
+				Write8(0). // handle color
 				Write8(0).Msg() // msg color
 		}
 
@@ -1429,15 +1430,22 @@ var _ = register(lbsAskMcsVersion, func(p *LbsPeer, m *LbsMessage) {
 })
 
 var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
-	var mcsStatus McsStatus
-	err := json.Unmarshal(m.Reader().ReadBytes(), &mcsStatus)
+	body := m.Reader().ReadBytes() // gzipped json
+	gr, err := gzip.NewReader(bytes.NewReader(body))
 	if err != nil {
-		p.logger.Error("failed to unmarshal mcs status", zap.Error(err))
+		p.logger.Error("gzip.NewReader", zap.Error(err), zap.Binary("body", body))
+		return
+	}
+
+	var mcsStatus McsStatus
+	jr := json.NewDecoder(gr)
+	err = jr.Decode(&mcsStatus)
+	if err != nil {
+		p.logger.Error("failed to unmarshal mcs status", zap.Error(err), zap.Binary("body", body))
 		return
 	}
 
 	p.logger.Info("update mcs status", zap.Any("mcs_status", mcsStatus))
-
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 	p.mcsStatus = &mcsStatus
 	SyncSharedDataMcsToLbs(&mcsStatus)

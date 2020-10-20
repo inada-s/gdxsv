@@ -115,9 +115,9 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 		WriteString("").
 		WriteString("").
 		WriteString(msgBody).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 	for userID := range l.Users {
 		peer := l.app.FindPeer(userID)
@@ -349,6 +349,9 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
 		GameDisk:   int(l.GameDisk),
+		UpdatedAt:  time.Now(),
+		State:      McsGameStateCreated,
+		McsAddr:    mcsAddr,
 	})
 
 	for _, q := range participants {
@@ -364,8 +367,8 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 			LoseCount:   q.LoseCount,
 			Side:        q.Team,
 			SessionID:   q.SessionID,
-			AddTime:     time.Now(),
-			InBattle:    false,
+			UpdatedAt:   time.Now(),
+			State:       McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
 	}
@@ -484,6 +487,9 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
 		GameDisk:   int(l.GameDisk),
+		UpdatedAt:  time.Now(),
+		State:      McsGameStateCreated,
+		McsAddr:    mcsAddr,
 	})
 
 	for _, q := range participants {
@@ -499,8 +505,8 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 			LoseCount:   q.LoseCount,
 			Side:        q.Team,
 			SessionID:   q.SessionID,
-			AddTime:     time.Now(),
-			InBattle:    false,
+			UpdatedAt:   time.Now(),
+			State:       McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
 	}
