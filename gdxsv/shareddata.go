@@ -15,9 +15,6 @@ var sharedData struct {
 	sync.Mutex
 	battleUsers map[string]McsUser // session_id -> user info
 	battleGames map[string]McsGame // battle_code -> game info
-
-	lbsStatusCacheTime time.Time
-	lbsStatusCache     []byte
 }
 
 func init() {
