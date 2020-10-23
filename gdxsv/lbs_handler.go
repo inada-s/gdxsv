@@ -437,11 +437,11 @@ var _ = register(lbsAskGameCode, func(p *LbsPeer, m *LbsMessage) {
 
 	switch code {
 	case 0x02:
-		p.Platform = GameDiskPS2
+		p.GameDisk = GameDiskPS2
 	case 0x0300:
-		p.Platform = GameDiskDC1
+		p.GameDisk = GameDiskDC1
 	case 0x0301:
-		p.Platform = GameDiskDC2
+		p.GameDisk = GameDiskDC2
 	default:
 		p.logger.Warn("unknown client platform", zap.Any("code", code))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
@@ -680,7 +680,7 @@ var _ = register(lbsPlazaJoin, func(p *LbsPeer, m *LbsMessage) {
 	// PS2: LobbyID, UserCount
 	// DC : LobbyID, DC1UserCount, DC2UserCount
 	if p.IsPS2() {
-		lobby := p.app.GetLobby(p.Platform, lobbyID)
+		lobby := p.app.GetLobby(p.GameDisk, lobbyID)
 		if lobby == nil {
 			p.SendMessage(NewServerAnswer(m).SetErr())
 			return
@@ -713,7 +713,7 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.GetLobby(p.Platform, lobbyID)
+	lobby := p.app.GetLobby(p.GameDisk, lobbyID)
 	if lobby == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
@@ -726,7 +726,7 @@ var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.GetLobby(p.Platform, lobbyID)
+	lobby := p.app.GetLobby(p.GameDisk, lobbyID)
 	if lobby == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return

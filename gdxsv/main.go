@@ -49,6 +49,7 @@ var (
 type Config struct {
 	LobbyAddr        string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost:3333"`
 	LobbyPublicAddr  string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"127.0.0.1:3333"`
+	LobbyHttpAddr    string `env:"GDXSV_LOBBY_HTTP_ADDR" envDefault:":3380"`
 	BattleAddr       string `env:"GDXSV_BATTLE_ADDR" envDefault:"localhost:3334"`
 	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
 	BattleRegion     string `env:"GDXSV_BATTLE_REGION" envDefault:""`
@@ -149,6 +150,11 @@ func mainLbs() {
 	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
+
+	if conf.LobbyHttpAddr != "" {
+		lbs.RegisterHTTPHandlers()
+		go http.ListenAndServe(conf.LobbyHttpAddr, nil)
+	}
 
 	logger.Sugar()
 
