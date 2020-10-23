@@ -507,7 +507,7 @@ type LbsPeer struct {
 	Lobby  *LbsLobby
 	Battle *LbsBattle
 
-	Platform     byte
+	GameDisk     byte
 	PlatformInfo map[string]string
 	Team         uint16
 	GameParam    []byte
@@ -537,19 +537,19 @@ func (p *LbsPeer) InLobbyChat() bool {
 }
 
 func (p *LbsPeer) IsPS2() bool {
-	return p.Platform == GameDiskPS2
+	return p.GameDisk == GameDiskPS2
 }
 
 func (p *LbsPeer) IsDC() bool {
-	return p.Platform == GameDiskDC1 || p.Platform == GameDiskDC2
+	return p.GameDisk == GameDiskDC1 || p.GameDisk == GameDiskDC2
 }
 
 func (p *LbsPeer) IsDC1() bool {
-	return p.Platform == GameDiskDC1
+	return p.GameDisk == GameDiskDC1
 }
 
 func (p *LbsPeer) IsDC2() bool {
-	return p.Platform == GameDiskDC2
+	return p.GameDisk == GameDiskDC2
 }
 
 func (p *LbsPeer) serve() {
