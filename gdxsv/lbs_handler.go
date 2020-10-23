@@ -1448,7 +1448,7 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 	p.logger.Info("update mcs status", zap.Any("mcs_status", mcsStatus))
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 	p.mcsStatus = &mcsStatus
-	SyncSharedDataMcsToLbs(&mcsStatus)
+	sharedData.SyncMcsToLbs(&mcsStatus)
 })
 
 var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {

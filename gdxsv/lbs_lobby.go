@@ -345,7 +345,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		}
 	}
 
-	ShareMcsGame(McsGame{
+	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
 		GameDisk:   int(l.GameDisk),
@@ -355,7 +355,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	})
 
 	for _, q := range participants {
-		ShareUserWhoIsGoingToBattle(McsUser{
+		sharedData.ShareMcsUser(&McsUser{
 			BattleCode:  b.BattleCode,
 			McsRegion:   b.McsRegion,
 			UserID:      q.UserID,
@@ -374,7 +374,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	}
 
 	if mcsPeer != nil {
-		NotifyLatestLbsStatus(mcsPeer)
+		sharedData.NotifyLatestLbsStatus(mcsPeer)
 	}
 
 	l.app.BroadcastLobbyUserCount(l)
@@ -483,7 +483,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		}
 	}
 
-	ShareMcsGame(McsGame{
+	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
 		GameDisk:   int(l.GameDisk),
@@ -493,7 +493,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	})
 
 	for _, q := range participants {
-		ShareUserWhoIsGoingToBattle(McsUser{
+		sharedData.ShareMcsUser(&McsUser{
 			BattleCode:  b.BattleCode,
 			McsRegion:   b.McsRegion,
 			UserID:      q.UserID,
@@ -512,6 +512,6 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	}
 
 	if mcsPeer != nil {
-		NotifyLatestLbsStatus(mcsPeer)
+		sharedData.NotifyLatestLbsStatus(mcsPeer)
 	}
 }

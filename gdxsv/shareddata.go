@@ -9,20 +9,22 @@ import (
 	"time"
 )
 
-// sharing temporary data between lbs and mcs
-
-var sharedData struct {
+// SharedData holds games and users in matching and shares the information between lbs and mcs.
+type SharedData struct {
 	sync.Mutex
-	battleUsers map[string]McsUser // session_id -> user info
-	battleGames map[string]McsGame // battle_code -> game info
+	mcsUsers map[string]*McsUser // session_id -> user info
+	mcsGames map[string]*McsGame // battle_code -> game info
+}
+
+var sharedData = SharedData{
+	mcsUsers: map[string]*McsUser{},
+	mcsGames: map[string]*McsGame{},
 }
 
 func init() {
-	sharedData.battleUsers = map[string]McsUser{}
-	sharedData.battleGames = map[string]McsGame{}
 	go func() {
 		for {
-			removeOldSharedData()
+			sharedData.RemoveOldSharedData()
 			time.Sleep(time.Minute)
 		}
 	}()
@@ -66,42 +68,41 @@ type McsGame struct {
 }
 
 type McsStatus struct {
-	Region     string    `json:"region,omitempty"`
-	PublicAddr string    `json:"public_addr,omitempty"`
-	Users      []McsUser `json:"users,omitempty"`
-	Games      []McsGame `json:"games,omitempty"`
-	UpdatedAt  time.Time `json:"updated_at,omitempty"`
+	Region     string     `json:"region,omitempty"`
+	PublicAddr string     `json:"public_addr,omitempty"`
+	Users      []*McsUser `json:"users,omitempty"`
+	Games      []*McsGame `json:"games,omitempty"`
+	UpdatedAt  time.Time  `json:"updated_at,omitempty"`
 }
 
 type LbsStatus struct {
-	Users []McsUser `json:"users,omitempty"`
-	Games []McsGame `json:"games,omitempty"`
+	McsUsers []*McsUser `json:"mcs_users,omitempty"`
+	McsGames []*McsGame `json:"mcs_games,omitempty"`
 }
 
-func ShareMcsGame(g McsGame) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	sharedData.battleGames[g.BattleCode] = g
+func (s *SharedData) ShareMcsGame(g *McsGame) {
+	s.Lock()
+	defer s.Unlock()
+	s.mcsGames[g.BattleCode] = g
 }
 
-func ShareUserWhoIsGoingToBattle(u McsUser) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	sharedData.battleUsers[u.SessionID] = u
+func (s *SharedData) ShareMcsUser(u *McsUser) {
+	s.Lock()
+	defer s.Unlock()
+	s.mcsUsers[u.SessionID] = u
 }
 
-func SyncSharedDataMcsToLbs(status *McsStatus) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
+func (s *SharedData) SyncMcsToLbs(status *McsStatus) {
+	s.Lock()
+	defer s.Unlock()
 
 	for _, u := range status.Users {
-		_, ok := sharedData.battleUsers[u.SessionID]
+		_, ok := s.mcsUsers[u.SessionID]
 		if ok {
-			u.UpdatedAt = status.UpdatedAt
-			sharedData.battleUsers[u.SessionID] = u
+			s.mcsUsers[u.SessionID] = u
 
 			if u.State == McsUserStateLeft {
-				delete(sharedData.battleUsers, u.SessionID)
+				delete(s.mcsUsers, u.SessionID)
 				logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
 			}
 		}
@@ -109,128 +110,125 @@ func SyncSharedDataMcsToLbs(status *McsStatus) {
 
 	closedBattleCodes := map[string]bool{}
 	for _, g := range status.Games {
-		_, ok := sharedData.battleGames[g.BattleCode]
+		_, ok := s.mcsGames[g.BattleCode]
 		if ok {
-			g.UpdatedAt = status.UpdatedAt
-			sharedData.battleGames[g.BattleCode] = g
+			s.mcsGames[g.BattleCode] = g
 
 			if g.State == McsGameStateClosed {
 				closedBattleCodes[g.BattleCode] = true
-				delete(sharedData.battleGames, g.BattleCode)
+				delete(s.mcsGames, g.BattleCode)
 				logger.Info("remove mcs game", zap.String("battle_code", g.BattleCode))
 			}
 		}
 	}
 
-	for k, u := range sharedData.battleUsers {
+	for k, u := range s.mcsUsers {
 		if closedBattleCodes[u.BattleCode] {
-			delete(sharedData.battleUsers, k)
+			delete(s.mcsUsers, k)
 			logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
 		}
 	}
 }
 
-func SyncSharedDataLbsToMcs(status *LbsStatus) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
+func (s *SharedData) SyncLbsToMcs(status *LbsStatus) {
+	s.Lock()
+	defer s.Unlock()
 
 	activeBattleCodes := map[string]bool{}
 	activeSessionIDs := map[string]bool{}
 
-	for _, g := range status.Games {
+	for _, g := range status.McsGames {
 		if g.McsAddr != conf.BattlePublicAddr {
 			continue // not my game
 		}
 		activeBattleCodes[g.BattleCode] = true
 
-		if _, ok := sharedData.battleGames[g.BattleCode]; ok {
+		if _, ok := s.mcsGames[g.BattleCode]; ok {
 			continue // already exist
 		}
-		sharedData.battleGames[g.BattleCode] = g
+		s.mcsGames[g.BattleCode] = g
 	}
 
-	for _, u := range status.Users {
+	for _, u := range status.McsUsers {
 		activeSessionIDs[u.SessionID] = true
 
-		if _, ok := sharedData.battleUsers[u.SessionID]; ok {
+		if _, ok := s.mcsUsers[u.SessionID]; ok {
 			continue // already exist
 		}
-		sharedData.battleUsers[u.SessionID] = u
+		s.mcsUsers[u.SessionID] = u
 	}
 
-	for k, g := range sharedData.battleGames {
+	for k, g := range s.mcsGames {
 		if !activeBattleCodes[g.BattleCode] {
-			delete(sharedData.battleGames, k)
+			delete(s.mcsGames, k)
 		}
 	}
 
-	for k, u := range sharedData.battleUsers {
+	for k, u := range s.mcsUsers {
 		if !activeSessionIDs[u.SessionID] {
-			delete(sharedData.battleUsers, k)
+			delete(s.mcsUsers, k)
 		}
 	}
-
-	logger.Info("SyncSharedDataLbsToMcs",
-		zap.Any("users", sharedData.battleUsers),
-		zap.Any("games", sharedData.battleGames))
 }
 
-func GetMcsUsers() []McsUser {
-	sharedData.Lock()
-	defer sharedData.Unlock()
+func (s *SharedData) GetMcsUsers() []*McsUser {
+	s.Lock()
+	defer s.Unlock()
 
-	var ret []McsUser
+	var ret []*McsUser
 
-	for _, u := range sharedData.battleUsers {
-		ret = append(ret, u)
+	for _, u := range s.mcsUsers {
+		v := *u
+		ret = append(ret, &v)
 	}
 
 	return ret
 }
 
-func GetMcsGames() []McsGame {
-	sharedData.Lock()
-	defer sharedData.Unlock()
+func (s *SharedData) GetMcsGames() []*McsGame {
+	s.Lock()
+	defer s.Unlock()
 
-	var ret []McsGame
+	var ret []*McsGame
 
-	for _, g := range sharedData.battleGames {
-		ret = append(ret, g)
+	for _, g := range s.mcsGames {
+		h := *g
+		ret = append(ret, &h)
 	}
 
 	return ret
 }
 
-func getLbsStatusFiltered(mcsAddr string) *LbsStatus {
-	sharedData.Lock()
-	defer sharedData.Unlock()
+func (s *SharedData) getLbsStatusFiltered(mcsAddr string) *LbsStatus {
+	s.Lock()
+	defer s.Unlock()
 
 	st := new(LbsStatus)
 
 	targetBattleCodes := map[string]bool{}
 
-	for _, g := range sharedData.battleGames {
+	for _, g := range s.mcsGames {
 		if g.McsAddr == mcsAddr {
-			st.Games = append(st.Games, g)
+			st.McsGames = append(st.McsGames, g)
 			targetBattleCodes[g.BattleCode] = true
 		}
 	}
 
-	for _, u := range sharedData.battleUsers {
+	for _, u := range s.mcsUsers {
 		if targetBattleCodes[u.BattleCode] {
-			st.Users = append(st.Users, u)
+			st.McsUsers = append(st.McsUsers, u)
 		}
 	}
 
 	return st
 }
 
-func NotifyLatestLbsStatus(mcs *LbsPeer) {
+func (s *SharedData) NotifyLatestLbsStatus(mcs *LbsPeer) {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	jw := json.NewEncoder(zw)
 
-	lbsStatus := getLbsStatusFiltered(mcs.mcsStatus.PublicAddr)
+	lbsStatus := s.getLbsStatusFiltered(mcs.mcsStatus.PublicAddr)
 	logger.Info("NotifyLatestLbsStatus", zap.Any("lbs_status", lbsStatus), zap.String("public_addr", mcs.mcsStatus.PublicAddr))
 
 	err := jw.Encode(lbsStatus)
@@ -253,80 +251,80 @@ func NotifyLatestLbsStatus(mcs *LbsPeer) {
 	mcs.SendMessage(NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(buf.Bytes()).Msg())
 }
 
-func getBattleGameInfo(battleCode string) (McsGame, bool) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	g, ok := sharedData.battleGames[battleCode]
+func (s *SharedData) GetBattleGameInfo(battleCode string) (*McsGame, bool) {
+	s.Lock()
+	defer s.Unlock()
+	g, ok := s.mcsGames[battleCode]
 	return g, ok
 }
 
-func getBattleUserInfo(sessionID string) (McsUser, bool) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	u, ok := sharedData.battleUsers[sessionID]
+func (s *SharedData) GetBattleUserInfo(sessionID string) (*McsUser, bool) {
+	s.Lock()
+	defer s.Unlock()
+	u, ok := s.mcsUsers[sessionID]
 	return u, ok
 }
 
-func updateMcsGameState(battleCode string, newState int) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	g := sharedData.battleGames[battleCode]
-	if g.State < newState {
-		logger.Info("updateMcsGameState",
+func (s *SharedData) UpdateMcsGameState(battleCode string, newState int) {
+	s.Lock()
+	defer s.Unlock()
+	g, ok := s.mcsGames[battleCode]
+	if ok && g.State < newState {
+		logger.Info("UpdateMcsGameState",
 			zap.String("battle_code", battleCode),
 			zap.Int("from", g.State),
 			zap.Int("to", newState))
 		g.State = newState
-		sharedData.battleGames[battleCode] = g
+		s.mcsGames[battleCode] = g
 	}
 }
 
-func updateMcsUserState(sessionID string, newState int) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	u := sharedData.battleUsers[sessionID]
-	if u.State < newState {
-		logger.Info("updateMcsUserState",
+func (s *SharedData) UpdateMcsUserState(sessionID string, newState int) {
+	s.Lock()
+	defer s.Unlock()
+	u, ok := s.mcsUsers[sessionID]
+	if ok && u.State < newState {
+		logger.Info("UpdateMcsUserState",
 			zap.String("session_id", sessionID),
 			zap.Int("from", u.State),
 			zap.Int("to", newState))
 		u.State = newState
-		sharedData.battleUsers[sessionID] = u
+		s.mcsUsers[sessionID] = u
 	}
 }
 
-func removeBattleGameInfo(battleCode string) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	delete(sharedData.battleGames, battleCode)
+func (s *SharedData) RemoveBattleGameInfo(battleCode string) {
+	s.Lock()
+	defer s.Unlock()
+	delete(s.mcsGames, battleCode)
 	logger.Info("remove mcs game", zap.String("battle_code", battleCode))
 }
 
-func removeBattleUserInfo(battleCode string) {
-	sharedData.Lock()
-	defer sharedData.Unlock()
-	for key, u := range sharedData.battleUsers {
+func (s *SharedData) RemoveBattleUserInfo(battleCode string) {
+	s.Lock()
+	defer s.Unlock()
+	for key, u := range s.mcsUsers {
 		if u.BattleCode == battleCode {
-			delete(sharedData.battleUsers, key)
+			delete(s.mcsUsers, key)
 			logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
 		}
 	}
 }
 
-func removeOldSharedData() {
-	sharedData.Lock()
-	defer sharedData.Unlock()
+func (s *SharedData) RemoveOldSharedData() {
+	s.Lock()
+	defer s.Unlock()
 
-	for key, u := range sharedData.battleUsers {
+	for key, u := range s.mcsUsers {
 		if 1.0 <= time.Since(u.UpdatedAt).Hours() {
-			delete(sharedData.battleUsers, key)
+			delete(s.mcsUsers, key)
 			logger.Warn("remove old zombie battle user", zap.String("session_id", key))
 		}
 	}
 
-	for key, g := range sharedData.battleGames {
+	for key, g := range s.mcsGames {
 		if 1.0 <= time.Since(g.UpdatedAt).Hours() {
-			delete(sharedData.battleGames, key)
+			delete(s.mcsGames, key)
 			logger.Warn("remove old zombie game", zap.String("battle_code", key))
 		}
 	}
