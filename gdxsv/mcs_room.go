@@ -118,7 +118,7 @@ func (r *McsRoom) Finalize() {
 	mcs.OnMcsRoomClose(r)
 }
 
-func (r *McsRoom) Join(p McsPeer, u McsUser) {
+func (r *McsRoom) Join(p McsPeer, u *McsUser) {
 	p.SetMcsRoomID(r.game.BattleCode)
 	r.Lock()
 	r.battleLog.Users = append(r.battleLog.Users, &proto.BattleLogUser{

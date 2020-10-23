@@ -121,8 +121,8 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 		PublicAddr: battlePublicAddr,
 		Region:     battleRegion,
 		UpdatedAt:  time.Now(),
-		Users:      []McsUser{},
-		Games:      []McsGame{},
+		Users:      []*McsUser{},
+		Games:      []*McsGame{},
 	}
 
 	var sendStatusBuf bytes.Buffer
@@ -210,7 +210,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 
 						logger.Info("lbs_status updated", zap.Any("lbs_status", &lbsStatus))
 
-						SyncSharedDataLbsToMcs(&lbsStatus)
+						sharedData.SyncLbsToMcs(&lbsStatus)
 					}
 				}
 			}
@@ -225,8 +225,8 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			return ctx.Err()
 		case <-ticker.C:
 			status.UpdatedAt = mcs.LastUpdated()
-			status.Users = GetMcsUsers()
-			status.Games = GetMcsGames()
+			status.Users = sharedData.GetMcsUsers()
+			status.Games = sharedData.GetMcsGames()
 			err = sendMcsStatus()
 			if err != nil {
 				return err
@@ -252,12 +252,12 @@ func (mcs *Mcs) LastUpdated() time.Time {
 }
 
 func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
-	user, ok := getBattleUserInfo(sessionID)
+	user, ok := sharedData.GetBattleUserInfo(sessionID)
 	if !ok {
 		return nil
 	}
 
-	game, ok := getBattleGameInfo(user.BattleCode)
+	game, ok := sharedData.GetBattleGameInfo(user.BattleCode)
 	if !ok {
 		return nil
 	}
@@ -269,20 +269,20 @@ func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	mcs.updated = time.Now()
 	room := mcs.rooms[user.BattleCode]
 	if room == nil {
-		room = newMcsRoom(mcs, &game)
+		room = newMcsRoom(mcs, game)
 		mcs.rooms[user.BattleCode] = room
 	}
 	mcs.mtx.Unlock()
 	room.Join(p, user)
 
-	updateMcsUserState(sessionID, McsUserStateJoined)
-	updateMcsGameState(user.BattleCode, McsGameStateOpened)
+	sharedData.UpdateMcsUserState(sessionID, McsUserStateJoined)
+	sharedData.UpdateMcsGameState(user.BattleCode, McsGameStateOpened)
 
 	return room
 }
 
 func (mcs *Mcs) OnUserLeft(room *McsRoom, sessionID string) {
-	updateMcsUserState(sessionID, McsUserStateLeft)
+	sharedData.UpdateMcsUserState(sessionID, McsUserStateLeft)
 }
 
 func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
@@ -292,9 +292,9 @@ func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
 	mcs.mtx.Unlock()
 
 	if mcsMode {
-		updateMcsGameState(room.game.BattleCode, McsGameStateClosed)
+		sharedData.UpdateMcsGameState(room.game.BattleCode, McsGameStateClosed)
 	} else {
-		removeBattleUserInfo(room.game.BattleCode)
-		removeBattleGameInfo(room.game.BattleCode)
+		sharedData.RemoveBattleUserInfo(room.game.BattleCode)
+		sharedData.RemoveBattleGameInfo(room.game.BattleCode)
 	}
 }
