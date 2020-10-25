@@ -8,6 +8,7 @@ import (
 var (
 	RulePresetDefault   *Rule
 	RulePresetNoRanking *Rule
+	RulePresetExtraCost *Rule
 )
 
 func init() {
@@ -15,6 +16,11 @@ func init() {
 
 	RulePresetNoRanking = baseRule.Clone()
 	RulePresetNoRanking.NoRanking = 1
+
+	RulePresetExtraCost = baseRule.Clone()
+	RulePresetExtraCost.NoRanking = 1
+	RulePresetExtraCost.RenpoVital = 630
+	RulePresetExtraCost.ZeonVital = 630
 }
 
 type Rule struct {

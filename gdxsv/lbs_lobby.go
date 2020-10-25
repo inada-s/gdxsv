@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -9,7 +10,11 @@ import (
 )
 
 type LbsLobby struct {
-	app        *Lbs
+	app *Lbs
+
+	LobbySetting
+	lobbySettingMessages []*LbsMessage
+
 	forceStart bool
 	countDown  int
 	extraCost  bool
@@ -17,8 +22,6 @@ type LbsLobby struct {
 
 	GameDisk   uint8
 	ID         uint16
-	Comment    string
-	McsRegion  string
 	Rule       *Rule
 	Users      map[string]*DBUser
 	RenpoRooms map[uint16]*LbsRoom
@@ -26,28 +29,12 @@ type LbsLobby struct {
 	EntryUsers []string
 }
 
-var regionMapping = map[uint16]string{
-	4:  "asia-east1",
-	5:  "asia-east2",
-	6:  "asia-northeast1",
-	9:  "asia-northeast2",
-	10: "asia-northeast3",
-	11: "asia-south1",
-	12: "asia-southeast1",
-	13: "australia-southeast1",
-	14: "europe-north1",
-	15: "europe-west2",
-	16: "europe-west6",
-	17: "northamerica-northeast1",
-	19: "southamerica-east1",
-	20: "us-central1",
-	21: "us-east1",
-	22: "us-west3",
-}
-
 func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	lobby := &LbsLobby{
-		app:        app,
+		app:                  app,
+		LobbySetting:         *lbsLobbySettings[lobbyID],
+		lobbySettingMessages: nil,
+
 		forceStart: false,
 		countDown:  10,
 		extraCost:  false,
@@ -55,8 +42,6 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 
 		GameDisk:   platform,
 		ID:         lobbyID,
-		Comment:    fmt.Sprintf("<B>Lobby %d<BR><B>Default Server<END>", lobbyID),
-		McsRegion:  "",
 		Rule:       RulePresetDefault.Clone(),
 		Users:      make(map[string]*DBUser),
 		RenpoRooms: make(map[uint16]*LbsRoom),
@@ -70,20 +55,49 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		lobby.ZeonRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamZeon)
 	}
 
-	// Apply special lobby settings
-	// PS2 LobbyID: 1-23
-	// DC2 LobbyID: 2, 4-6, 9-17, 19-22
-	if region, ok := regionMapping[lobby.ID]; ok {
-		lobby.McsRegion = region
-		lobby.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", lobby.McsRegion, gcpLocationName[lobby.McsRegion])
-	}
+	lobby.lobbySettingMessages = lobby.buildLobbySettingMessages()
 
 	return lobby
 }
 
+func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
+	toMsg := func(text string) *LbsMessage {
+		return NewServerNotice(lbsChatMessage).Writer().
+			WriteString("").
+			WriteString("").
+			WriteString(text).
+			Write8(0). // chat_type
+			Write8(0). // id color
+			Write8(0). // handle color
+			Write8(0).Msg() // msg color
+	}
+
+	boolToYesNo := func(yes bool) string {
+		if yes {
+			return "Yes"
+		}
+		return "No"
+	}
+
+	var msgs []*LbsMessage
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "McsRegion", l.McsRegion)))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "DamageLevel", l.Rule.DamageLevel+1)))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Difficulty", l.Rule.Difficulty+1)))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.TeamShuffle))))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/ec /nc Allowed", boolToYesNo(l.EnableExtraCostCmd))))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
+	return msgs
+}
+
 func (l *LbsLobby) canStartBattle() bool {
 	a, b := l.GetLobbyMatchEntryUserCount()
-	return 2 <= a && 2 <= b
+
+	if l.TeamShuffle {
+		return 4 <= a+b
+	} else {
+		return 2 <= a && 2 <= b
+	}
 }
 
 func (l *LbsLobby) ForceStartBattle() {
@@ -155,8 +169,14 @@ func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
 	case TeamNone:
 		l.NotifyLobbyEvent("EXIT", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 	case TeamRenpo:
+		for _, msg := range l.lobbySettingMessages {
+			p.SendMessage(msg)
+		}
 		l.NotifyLobbyEvent("ENTER RENPO", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 	case TeamZeon:
+		for _, msg := range l.lobbySettingMessages {
+			p.SendMessage(msg)
+		}
 		l.NotifyLobbyEvent("ENTER ZEON", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 	}
 }
@@ -240,32 +260,61 @@ func (l *LbsLobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 }
 
 func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
-	a := uint16(0)
-	b := uint16(0)
 	var peers []*LbsPeer
-	for _, userID := range l.EntryUsers {
-		if p := l.app.FindPeer(userID); p != nil {
-			switch p.Team {
-			case TeamRenpo:
-				if a < 2 {
-					peers = append(peers, p)
-				}
-				a++
-			case TeamZeon:
-				if b < 2 {
-					peers = append(peers, p)
-				}
-				b++
+
+	if l.TeamShuffle {
+		for _, userID := range l.EntryUsers {
+			if p := l.app.FindPeer(userID); p != nil {
+				peers = append(peers, p)
+			}
+			if len(peers) == 4 {
+				break
 			}
 		}
+
+		var teams = []uint16{1, 1, 2, 2}
+
+		rand.Shuffle(len(teams), func(i, j int) {
+			teams[i], teams[j] = teams[j], teams[i]
+		})
+
+		for i := 0; i < len(peers); i++ {
+			peers[i].Team = teams[i]
+		}
+
+		sort.SliceStable(peers, func(i, j int) bool {
+			return peers[i].Team < peers[j].Team
+		})
+
+		logger.Info("shuffle team", zap.Any("teams", teams))
+	} else {
+		a := 0
+		b := 0
+		for _, userID := range l.EntryUsers {
+			if p := l.app.FindPeer(userID); p != nil {
+				switch p.Team {
+				case TeamRenpo:
+					if a < 2 {
+						peers = append(peers, p)
+						a++
+					}
+				case TeamZeon:
+					if b < 2 {
+						peers = append(peers, p)
+						b++
+					}
+				}
+			}
+		}
+
+		sort.SliceStable(peers, func(i, j int) bool {
+			return peers[i].Team < peers[j].Team
+		})
 	}
+
 	for _, p := range peers {
 		l.EntryPicked(p)
 	}
-
-	sort.SliceStable(peers, func(i, j int) bool {
-		return peers[i].Team < peers[j].Team
-	})
 
 	return peers
 }
@@ -324,6 +373,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 	}
 
 	participants := l.pickLobbyBattleParticipants()
+
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
