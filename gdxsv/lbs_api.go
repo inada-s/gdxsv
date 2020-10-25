@@ -60,7 +60,6 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			Region     string        `json:"region,omitempty"`
 			Disk       string        `json:"disk,omitempty"`
 			State      string        `json:"state,omitempty"`
-			Users      []*onlineUser `json:"users,omitempty"`
 			UpdatedAt  time.Time     `json:"updated_at,omitempty"`
 		}
 
