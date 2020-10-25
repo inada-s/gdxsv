@@ -61,7 +61,6 @@ cat << 'EOF' > /etc/google-fluentd/config.d/gdxsv.conf
   tag gdxsv-mcs
 </source>
 EOF
-sudo systemctl restart google-fluentd
 
 
 cat << 'EOF' > /home/ubuntu/launch-mcs.sh
@@ -116,6 +115,8 @@ chown ubuntu:ubuntu /var/log/gdxsv-mcs.log
 
 chmod +x /home/ubuntu/launch-mcs.sh
 chmod +x /home/ubuntu/upload-battlelog.sh
+
+systemctl restart google-fluentd
 su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh &'
 su ubuntu -c 'cd /home/ubuntu && nohup ./upload-battlelog.sh &'
 echo "startup-script done"
