@@ -1192,7 +1192,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			}
 			twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
 
-			if userHasJoinedForce && twoOrMorePlayers {
+			if p.Lobby.EnableExtraCostCmd && userHasJoinedForce && twoOrMorePlayers {
 				//Print accepted command + induced action to all users (for clarity + educational purpose)
 				postInLobby(msg)
 				p.Lobby.ForceStartBattle()
@@ -1201,7 +1201,10 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				//only print unaccepted command + hint to sender
 				p.SendMessage(msg)
 
-				if userHasJoinedForce == false {
+				if p.Lobby.EnableForceStartCmd {
+					hint := hintMsgBuilder("/f is disabled in this lobby")
+					p.SendMessage(hint)
+				} else if userHasJoinedForce == false {
 					hint := hintMsgBuilder("Join a force first! (自動選抜→待機)")
 					p.SendMessage(hint)
 				} else if twoOrMorePlayers == false {
@@ -1212,16 +1215,26 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			}
 		} else if text == "／ｅｃ" || text == "／ＥＣ" {
 			//Extra Cost
-			postInLobby(msg)
-			hint := hintMsgBuilder("Cost is set to 630!")
-			postInLobby(hint)
-			p.Lobby.EnableExtraCost()
+			if !p.Lobby.EnableExtraCostCmd {
+				hint := hintMsgBuilder("/ec is disabled in this lobby")
+				p.SendMessage(hint)
+			} else {
+				postInLobby(msg)
+				hint := hintMsgBuilder("Cost is set to 630!")
+				postInLobby(hint)
+				p.Lobby.EnableExtraCost()
+			}
 		} else if text == "／ｎｃ" || text == "／ＮＣ" {
 			//Normal cost
-			postInLobby(msg)
-			hint := hintMsgBuilder("Cost is set to 600!")
-			postInLobby(hint)
-			p.Lobby.DisableExtraCost()
+			if !p.Lobby.EnableExtraCostCmd {
+				hint := hintMsgBuilder("/nc is disabled in this lobby")
+				p.SendMessage(hint)
+			} else {
+				postInLobby(msg)
+				hint := hintMsgBuilder("Cost is set to 600!")
+				postInLobby(hint)
+				p.Lobby.DisableExtraCost()
+			}
 		} else {
 			postInLobby(msg)
 		}
@@ -1314,7 +1327,8 @@ var _ = register(lbsGoToTop, func(p *LbsPeer, m *LbsMessage) {
 	p.app.BroadcastRoomState(room)
 })
 
-func NotifyReadyBattle(p *LbsPeer) {
+func
+NotifyReadyBattle(p *LbsPeer) {
 	p.SendMessage(NewServerNotice(lbsReadyBattle))
 }
 
