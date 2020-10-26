@@ -101,9 +101,10 @@ func init() {
 		},
 		12: {
 			Name:                "地下基地",
-			McsRegion:           "asia-southeast1",
+			McsRegion:           "asia-east1",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			Comment:             "日本vs香港専用",
 		},
 
 		// space lobbies
