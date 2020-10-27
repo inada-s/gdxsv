@@ -104,7 +104,7 @@ func init() {
 			McsRegion:           "asia-east1",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
-			Comment:             "日本vs香港専用",
+			Comment:             "For JP vs HK",
 		},
 
 		// space lobbies
