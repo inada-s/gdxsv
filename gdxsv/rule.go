@@ -16,6 +16,8 @@ func init() {
 
 	RulePresetNoRanking = baseRule.Clone()
 	RulePresetNoRanking.NoRanking = 1
+	RulePresetNoRanking.StageFlag = 3
+	RulePresetNoRanking.MaFlag = 1
 
 	RulePresetExtraCost = baseRule.Clone()
 	RulePresetExtraCost.NoRanking = 1
@@ -52,13 +54,13 @@ type Rule struct {
 var baseRule = &Rule{
 	Difficulty:   3,   // Game Difficulty (zero-indexed)
 	DamageLevel:  2,   // Game DamageLevel (zero-indexed)
-	Timer:        2,   // 2:180sec
+	Timer:        3,   // 2:180sec 3:210sec
 	TeamFlag:     0,   // 1:side select (buggy)
-	StageFlag:    3,   // 1:ground 2:space 3:ground and space
+	StageFlag:    0,   // 0:side7 1:ground 2:space 3:ground and space
 	MsFlag:       1,   // 1:opponent side MS available
 	RenpoVital:   600, // renpo total cost
 	ZeonVital:    600, // zeon total cost
-	MaFlag:       1,   // 1:opponent side MA available
+	MaFlag:       0,   // 1:MA available
 	ReloadFlag:   0,   // 1:unlimited ammo
 	BoostKeep:    0,   // unknown
 	RedarFlag:    0,   // 1:no rader
