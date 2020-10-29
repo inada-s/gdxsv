@@ -1,7 +1,19 @@
 gdxsv
 ---
 
-See the [wiki](https://github.com/inada-s/gdxsv/wiki) for information for development.
+Mobile Suit Gundam: Federation vs. Zeon & DX private game server.
+
+## Introduction
+[Mobile Suit Gundam: Federation vs. Zeon](https://en.wikipedia.org/wiki/Mobile_Suit_Gundam:_Federation_vs._Zeon) was released on Playstation2 and Dreamcast.
+This game has online mode, but the service ended in 2004. This project aims to keep the online mode alive for fans.
+
+
+## Running Server links
+- gdxsv : https://discord.gg/ktRw4JX
+- dreamcastlive : https://dreamcastlive.net/mobile-suit-gundam-federation-vs-zeon-dx/
+
+
+---
 
 ### Directory structures
 
