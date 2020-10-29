@@ -34,18 +34,8 @@ function getStartupScript(version) {
 #!/bin/bash
 echo "startup-script"
 
-apt-get update
-apt-get install -y jq wget curl
-
-if [[ ! -e install-monitoring-agent.sh ]]; then
-  curl -sSO https://dl.google.com/cloudagents/install-monitoring-agent.sh
-  bash install-monitoring-agent.sh
-fi
-
-if [[ ! -e install-logging-agent.sh ]]; then
-  curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
-  bash install-logging-agent.sh
-fi
+apt update
+apt install -y google-osconfig-agent jq wget curl
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
