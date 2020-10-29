@@ -1192,7 +1192,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			}
 			twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
 
-			if p.Lobby.EnableExtraCostCmd && userHasJoinedForce && twoOrMorePlayers {
+			if p.Lobby.EnableForceStartCmd && userHasJoinedForce && twoOrMorePlayers {
 				//Print accepted command + induced action to all users (for clarity + educational purpose)
 				postInLobby(msg)
 				p.Lobby.ForceStartBattle()
