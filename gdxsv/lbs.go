@@ -206,6 +206,14 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 	}
 
 	if p.mcsStatus != nil {
+		if len(p.mcsStatus.Games) != 0 || len(p.mcsStatus.Users) != 0 {
+			logger.Warn("mcs closed during game",
+				zap.Any("games", p.mcsStatus.Games), zap.Any("users", p.mcsStatus.Users))
+			for _, g := range p.mcsStatus.Games {
+				sharedData.RemoveBattleGameInfo(g.BattleCode)
+				sharedData.RemoveBattleUserInfo(g.BattleCode)
+			}
+		}
 		delete(p.app.mcsPeers, p.mcsStatus.PublicAddr)
 		p.mcsStatus = nil
 	}
