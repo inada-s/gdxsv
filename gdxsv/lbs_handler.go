@@ -1201,7 +1201,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				//only print unaccepted command + hint to sender
 				p.SendMessage(msg)
 
-				if p.Lobby.EnableForceStartCmd {
+				if !p.Lobby.EnableForceStartCmd {
 					hint := hintMsgBuilder("/f is disabled in this lobby")
 					p.SendMessage(hint)
 				} else if userHasJoinedForce == false {
