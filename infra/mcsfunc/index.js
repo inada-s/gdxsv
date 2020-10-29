@@ -35,7 +35,9 @@ function getStartupScript(version) {
 echo "startup-script"
 
 apt update
-apt install -y google-osconfig-agent jq wget curl
+# installing google-osconfig-agent fail...
+# apt -y install google-osconfig-agent jq wget curl
+apt -y install jq wget curl
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
@@ -206,6 +208,8 @@ async function getAlloc(req, res) {
             console.log("starting vm...", vm);
             let [operation] = await vm.setMetadata({
                 'startup-script': getStartupScript(version),
+                "enable-osconfig": "TRUE",
+                "enable-guest-attributes": "TRUE",
             });
             await operation.promise();
             [operation] = await vm.start();
@@ -238,6 +242,8 @@ async function getAlloc(req, res) {
                 metadata: {
                     items: [
                         {key: "startup-script", value: getStartupScript(version)},
+                        {key: "enable-osconfig", value: "TRUE"},
+                        {key: "enable-guest-attributes", value: "TRUE"},
                     ],
                 },
                 serviceAccounts: [
