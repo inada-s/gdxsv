@@ -4,6 +4,10 @@ import (
 	"fmt"
 )
 
+const (
+	PingLimitTh = 50
+)
+
 var (
 	lbsLobbySettings map[uint16]*LobbySetting
 )
@@ -18,6 +22,7 @@ type LobbySetting struct {
 	EnableExtraCostCmd  bool
 	EnableForceStartCmd bool
 	TeamShuffle         bool
+	PingLimit           bool
 }
 
 func init() {
@@ -57,13 +62,15 @@ func init() {
 			Name:        "オデッサ",
 			McsRegion:   "asia-east2",
 			TeamShuffle: true,
-			Comment:     "チームシャッフル TeamShuffle",
+			PingLimit:   true,
+			Comment:     "TeamShuffle, PingLimit",
 		},
 		6: {
 			Name:        "ベルファスト",
 			McsRegion:   "asia-northeast1",
 			TeamShuffle: true,
-			Comment:     "チームシャッフル TeamShuffle",
+			PingLimit:   true,
+			Comment:     "TeamShuffle, PingLimit",
 		},
 		7: {
 			// PS2 Only
@@ -110,63 +117,68 @@ func init() {
 		// space lobbies
 		13: {
 			Name:                "ソロモン",
-			McsRegion:           "australia-southeast1",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			Comment:             "Private Room",
 		},
 		14: {
 			Name:                "ソロモン宙域",
-			McsRegion:           "europe-north1",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			Comment:             "Private Room",
 		},
 		15: {
 			Name:                "ア・バオア・クー宙域",
-			McsRegion:           "europe-west2",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			Comment:             "Private Room",
 		},
 		16: {
 			Name:                "ア・バオア・クー外部",
-			McsRegion:           "europe-west6",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			Comment:             "Private Room",
 		},
 		17: {
 			Name:                "ア・バオア・クー内部",
-			McsRegion:           "northamerica-northeast1",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			Comment:             "Private Room",
 		},
 		18: {
 			// PS2 Only
 			Name:                "",
-			McsRegion:           "",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
 			Comment:             "1",
 		},
 		19: {
 			Name:                "衛星軌道1",
-			McsRegion:           "southamerica-east1",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
 		},
 		20: {
 			Name:                "衛星軌道2",
-			McsRegion:           "us-central1",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
 		},
 		21: {
 			Name:                "サイド6宙域",
-			McsRegion:           "us-east1",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
 		},
 		22: {
 			Name:                "サイド7内部",
-			McsRegion:           "us-west3",
+			McsRegion:           "best",
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
 		},
@@ -176,6 +188,9 @@ func init() {
 		locName, ok := gcpLocationName[x.McsRegion]
 		if !ok {
 			locName = "Default Server"
+		}
+		if x.McsRegion == "best" {
+			locName = "Best Server [Auto Detection]"
 		}
 		x.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, x.Comment)
 	}

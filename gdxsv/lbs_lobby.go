@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -81,6 +82,7 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 
 	var msgs []*LbsMessage
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
+	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.PingLimit))))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "McsRegion", l.McsRegion)))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "DamageLevel", l.Rule.DamageLevel+1)))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Difficulty", l.Rule.Difficulty+1)))
@@ -259,7 +261,47 @@ func (l *LbsLobby) GetLobbyMatchEntryUserCount() (uint16, uint16) {
 	return a, b
 }
 
-func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
+func (l *LbsLobby) findBestGCPRegion(peers []*LbsPeer) (string, error) {
+	type regionPing struct {
+		Region string `json:"region"`
+		Ping   int    `json:"ping"`
+	}
+
+	var regionPings []regionPing
+
+	for region := range gcpLocationName {
+		maxRtt := 0
+
+		for _, p := range peers {
+			rtt, err := strconv.Atoi(p.PlatformInfo[region])
+			if rtt <= 0 || err != nil {
+				rtt = 999
+			}
+			if maxRtt < rtt {
+				maxRtt = rtt
+			}
+		}
+
+		regionPings = append(regionPings, regionPing{
+			Region: region,
+			Ping:   maxRtt,
+		})
+	}
+
+	sort.SliceStable(regionPings, func(i, j int) bool {
+		return regionPings[i].Ping < regionPings[j].Ping
+	})
+
+	logger.Info("findBestGCPRegion", zap.Any("regionPings", regionPings))
+
+	if len(regionPings) == 0 || regionPings[0].Ping == 0 || regionPings[0].Ping == 999 {
+		return "", fmt.Errorf("no available region")
+	}
+
+	return regionPings[0].Region, nil
+}
+
+func (l *LbsLobby) getNextLobbyBattleParticipants() []*LbsPeer {
 	var peers []*LbsPeer
 
 	if l.TeamShuffle {
@@ -271,22 +313,6 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 				break
 			}
 		}
-
-		var teams = []uint16{1, 1, 2, 2}
-
-		rand.Shuffle(len(teams), func(i, j int) {
-			teams[i], teams[j] = teams[j], teams[i]
-		})
-
-		for i := 0; i < len(peers); i++ {
-			peers[i].Team = teams[i]
-		}
-
-		sort.SliceStable(peers, func(i, j int) bool {
-			return peers[i].Team < peers[j].Team
-		})
-
-		logger.Info("shuffle team", zap.Any("teams", teams))
 	} else {
 		a := 0
 		b := 0
@@ -306,11 +332,31 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 				}
 			}
 		}
-
-		sort.SliceStable(peers, func(i, j int) bool {
-			return peers[i].Team < peers[j].Team
-		})
 	}
+
+	return peers
+}
+
+func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
+	peers := l.getNextLobbyBattleParticipants()
+
+	if l.TeamShuffle {
+		var teams = []uint16{1, 1, 2, 2}
+
+		rand.Shuffle(len(teams), func(i, j int) {
+			teams[i], teams[j] = teams[j], teams[i]
+		})
+
+		for i := 0; i < len(peers); i++ {
+			peers[i].Team = teams[i]
+		}
+
+		logger.Info("shuffle team", zap.Any("teams", teams))
+	}
+
+	sort.SliceStable(peers, func(i, j int) bool {
+		return peers[i].Team < peers[j].Team
+	})
 
 	for _, p := range peers {
 		l.EntryPicked(p)
@@ -335,14 +381,28 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 		return
 	}
 
+	var mcsRegion = l.McsRegion
 	var mcsPeer *LbsPeer
 	var mcsAddr = conf.BattlePublicAddr
 
-	if McsFuncEnabled() && l.McsRegion != "" {
-		stat := l.app.FindMcs(l.McsRegion)
+	if mcsRegion == "best" {
+		bestRegion, err := l.findBestGCPRegion(l.getNextLobbyBattleParticipants())
+		if err != nil {
+			logger.Error("findBestGCPRegion failed", zap.Error(err))
+			l.NotifyLobbyEvent("", "Failed to find best region.")
+			l.NotifyLobbyEvent("", "Use default server.")
+			mcsRegion = ""
+		} else {
+			logger.Info("findBestGCPRegion", zap.String("best_region", bestRegion))
+			mcsRegion = bestRegion
+		}
+	}
+
+	if McsFuncEnabled() && mcsRegion != "" {
+		stat := l.app.FindMcs(mcsRegion)
 		if stat == nil {
 			logger.Info("mcs status not found")
-			if GoMcsFuncAlloc(l.McsRegion) {
+			if GoMcsFuncAlloc(mcsRegion) {
 				l.NotifyLobbyEvent("", "Allocating game server...")
 			}
 			return
@@ -350,7 +410,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
 		if peer == nil {
-			if GoMcsFuncAlloc(l.McsRegion) {
+			if GoMcsFuncAlloc(mcsRegion) {
 				l.NotifyLobbyEvent("", "Waiting game server...")
 			}
 			return
@@ -362,7 +422,7 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
 
-	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
+	b := NewBattle(l.app, l.ID, l.Rule, mcsRegion, mcsAddr)
 
 	if l.extraCost {
 		ecRule := *l.Rule
@@ -484,13 +544,27 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		return
 	}
 
+	var mcsRegion = l.McsRegion
 	var mcsPeer *LbsPeer
 	var mcsAddr = conf.BattlePublicAddr
 
-	if McsFuncEnabled() && l.McsRegion != "" {
-		stat := l.app.FindMcs(l.McsRegion)
+	if mcsRegion == "best" {
+		bestRegion, err := l.findBestGCPRegion(l.getNextLobbyBattleParticipants())
+		if err != nil {
+			logger.Error("findBestGCPRegion failed", zap.Error(err))
+			l.NotifyLobbyEvent("", "Failed to find best region.")
+			l.NotifyLobbyEvent("", "Use default server.")
+			mcsRegion = ""
+		} else {
+			logger.Info("findBestGCPRegion", zap.String("best_region", bestRegion))
+			mcsRegion = bestRegion
+		}
+	}
+
+	if McsFuncEnabled() && mcsRegion != "" {
+		stat := l.app.FindMcs(mcsRegion)
 		if stat == nil {
-			if GoMcsFuncAlloc(l.McsRegion) {
+			if GoMcsFuncAlloc(mcsRegion) {
 				renpoRoom.NotifyRoomEvent("", "Allocating game server...")
 				zeonRoom.NotifyRoomEvent("", "Allocating game server...")
 			}
@@ -500,7 +574,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
 		if peer == nil {
 			logger.Info("mcs peer not found")
-			if GoMcsFuncAlloc(l.McsRegion) {
+			if GoMcsFuncAlloc(mcsRegion) {
 				renpoRoom.NotifyRoomEvent("", "Waiting game server...")
 				zeonRoom.NotifyRoomEvent("", "Waiting game server...")
 			}
@@ -514,7 +588,7 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	renpoRoom.NotifyRoomEvent("", "START ROOM BATTLE")
 	zeonRoom.NotifyRoomEvent("", "START ROOM BATTLE")
 
-	b := NewBattle(l.app, l.ID, l.Rule, l.McsRegion, mcsAddr)
+	b := NewBattle(l.app, l.ID, l.Rule, mcsRegion, mcsAddr)
 
 	for _, q := range participants {
 		b.Add(q)

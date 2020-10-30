@@ -706,9 +706,28 @@ var _ = register(lbsPlazaJoin, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
+	lobby := p.app.GetLobby(p.GameDisk, lobbyID)
+	if lobby == nil {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			Write8(uint8(0)).Msg())
+		return
+	}
+
+	status := 3 // available
+	if lobby.PingLimit && lobby.McsRegion != "" {
+		rtt, err := strconv.Atoi(p.PlatformInfo[lobby.McsRegion])
+		if err != nil {
+			rtt = 999
+		}
+		if rtt <= 0 || PingLimitTh <= rtt {
+			status = 1 // not available
+		}
+	}
+
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
-		Write8(uint8(3)).Msg())
+		Write8(uint8(status)).Msg())
 })
 
 var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
@@ -718,10 +737,19 @@ var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
-	p.SendMessage(NewServerAnswer(m).Writer().
-		Write16(lobbyID).
-		WriteString(lobby.Comment).
-		Msg())
+
+	rtt, ok := p.PlatformInfo[lobby.McsRegion]
+	if ok {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			WriteString(fmt.Sprintf("<B>[%vms]<B>%s", rtt, lobby.Comment)).
+			Msg())
+	} else {
+		p.SendMessage(NewServerAnswer(m).Writer().
+			Write16(lobbyID).
+			WriteString(lobby.Comment).
+			Msg())
+	}
 })
 
 var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {
@@ -1327,8 +1355,7 @@ var _ = register(lbsGoToTop, func(p *LbsPeer, m *LbsMessage) {
 	p.app.BroadcastRoomState(room)
 })
 
-func
-NotifyReadyBattle(p *LbsPeer) {
+func NotifyReadyBattle(p *LbsPeer) {
 	p.SendMessage(NewServerNotice(lbsReadyBattle))
 }
 
