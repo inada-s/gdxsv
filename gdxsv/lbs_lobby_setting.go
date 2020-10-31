@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	PingLimitTh = 50
+	PingLimitTh = 64
 )
 
 var (
