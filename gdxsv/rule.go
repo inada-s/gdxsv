@@ -8,6 +8,7 @@ import (
 var (
 	RulePresetDefault   *Rule
 	RulePresetNoRanking *Rule
+	RUlePresetNo375MS   *Rule
 	RulePresetExtraCost *Rule
 )
 
@@ -19,11 +20,52 @@ func init() {
 	RulePresetNoRanking.StageFlag = 3
 	RulePresetNoRanking.MaFlag = 1
 
+	RUlePresetNo375MS = baseRule.Clone()
+	RUlePresetNo375MS.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS
+	RUlePresetNo375MS.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS
+
 	RulePresetExtraCost = baseRule.Clone()
 	RulePresetExtraCost.NoRanking = 1
 	RulePresetExtraCost.RenpoVital = 630
 	RulePresetExtraCost.ZeonVital = 630
 }
+
+// DC MSBitMask
+// I investigated with the DC2 version. Not verified elsewhere.
+const (
+	MSMaskAll uint32 = 0xffffffff
+
+	MSMaskDCGundam uint32 = 1 << iota
+	MSMaskDCGuncannon
+	MSMaskDCGM
+	MSMaskDCZaku1
+	MSMaskDCZaku2
+	MSMaskDCZaku2S
+	MSMaskDCGouf
+	MSMaskDCDom
+	MSMaskDCRickDom
+	MSMaskDCGelgoog
+	MSMaskDCGelgoogS
+	MSMaskDCGyan
+	MSMaskDCGogg
+	MSMaskDCAcguy
+	MSMaskDCZgok
+	MSMaskDCZgokS
+	MSMaskDCZock
+	MSMaskDCGuntank
+	MSMaskDCZeong
+	MSMaskDCLGundam
+	MSMaskDCLGM
+	MSMaskDCElmeth
+	MSMaskDCBall
+	MSMaskDCBrawBro
+	MSMaskDCDUMMY24
+	MSMaskDCZakrello
+	MSMaskDCBigro
+	MSMaskDCBigZam
+	MSMaskDCAdzam
+	MSMaskDCGFighter
+)
 
 type Rule struct {
 	Difficulty   byte   `json:"difficulty,omitempty"`
@@ -72,8 +114,8 @@ var baseRule = &Rule{
 	NoRanking:    0,    // 1:no battle record
 	CPUFlag:      0xff, // unknown
 	SelectLook:   1,    // 1:can see opponent's MS choice
-	RenpoMaskDC:  0xffffffff,
-	ZeonMaskDC:   0xffffffff,
+	RenpoMaskDC:  MSMaskAll,
+	ZeonMaskDC:   MSMaskAll,
 	StageNo:      0, // unknown
 }
 
