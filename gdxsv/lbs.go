@@ -378,6 +378,7 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 			}
 		}
 	}
+	lbs.PublishStatusToDiscord()
 }
 
 func (lbs *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
@@ -390,6 +391,7 @@ func (lbs *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
 			p.SendMessage(msg2)
 		}
 	}
+	lbs.PublishStatusToDiscord()
 }
 
 func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
@@ -406,6 +408,7 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 			}
 		}
 	}
+	lbs.PublishStatusToDiscord()
 }
 
 func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
