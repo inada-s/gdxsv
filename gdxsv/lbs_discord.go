@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,7 +34,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	//insert Braille Pattern Blank to create newline at ending
 	addBlankIfRequired := func(s string) string {
 		if strings.HasSuffix(s, "\n") {
-			return s + "⠀"
+			return s + "⠀\n"
 		}
 		return s
 	}
@@ -209,10 +210,22 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 				Value: plazaPeers + "⠀", //insert Braille Pattern Blank to create newline at ending
 			})
 		}
-		for _, l := range lobby {
+		sortedKeys := func(m map[uint16]*LobbyPeers) []uint16 {
+			keys := make([]uint16, len(m))
+			i := 0
+			for k := range m {
+				keys[i] = k
+				i++
+			}
+			sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+			return keys
+		}
+
+		for _, i := range sortedKeys(lobby) {
+			l := lobby[i]
 			lobbyFields = append(lobbyFields, &DiscordEmbedField{
 				Name:  fmt.Sprintf("**%s － %d 人\n%s %s**", l.Name, l.Count, l.RegionName, l.Comment),
-				Value: l.RenpoPeers + addBlankIfRequired(l.ZeonPeers) + l.RenpoRoomPeers + addBlankIfRequired(l.ZeonRoomPeers) + addBlankIfRequired(l.NoForcePeers),
+				Value: addBlankIfRequired(l.RenpoPeers+l.ZeonPeers) + addBlankIfRequired(l.RenpoRoomPeers+l.ZeonRoomPeers) + addBlankIfRequired(l.NoForcePeers),
 			})
 		}
 		payload.Embed = append(payload.Embed, &DiscordEmbed{
@@ -226,7 +239,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		for _, b := range battle {
 			battleFields = append(battleFields, &DiscordEmbedField{
 				Name:  b.RegionName,
-				Value: b.RenpoPeers + addBlankIfRequired(b.ZeonPeers),
+				Value: addBlankIfRequired(b.RenpoPeers + b.ZeonPeers),
 			})
 		}
 		payload.Embed = append(payload.Embed, &DiscordEmbed{
