@@ -91,7 +91,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 					locName = "Default Server"
 				}
 				if u.McsRegion == "best" {
-					locName = "Best Server [Auto Detection]"
+					locName = "Best Server"
 				}
 				battle[u.BattleCode].RegionName = locName
 			}
@@ -143,7 +143,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 						locName = "Default Server"
 					}
 					if u.Lobby.McsRegion == "best" {
-						locName = "Best Server [Auto Detection]"
+						locName = "Best Server"
 					}
 					lobby[u.Lobby.ID].RegionName = locName
 
