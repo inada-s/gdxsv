@@ -23,6 +23,7 @@ type LobbySetting struct {
 	EnableForceStartCmd bool
 	TeamShuffle         bool
 	PingLimit           bool
+	AutoReBattle        int
 }
 
 func init() {
@@ -66,14 +67,16 @@ func init() {
 			McsRegion:   "asia-east2",
 			TeamShuffle: true,
 			PingLimit:   true,
-			Comment:     "TeamShuffle",
+			Comment:     "TeamShuffle 3R",
+			AutoReBattle: 3,
 		},
 		6: {
 			Name:        "ベルファスト",
 			McsRegion:   "asia-northeast1",
 			TeamShuffle: true,
 			PingLimit:   true,
-			Comment:     "TeamShuffle",
+			Comment:     "TeamShuffle 3R",
+			AutoReBattle: 3,
 		},
 		7: {
 			// PS2 Only

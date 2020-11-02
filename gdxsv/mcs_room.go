@@ -27,11 +27,12 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 		mcs:  mcs,
 		game: gameInfo,
 		battleLog: &proto.BattleLogFile{
-			GameDisk:     int32(gameInfo.GameDisk),
-			GdxsvVersion: gdxsvVersion,
-			BattleCode:   gameInfo.BattleCode,
-			RuleBin:      gameInfo.Rule.Serialize(),
-			StartAt:      time.Now().UnixNano(),
+			LogFileVersion: 20201102,
+			GameDisk:       int32(gameInfo.GameDisk),
+			GdxsvVersion:   gdxsvVersion,
+			BattleCode:     gameInfo.BattleCode,
+			RuleBin:        gameInfo.Rule.Serialize(),
+			StartAt:        time.Now().UnixNano(),
 		},
 	}
 }

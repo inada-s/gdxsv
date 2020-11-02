@@ -56,6 +56,9 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		lobby.ZeonRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamZeon)
 	}
 
+	if 0 < lobby.LobbySetting.AutoReBattle {
+		lobby.Rule.AutoRebattle = byte(lobby.LobbySetting.AutoReBattle)
+	}
 	lobby.lobbySettingMessages = lobby.buildLobbySettingMessages()
 
 	return lobby
@@ -87,6 +90,9 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "DamageLevel", l.Rule.DamageLevel+1)))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Difficulty", l.Rule.Difficulty+1)))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.TeamShuffle))))
+	if 0 < l.AutoReBattle {
+		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.AutoReBattle)))
+	}
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/ec /nc Allowed", boolToYesNo(l.EnableExtraCostCmd))))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
 	return msgs
