@@ -50,6 +50,10 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		EntryUsers: make([]string, 0),
 	}
 
+	if lobby.LobbySetting.No375MS {
+		lobby.Rule = RUlePresetNo375MS.Clone()
+	}
+
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
 		lobby.RenpoRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamRenpo)
@@ -59,6 +63,7 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	if 0 < lobby.LobbySetting.AutoReBattle {
 		lobby.Rule.AutoRebattle = byte(lobby.LobbySetting.AutoReBattle)
 	}
+
 	lobby.lobbySettingMessages = lobby.buildLobbySettingMessages()
 
 	return lobby
@@ -93,8 +98,12 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	if 0 < l.AutoReBattle {
 		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.AutoReBattle)))
 	}
+	if l.No375MS {
+		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "No 375 Cost MS", boolToYesNo(l.No375MS))))
+	}
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/ec /nc Allowed", boolToYesNo(l.EnableExtraCostCmd))))
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
+
 	return msgs
 }
 

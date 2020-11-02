@@ -24,6 +24,7 @@ type LobbySetting struct {
 	TeamShuffle         bool
 	PingLimit           bool
 	AutoReBattle        int
+	No375MS             bool
 }
 
 func init() {
@@ -63,19 +64,19 @@ func init() {
 			EnableExtraCostCmd:  true,
 		},
 		5: {
-			Name:        "オデッサ",
-			McsRegion:   "asia-east2",
-			TeamShuffle: true,
-			PingLimit:   true,
-			Comment:     "TeamShuffle 3R",
+			Name:         "オデッサ",
+			McsRegion:    "asia-east2",
+			TeamShuffle:  true,
+			PingLimit:    true,
+			Comment:      "TeamShuffle 3R",
 			AutoReBattle: 3,
 		},
 		6: {
-			Name:        "ベルファスト",
-			McsRegion:   "asia-northeast1",
-			TeamShuffle: true,
-			PingLimit:   true,
-			Comment:     "TeamShuffle 3R",
+			Name:         "ベルファスト",
+			McsRegion:    "asia-northeast1",
+			TeamShuffle:  true,
+			PingLimit:    true,
+			Comment:      "TeamShuffle 3R",
 			AutoReBattle: 3,
 		},
 		7: {
@@ -103,10 +104,12 @@ func init() {
 		},
 		10: {
 			Name:                "グレートキャニオン",
-			McsRegion:           "asia-northeast3",
+			McsRegion:           "asia-northeast1",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
+			No375MS:             true,
+			Comment:             "No 375 Cost MS",
 		},
 		11: {
 			Name:                "ジャブロー",
