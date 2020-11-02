@@ -33,7 +33,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 
 	//insert Braille Pattern Blank to create newline at ending
 	addBlankIfRequired := func(s string) string {
-		if strings.HasSuffix(s, "\n") {
+		if len(s) > 0 {
 			return s + "⠀\n"
 		}
 		return s
@@ -176,12 +176,22 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 				if u.Room != nil {
 					readyColor = "📢"
 				}
-
+				var peer string
 				switch u.Team {
 				case TeamRenpo:
-					lobby[u.Lobby.ID].RenpoPeers += fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+					peer = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+					if u.Room == nil {
+						lobby[u.Lobby.ID].RenpoPeers += peer
+					} else {
+						lobby[u.Lobby.ID].RenpoRoomPeers += peer
+					}
 				case TeamZeon:
-					lobby[u.Lobby.ID].ZeonPeers += fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+					peer = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+					if u.Room == nil {
+						lobby[u.Lobby.ID].ZeonPeers += peer
+					} else {
+						lobby[u.Lobby.ID].ZeonRoomPeers += peer
+					}
 				default:
 					lobby[u.Lobby.ID].NoForcePeers += fmt.Sprintf(":grey_question::black_circle: `%s` %s\n", u.UserID, u.Name)
 				}
