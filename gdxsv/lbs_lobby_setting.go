@@ -41,7 +41,6 @@ func init() {
 		2: {
 			Name:                "タクラマカン砂漠",
 			McsRegion:           "",
-			PingLimit:           true,
 			EnableForceStartCmd: true,
 			EnableExtraCostCmd:  true,
 			TeamShuffle:         true,

@@ -51,7 +51,7 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	}
 
 	if lobby.LobbySetting.No375MS {
-		lobby.Rule = RUlePresetNo375MS.Clone()
+		lobby.Rule = RulePresetNo375MS.Clone()
 	}
 
 	for i := 1; i <= maxRoomCount; i++ {

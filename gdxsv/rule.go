@@ -8,7 +8,7 @@ import (
 var (
 	RulePresetDefault   *Rule
 	RulePresetNoRanking *Rule
-	RUlePresetNo375MS   *Rule
+	RulePresetNo375MS   *Rule
 	RulePresetExtraCost *Rule
 )
 
@@ -20,9 +20,9 @@ func init() {
 	RulePresetNoRanking.StageFlag = 3
 	RulePresetNoRanking.MaFlag = 1
 
-	RUlePresetNo375MS = baseRule.Clone()
-	RUlePresetNo375MS.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS
-	RUlePresetNo375MS.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS
+	RulePresetNo375MS = baseRule.Clone()
+	RulePresetNo375MS.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
+	RulePresetNo375MS.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
 
 	RulePresetExtraCost = baseRule.Clone()
 	RulePresetExtraCost.NoRanking = 1
@@ -32,9 +32,9 @@ func init() {
 
 // DC MSBitMask
 // I investigated with the DC2 version. Not verified elsewhere.
-const (
-	MSMaskAll uint32 = 0xffffffff
+const MSMaskAll uint32 = 0xffffffff
 
+const (
 	MSMaskDCGundam uint32 = 1 << iota
 	MSMaskDCGuncannon
 	MSMaskDCGM
