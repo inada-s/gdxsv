@@ -19,6 +19,7 @@ const rateLimit = time.Second
 
 var discordRequestGroup singleflight.Group
 
+//PublishStatusToDiscord : Update server status to the predefined Discord message thru Web Hook
 func (lbs *Lbs) PublishStatusToDiscord() {
 	if len(conf.DiscordWebhookURL) == 0 {
 		return
@@ -103,12 +104,11 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	}
 
 	//Embed limits: Field's value is limited toto 1024 characters
-	splitFieldValues := func(value string) []string {
+	splitEmbedFieldValues := func(value string) []string {
 		var values []string
 
 		//Split field values into 1024 chunks
 		numberOfSplit := int(math.Ceil(float64(len(value)) / 1024))
-		fmt.Println(numberOfSplit)
 
 		splitIndex := 0
 		for i := 0; i < numberOfSplit; i++ {
@@ -129,7 +129,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	}
 
 	//Embed limits: There can be up to 25 fields
-	splitFields := func(fields []*DiscordEmbedField) [][]*DiscordEmbedField {
+	splitEmbedFields := func(fields []*DiscordEmbedField) [][]*DiscordEmbedField {
 		var divided [][]*DiscordEmbedField
 		chunkSize := 25
 
@@ -145,7 +145,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		return divided
 	}
 
-	reduceStringSize := func(s string) string {
+	reducePeerStringSize := func(s string) string {
 		//Reduce size by removing userid
 		re := regexp.MustCompile("`.*?`\\s")
 		s = re.ReplaceAllString(s, "")
@@ -159,6 +159,9 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 
 	payload, _, _ := discordRequestGroup.Do("discord_webhook_publish", func() (interface{}, error) {
 
+		//
+		// Create battle peer list, for the third embed
+		//
 		battle := make(map[string]*BattlePeers)
 
 		battlePeerCount := 0
@@ -196,6 +199,9 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			battlePeersIDs += u.UserID
 		}
 
+		//
+		// Create lobby peer list, for the second embed
+		//
 		var plazaPeers string
 
 		lobby := make(map[uint16]*LobbyPeers)
@@ -287,32 +293,42 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			lobbyPeerCount++
 		}
 
+		//
+		// Handle oversized string
+		//
 		embedAccumulatedLobbyStringLength := len(accumulatedLobbyPeersString)
-		println("Lobby Embed length: ", embedAccumulatedLobbyStringLength)
+		logger.Info("Lobby string Size", zap.Int("length", embedAccumulatedLobbyStringLength))
 		if embedAccumulatedLobbyStringLength > 6000 {
-			plazaPeers = reduceStringSize(plazaPeers)
+			plazaPeers = reducePeerStringSize(plazaPeers)
 
 			for _, l := range lobby {
-				l.RenpoPeers = reduceStringSize(l.RenpoPeers)
-				l.ZeonPeers = reduceStringSize(l.ZeonPeers)
-				l.RenpoRoomPeers = reduceStringSize(l.RenpoRoomPeers)
-				l.ZeonRoomPeers = reduceStringSize(l.ZeonRoomPeers)
-				l.NoForcePeers = reduceStringSize(l.NoForcePeers)
+				l.RenpoPeers = reducePeerStringSize(l.RenpoPeers)
+				l.ZeonPeers = reducePeerStringSize(l.ZeonPeers)
+				l.RenpoRoomPeers = reducePeerStringSize(l.RenpoRoomPeers)
+				l.ZeonRoomPeers = reducePeerStringSize(l.ZeonRoomPeers)
+				l.NoForcePeers = reducePeerStringSize(l.NoForcePeers)
 			}
+			logger.Info("Lobby string size reduced!")
 		}
 		embedAccumulatedBattleStringLength := len(accumulatedBattlePeersString)
-		println("Battle Embed length: ", embedAccumulatedBattleStringLength)
+		logger.Info("Battle string Size", zap.Int("length", embedAccumulatedBattleStringLength))
 		if embedAccumulatedBattleStringLength > 6000 {
 			for _, b := range battle {
-				b.RenpoPeers = reduceStringSize(b.RenpoPeers)
-				b.ZeonPeers = reduceStringSize(b.ZeonPeers)
+				b.RenpoPeers = reducePeerStringSize(b.RenpoPeers)
+				b.ZeonPeers = reducePeerStringSize(b.ZeonPeers)
 			}
+			logger.Info("Battle string size reduced!")
 		}
 
+		//
+		// Start to create JSON payload
+		//
 		payload := new(statusPayload)
 		payload.BotName = "Live Status"
 
+		//
 		//1st Embed, online count
+		//
 		payload.Embed = append(payload.Embed, &DiscordEmbed{
 			Title:     fmt.Sprintf("**同時接続数 %d 人 **", lobbyPeerCount+battlePeerCount),
 			Color:     52224,
@@ -320,10 +336,14 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			Timestamp: fmt.Sprintf(time.Now().UTC().Format("2006-01-02T15:04:05.000Z")),
 		})
 
+		//
 		//2nd Embed, lobby count
+		//
+
+		//1st Field is always Plaza
 		var lobbyFields []*DiscordEmbedField
 		if plazaPeerCount > 0 {
-			for i, v := range splitFieldValues(plazaPeers) {
+			for i, v := range splitEmbedFieldValues(plazaPeers) {
 				name := "⠀"
 				if i == 0 {
 					name = fmt.Sprintf("**Plaza － %d 人**", plazaPeerCount)
@@ -336,12 +356,14 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			}
 		}
 
+		//Following Fields would be all lobbies
+		//Use sortedKeys to fix the ordering
 		for _, i := range sortedKeys(lobby) {
 			l := lobby[i]
 
 			value := addBlankIfRequired(l.RenpoPeers+l.ZeonPeers) + addBlankIfRequired(l.RenpoRoomPeers+l.ZeonRoomPeers) + addBlankIfRequired(l.NoForcePeers)
 
-			for i, v := range splitFieldValues(value) {
+			for i, v := range splitEmbedFieldValues(value) {
 				name := "⠀"
 				if i == 0 {
 					name = fmt.Sprintf("**%s － %d 人\n%s %s**", l.Name, l.Count, l.RegionName, l.Comment)
@@ -354,8 +376,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			}
 
 		}
-
-		for i, fields := range splitFields(lobbyFields) {
+		for i, fields := range splitEmbedFields(lobbyFields) {
 			description := ""
 			if i == 0 {
 				description = fmt.Sprintf("🌐 **待機中 %d 人**", lobbyPeerCount)
@@ -367,13 +388,15 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			})
 		}
 
+		//
 		//3rd Embed, battle count
+		//
 		var battleFields []*DiscordEmbedField
 		for _, b := range battle {
 
 			value := addBlankIfRequired(b.RenpoPeers + b.ZeonPeers)
 
-			for i, v := range splitFieldValues(value) {
+			for i, v := range splitEmbedFieldValues(value) {
 				name := "⠀"
 				if i == 0 {
 					name = b.RegionName
@@ -385,8 +408,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 				})
 			}
 		}
-
-		for i, fields := range splitFields(battleFields) {
+		for i, fields := range splitEmbedFields(battleFields) {
 			description := ""
 			if i == 0 {
 				description = fmt.Sprintf("💥 **戦闘中 %d 人**", battlePeerCount)
@@ -403,11 +425,13 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 
 	var jsonData []byte
 	jsonData, err := json.Marshal(payload)
+
 	if err != nil {
 		logger.Error("Failed to create Discord JSON", zap.Error(err))
 		return
 	}
-	logger.Info(string(jsonData))
+	jsonString := string(jsonData)
+	logger.Info(jsonString, zap.Int("length", len(jsonString)))
 
 	req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
@@ -418,5 +442,5 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		logger.Error("Failed to publish to Discord", zap.Error(err))
 	}
 	defer resp.Body.Close()
-	logger.Info("Discord Webhook done", zap.String("Status", resp.Status))
+	logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
 }
