@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"regexp"
@@ -442,5 +443,14 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		logger.Error("Failed to publish to Discord", zap.Error(err))
 	}
 	defer resp.Body.Close()
+
 	logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
+	if resp.Status == "400 Bad Request" {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			logger.Error("Failed to read response body", zap.Error(err))
+			return
+		}
+		logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
+	}
 }
