@@ -20,142 +20,143 @@ const rateLimit = time.Second
 
 var discordRequestGroup singleflight.Group
 
+type onlineUser struct {
+	UserID     string `json:"user_id,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Team       string `json:"team,omitempty"`
+	BattleCode string `json:"battle_code,omitempty"`
+	Disk       string `json:"disk,omitempty"`
+}
+
+type discordEmbedFooter struct {
+	Text string `json:"text,omitempty"`
+}
+
+type discordEmbedField struct {
+	Name   string `json:"name,omitempty"`
+	Value  string `json:"value,omitempty"`
+	Inline bool   `json:"inline,omitempty"`
+}
+
+type discordEmbed struct {
+	Title       string               `json:"title,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Color       int                  `json:"color,omitempty"`
+	Footer      *discordEmbedFooter  `json:"footer,omitempty"`
+	Timestamp   string               `json:"timestamp,omitempty"`
+	Fields      []*discordEmbedField `json:"fields,omitempty"`
+}
+
+type statusPayload struct {
+	Embed   []*discordEmbed `json:"embeds"`
+	BotName string          `json:"username"`
+}
+
+type lobbyPeers struct {
+	Count          int
+	Name           string
+	RegionName     string
+	Comment        string
+	RenpoPeers     string
+	ZeonPeers      string
+	RenpoRoomPeers string
+	ZeonRoomPeers  string
+	NoForcePeers   string
+}
+
+type battlePeers struct {
+	RegionName string
+	RenpoPeers string
+	ZeonPeers  string
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedKeys(m map[uint16]*lobbyPeers) []uint16 {
+	keys := make([]uint16, len(m))
+	i := 0
+	for k := range m {
+		keys[i] = k
+		i++
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	return keys
+}
+
+//insert Braille Pattern Blank to create newline at ending
+func addBlankIfRequired(s string) string {
+	if len(s) > 0 {
+		return s + "⠀\n"
+	}
+	return s
+}
+
+//Embed limits: Field's value is limited toto 1024 characters
+func splitEmbedFieldValues(value string) []string {
+	var values []string
+
+	//Split field values into 1024 chunks
+	numberOfSplit := int(math.Ceil(float64(len(value)) / 1024))
+
+	splitIndex := 0
+	for i := 0; i < numberOfSplit; i++ {
+		splitIndex = len(value) / (numberOfSplit - i)
+		firstHalf := value[:splitIndex]
+		splitIndex = strings.LastIndex(firstHalf, "\n")
+
+		values = append(values, value[:splitIndex])
+		// splitIndex += 2
+		value = value[splitIndex:]
+	}
+	//do not create empty fields
+	if value != "\n" {
+		values = append(values, value)
+	}
+
+	return values
+}
+
+//Embed limits: There can be up to 25 fields
+func splitEmbedFields(fields []*discordEmbedField) [][]*discordEmbedField {
+	var divided [][]*discordEmbedField
+	chunkSize := 25
+
+	for i := 0; i < len(fields); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(fields) {
+			end = len(fields)
+		}
+
+		divided = append(divided, fields[i:end])
+	}
+	return divided
+}
+
+func reducePeerStringSize(s string) string {
+	//Reduce size by removing userid
+	re := regexp.MustCompile("`.*?`\\s")
+	s = re.ReplaceAllString(s, "")
+
+	//Reduce size by replacing custom emoji (from 28 char to 1 char)
+	s = strings.ReplaceAll(s, "<:gundam:772467554160738355>", "🌎")
+	s = strings.ReplaceAll(s, "<:zaku:772467605008023563>", "🪐")
+
+	return s
+}
+
 //PublishStatusToDiscord : Update server status to the predefined Discord message thru Web Hook
 func (lbs *Lbs) PublishStatusToDiscord() {
 	if len(conf.DiscordWebhookURL) == 0 {
 		return
 	}
-
-	type onlineUser struct {
-		UserID     string `json:"user_id,omitempty"`
-		Name       string `json:"name,omitempty"`
-		Team       string `json:"team,omitempty"`
-		BattleCode string `json:"battle_code,omitempty"`
-		Disk       string `json:"disk,omitempty"`
-	}
-
-	type DiscordEmbedFooter struct {
-		Text string `json:"text,omitempty"`
-	}
-
-	type DiscordEmbedField struct {
-		Name   string `json:"name,omitempty"`
-		Value  string `json:"value,omitempty"`
-		Inline bool   `json:"inline,omitempty"`
-	}
-
-	type DiscordEmbed struct {
-		Title       string               `json:"title,omitempty"`
-		Description string               `json:"description,omitempty"`
-		Color       int                  `json:"color,omitempty"`
-		Footer      *DiscordEmbedFooter  `json:"footer,omitempty"`
-		Timestamp   string               `json:"timestamp,omitempty"`
-		Fields      []*DiscordEmbedField `json:"fields,omitempty"`
-	}
-
-	type statusPayload struct {
-		Embed   []*DiscordEmbed `json:"embeds"`
-		BotName string          `json:"username"`
-	}
-
-	type LobbyPeers struct {
-		Count          int
-		Name           string
-		RegionName     string
-		Comment        string
-		RenpoPeers     string
-		ZeonPeers      string
-		RenpoRoomPeers string
-		ZeonRoomPeers  string
-		NoForcePeers   string
-	}
-
-	type BattlePeers struct {
-		RegionName string
-		RenpoPeers string
-		ZeonPeers  string
-	}
-
-	contains := func(s []string, e string) bool {
-		for _, a := range s {
-			if a == e {
-				return true
-			}
-		}
-		return false
-	}
-
-	sortedKeys := func(m map[uint16]*LobbyPeers) []uint16 {
-		keys := make([]uint16, len(m))
-		i := 0
-		for k := range m {
-			keys[i] = k
-			i++
-		}
-		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-		return keys
-	}
-
-	//insert Braille Pattern Blank to create newline at ending
-	addBlankIfRequired := func(s string) string {
-		if len(s) > 0 {
-			return s + "⠀\n"
-		}
-		return s
-	}
-
-	//Embed limits: Field's value is limited toto 1024 characters
-	splitEmbedFieldValues := func(value string) []string {
-		var values []string
-
-		//Split field values into 1024 chunks
-		numberOfSplit := int(math.Ceil(float64(len(value)) / 1024))
-
-		splitIndex := 0
-		for i := 0; i < numberOfSplit; i++ {
-			splitIndex = len(value) / (numberOfSplit - i)
-			firstHalf := value[:splitIndex]
-			splitIndex = strings.LastIndex(firstHalf, "\n")
-
-			values = append(values, value[:splitIndex])
-			// splitIndex += 2
-			value = value[splitIndex:]
-		}
-		//do not create empty fields
-		if value != "\n" {
-			values = append(values, value)
-		}
-
-		return values
-	}
-
-	//Embed limits: There can be up to 25 fields
-	splitEmbedFields := func(fields []*DiscordEmbedField) [][]*DiscordEmbedField {
-		var divided [][]*DiscordEmbedField
-		chunkSize := 25
-
-		for i := 0; i < len(fields); i += chunkSize {
-			end := i + chunkSize
-
-			if end > len(fields) {
-				end = len(fields)
-			}
-
-			divided = append(divided, fields[i:end])
-		}
-		return divided
-	}
-
-	reducePeerStringSize := func(s string) string {
-		//Reduce size by removing userid
-		re := regexp.MustCompile("`.*?`\\s")
-		s = re.ReplaceAllString(s, "")
-
-		//Reduce size by replacing custom emoji (from 28 char to 1 char)
-		s = strings.ReplaceAll(s, "<:gundam:772467554160738355>", "🌎")
-		s = strings.ReplaceAll(s, "<:zaku:772467605008023563>", "🪐")
-
-		return s
 	}
 
 	payload, _, _ := discordRequestGroup.Do("discord_webhook_publish", func() (interface{}, error) {
@@ -163,7 +164,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		//
 		// Create battle peer list, for the third embed
 		//
-		battle := make(map[string]*BattlePeers)
+		battle := make(map[string]*battlePeers)
 
 		battlePeerCount := 0
 		var battlePeersIDs string
@@ -172,7 +173,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		for _, u := range sharedData.GetMcsUsers() {
 			_, exists := battle[u.BattleCode]
 			if exists == false {
-				battle[u.BattleCode] = new(BattlePeers)
+				battle[u.BattleCode] = new(battlePeers)
 
 				locName, ok := gcpLocationName[u.McsRegion]
 				if !ok {
@@ -205,7 +206,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		//
 		var plazaPeers string
 
-		lobby := make(map[uint16]*LobbyPeers)
+		lobby := make(map[uint16]*lobbyPeers)
 
 		plazaPeerCount := 0
 		lobbyPeerCount := 0
@@ -227,7 +228,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 				} else {
 					_, exists := lobby[u.Lobby.ID]
 					if exists == false {
-						lobby[u.Lobby.ID] = new(LobbyPeers)
+						lobby[u.Lobby.ID] = new(lobbyPeers)
 						lobby[u.Lobby.ID].Name = u.Lobby.Name
 
 						locName, ok := gcpLocationName[u.Lobby.McsRegion]
@@ -332,10 +333,10 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		//
 		//1st Embed, online count
 		//
-		payload.Embed = append(payload.Embed, &DiscordEmbed{
+		payload.Embed = append(payload.Embed, &discordEmbed{
 			Title:     fmt.Sprintf("**同時接続数 %d 人 **", lobbyPeerCount+battlePeerCount),
 			Color:     52224,
-			Footer:    &DiscordEmbedFooter{Text: "🕒"},
+			Footer:    &discordEmbedFooter{Text: "🕒"},
 			Timestamp: fmt.Sprintf(time.Now().UTC().Format("2006-01-02T15:04:05.000Z")),
 		})
 
@@ -344,7 +345,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		//
 
 		//1st Field is always Plaza
-		var lobbyFields []*DiscordEmbedField
+		var lobbyFields []*discordEmbedField
 		if plazaPeerCount > 0 {
 			for i, v := range splitEmbedFieldValues(plazaPeers) {
 				name := "⠀"
@@ -352,7 +353,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 					name = fmt.Sprintf("**Plaza － %d 人**", plazaPeerCount)
 				}
 
-				lobbyFields = append(lobbyFields, &DiscordEmbedField{
+				lobbyFields = append(lobbyFields, &discordEmbedField{
 					Name:  name,
 					Value: v,
 				})
@@ -372,7 +373,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 					name = fmt.Sprintf("**%s － %d 人\n%s %s**", l.Name, l.Count, l.RegionName, l.Comment)
 				}
 
-				lobbyFields = append(lobbyFields, &DiscordEmbedField{
+				lobbyFields = append(lobbyFields, &discordEmbedField{
 					Name:  name,
 					Value: v,
 				})
@@ -384,7 +385,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			if i == 0 {
 				description = fmt.Sprintf("🌐 **待機中 %d 人**", lobbyPeerCount)
 			}
-			payload.Embed = append(payload.Embed, &DiscordEmbed{
+			payload.Embed = append(payload.Embed, &discordEmbed{
 				Description: description,
 				Color:       24041,
 				Fields:      fields,
@@ -394,7 +395,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 		//
 		//3rd Embed, battle count
 		//
-		var battleFields []*DiscordEmbedField
+		var battleFields []*discordEmbedField
 		for _, b := range battle {
 
 			value := addBlankIfRequired(b.RenpoPeers + b.ZeonPeers)
@@ -405,7 +406,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 					name = b.RegionName
 				}
 
-				battleFields = append(battleFields, &DiscordEmbedField{
+				battleFields = append(battleFields, &discordEmbedField{
 					Name:  name,
 					Value: v,
 				})
@@ -416,7 +417,7 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 			if i == 0 {
 				description = fmt.Sprintf("💥 **戦闘中 %d 人**", battlePeerCount)
 			}
-			payload.Embed = append(payload.Embed, &DiscordEmbed{
+			payload.Embed = append(payload.Embed, &discordEmbed{
 				Description: description,
 				Color:       13179394,
 				Fields:      fields,
