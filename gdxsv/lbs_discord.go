@@ -212,87 +212,89 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 
 		var accumulatedLobbyPeersString string
 
-		for _, u := range lbs.userPeers {
+		lbs.Locked(func(lbs *Lbs) {
+			for _, u := range lbs.userPeers {
 
-			//Already in battle, hidden from lobby
-			if strings.Contains(battlePeersIDs, u.UserID) {
-				continue
-			}
-
-			if u.Lobby == nil {
-				plazaPeers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
-				accumulatedLobbyPeersString += plazaPeers
-				plazaPeerCount++
-			} else {
-				_, exists := lobby[u.Lobby.ID]
-				if exists == false {
-					lobby[u.Lobby.ID] = new(LobbyPeers)
-					lobby[u.Lobby.ID].Name = u.Lobby.Name
-
-					locName, ok := gcpLocationName[u.Lobby.McsRegion]
-					if !ok {
-						locName = "Default Server"
-					}
-					if u.Lobby.McsRegion == "best" {
-						locName = "Best Server"
-					}
-					lobby[u.Lobby.ID].RegionName = locName
-
-					var comment string
-					if strings.Contains(u.Lobby.Comment, "TeamShuffle") {
-						comment += "🔀"
-					}
-					if strings.Contains(u.Lobby.Comment, "For JP vs HK") {
-						comment += "( 🇯🇵 vs 🇭🇰 )"
-					}
-					if strings.Contains(u.Lobby.Comment, "Private Room") {
-						comment += "🔒"
-					}
-					if strings.Contains(u.Lobby.Comment, "No 375 Cost MS") {
-						comment += "⛔375"
-					}
-					if strings.Contains(u.Lobby.Comment, "3R") {
-						comment += "3️⃣"
-					}
-
-					lobby[u.Lobby.ID].Comment = comment
+				//Already in battle, hidden from lobby
+				if strings.Contains(battlePeersIDs, u.UserID) {
+					continue
 				}
 
-				var readyColor string
-				if contains(u.Lobby.EntryUsers, u.UserID) {
-					readyColor = "🟢"
+				if u.Lobby == nil {
+					plazaPeers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
+					accumulatedLobbyPeersString += plazaPeers
+					plazaPeerCount++
 				} else {
-					readyColor = "🔴"
-				}
-				if u.Room != nil {
-					readyColor = "📢"
-				}
-				var peer string
-				switch u.Team {
-				case TeamRenpo:
-					peer = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
-					if u.Room == nil {
-						lobby[u.Lobby.ID].RenpoPeers += peer
-					} else {
-						lobby[u.Lobby.ID].RenpoRoomPeers += peer
-					}
-				case TeamZeon:
-					peer = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
-					if u.Room == nil {
-						lobby[u.Lobby.ID].ZeonPeers += peer
-					} else {
-						lobby[u.Lobby.ID].ZeonRoomPeers += peer
-					}
-				default:
-					peer = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
-					lobby[u.Lobby.ID].NoForcePeers += peer
-				}
-				accumulatedLobbyPeersString += peer
+					_, exists := lobby[u.Lobby.ID]
+					if exists == false {
+						lobby[u.Lobby.ID] = new(LobbyPeers)
+						lobby[u.Lobby.ID].Name = u.Lobby.Name
 
-				lobby[u.Lobby.ID].Count++
+						locName, ok := gcpLocationName[u.Lobby.McsRegion]
+						if !ok {
+							locName = "Default Server"
+						}
+						if u.Lobby.McsRegion == "best" {
+							locName = "Best Server"
+						}
+						lobby[u.Lobby.ID].RegionName = locName
+
+						var comment string
+						if strings.Contains(u.Lobby.Comment, "TeamShuffle") {
+							comment += "🔀"
+						}
+						if strings.Contains(u.Lobby.Comment, "For JP vs HK") {
+							comment += "( 🇯🇵 vs 🇭🇰 )"
+						}
+						if strings.Contains(u.Lobby.Comment, "Private Room") {
+							comment += "🔒"
+						}
+						if strings.Contains(u.Lobby.Comment, "No 375 Cost MS") {
+							comment += "⛔375"
+						}
+						if strings.Contains(u.Lobby.Comment, "3R") {
+							comment += "3️⃣"
+						}
+
+						lobby[u.Lobby.ID].Comment = comment
+					}
+
+					var readyColor string
+					if contains(u.Lobby.EntryUsers, u.UserID) {
+						readyColor = "🟢"
+					} else {
+						readyColor = "🔴"
+					}
+					if u.Room != nil {
+						readyColor = "📢"
+					}
+					var peer string
+					switch u.Team {
+					case TeamRenpo:
+						peer = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+						if u.Room == nil {
+							lobby[u.Lobby.ID].RenpoPeers += peer
+						} else {
+							lobby[u.Lobby.ID].RenpoRoomPeers += peer
+						}
+					case TeamZeon:
+						peer = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+						if u.Room == nil {
+							lobby[u.Lobby.ID].ZeonPeers += peer
+						} else {
+							lobby[u.Lobby.ID].ZeonRoomPeers += peer
+						}
+					default:
+						peer = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
+						lobby[u.Lobby.ID].NoForcePeers += peer
+					}
+					accumulatedLobbyPeersString += peer
+
+					lobby[u.Lobby.ID].Count++
+				}
+				lobbyPeerCount++
 			}
-			lobbyPeerCount++
-		}
+		})
 
 		//
 		// Handle oversized string
