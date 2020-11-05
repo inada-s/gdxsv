@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,8 +17,7 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-const rateLimit = time.Second
-
+var retryTimer *time.Timer
 var discordRequestGroup singleflight.Group
 
 type onlineUser struct {
@@ -157,6 +157,9 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	if len(conf.DiscordWebhookURL) == 0 {
 		return
 	}
+	//Stop any retry request since new request appeared
+	if retryTimer != nil {
+		retryTimer.Stop()
 	}
 
 	payload, _, _ := discordRequestGroup.Do("discord_webhook_publish", func() (interface{}, error) {
@@ -437,23 +440,38 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	jsonString := string(jsonData)
 	logger.Info(jsonString, zap.Int("length", len(jsonString)))
 
-	req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, bytes.NewBuffer(jsonData))
-	req.Header.Set("Content-Type", "application/json")
+	var publish func(jsonData []byte)
+	publish = func(jsonData []byte) {
+		req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, bytes.NewBuffer(jsonData))
+		req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		logger.Error("Failed to publish to Discord", zap.Error(err))
-	}
-	defer resp.Body.Close()
-
-	logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
-	if resp.Status == "400 Bad Request" {
-		body, err := ioutil.ReadAll(resp.Body)
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
-			logger.Error("Failed to read response body", zap.Error(err))
-			return
+			logger.Error("Failed to publish to Discord", zap.Error(err))
 		}
-		logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
+		defer resp.Body.Close()
+
+		logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
+		if resp.Status == "400 Bad Request" {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				logger.Error("Failed to read response body", zap.Error(err))
+				return
+			}
+			logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
+		} else if resp.Status == "429 Too Many Requests" {
+
+			resetepochTime := resp.Header.Get("x-ratelimit-reset")
+			sec, _ := strconv.ParseInt(resetepochTime, 10, 64)
+			logger.Info("Rate limit", zap.Int64("x-ratelimit-reset", sec))
+
+			retryTimer = time.AfterFunc(time.Unix(sec, 0).Sub(time.Now()), func() {
+				logger.Info("Retrying last request", zap.Int64("epoch", time.Now().Unix()))
+				publish(jsonData)
+			})
+		}
 	}
+
+	publish(jsonData)
 }
