@@ -312,13 +312,6 @@ func publish(lbs *Lbs) {
 		}
 	})
 
-	if lobby[2] != nil {
-		for i := 0; i < 4; i++ {
-			lobby[2].NoForcePeers += lobby[2].NoForcePeers
-			lobby[2].RenpoPeers += lobby[2].RenpoPeers
-		}
-	}
-
 	//
 	// Handle oversized string
 	//
