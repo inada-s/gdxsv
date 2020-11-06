@@ -20,14 +20,6 @@ import (
 var retryTimer *time.Timer
 var jobIsRunning uint32
 
-type onlineUser struct {
-	UserID     string `json:"user_id,omitempty"`
-	Name       string `json:"name,omitempty"`
-	Team       string `json:"team,omitempty"`
-	BattleCode string `json:"battle_code,omitempty"`
-	Disk       string `json:"disk,omitempty"`
-}
-
 type discordEmbedFooter struct {
 	Text string `json:"text,omitempty"`
 }
