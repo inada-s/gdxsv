@@ -11,14 +11,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
-	"golang.org/x/sync/singleflight"
 )
 
 var retryTimer *time.Timer
-var discordRequestGroup singleflight.Group
+var jobIsRunning uint32
 
 type onlineUser struct {
 	UserID     string `json:"user_id,omitempty"`
@@ -157,279 +157,306 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	if len(conf.DiscordWebhookURL) == 0 {
 		return
 	}
+
+	if atomic.CompareAndSwapUint32(&jobIsRunning, 0, 1) {
+		go func() {
+			publish(lbs)
+			atomic.StoreUint32(&jobIsRunning, 0)
+		}()
+	} else {
+		logger.Info("Request blocked!")
+		if retryTimer != nil {
+			retryTimer.Stop()
+		}
+		//Retry last blocked request after 0.5s
+		retryTimer = time.AfterFunc(time.Second/2, func() {
+			logger.Info("Retrying!")
+			publish(lbs)
+		})
+	}
+}
+
+func publish(lbs *Lbs) {
+
 	//Stop any retry request since new request appeared
 	if retryTimer != nil {
 		retryTimer.Stop()
+		retryTimer = nil
 	}
 
-	payload, _, _ := discordRequestGroup.Do("discord_webhook_publish", func() (interface{}, error) {
+	//
+	// Create battle peer list, for the third embed
+	//
+	battle := make(map[string]*battlePeers)
 
-		//
-		// Create battle peer list, for the third embed
-		//
-		battle := make(map[string]*battlePeers)
+	battlePeerCount := 0
+	var battlePeersIDs string
+	var accumulatedBattlePeersString string
 
-		battlePeerCount := 0
-		var battlePeersIDs string
-		var accumulatedBattlePeersString string
+	for _, u := range sharedData.GetMcsUsers() {
+		_, exists := battle[u.BattleCode]
+		if exists == false {
+			battle[u.BattleCode] = new(battlePeers)
 
-		for _, u := range sharedData.GetMcsUsers() {
-			_, exists := battle[u.BattleCode]
-			if exists == false {
-				battle[u.BattleCode] = new(battlePeers)
-
-				locName, ok := gcpLocationName[u.McsRegion]
-				if !ok {
-					locName = "Default Server"
-				}
-				if u.McsRegion == "best" {
-					locName = "Best Server"
-				}
-				battle[u.BattleCode].RegionName = locName
-				accumulatedBattlePeersString += locName
+			locName, ok := gcpLocationName[u.McsRegion]
+			if !ok {
+				locName = "Default Server"
 			}
-
-			var peer string
-			switch u.Side {
-			case TeamRenpo:
-				peer = fmt.Sprintf("<:gundam:772467554160738355> `%s` %s\n", u.UserID, u.Name)
-				battle[u.BattleCode].RenpoPeers += peer
-			case TeamZeon:
-				peer = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
-				battle[u.BattleCode].ZeonPeers += peer
+			if u.McsRegion == "best" {
+				locName = "Best Server"
 			}
-			accumulatedBattlePeersString += peer
-
-			battlePeerCount++
-			battlePeersIDs += u.UserID
+			battle[u.BattleCode].RegionName = locName
+			accumulatedBattlePeersString += locName
 		}
 
-		//
-		// Create lobby peer list, for the second embed
-		//
-		var plazaPeers string
+		var peer string
+		switch u.Side {
+		case TeamRenpo:
+			peer = fmt.Sprintf("<:gundam:772467554160738355> `%s` %s\n", u.UserID, u.Name)
+			battle[u.BattleCode].RenpoPeers += peer
+		case TeamZeon:
+			peer = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
+			battle[u.BattleCode].ZeonPeers += peer
+		}
+		accumulatedBattlePeersString += peer
 
-		lobby := make(map[uint16]*lobbyPeers)
+		battlePeerCount++
+		battlePeersIDs += u.UserID
+	}
 
-		plazaPeerCount := 0
-		lobbyPeerCount := 0
+	//
+	// Create lobby peer list, for the second embed
+	//
+	var plazaPeers string
 
-		var accumulatedLobbyPeersString string
+	lobby := make(map[uint16]*lobbyPeers)
 
-		lbs.Locked(func(lbs *Lbs) {
-			for _, u := range lbs.userPeers {
+	plazaPeerCount := 0
+	lobbyPeerCount := 0
 
-				//Already in battle, hidden from lobby
-				if strings.Contains(battlePeersIDs, u.UserID) {
-					continue
+	var accumulatedLobbyPeersString string
+
+	lbs.Locked(func(lbs *Lbs) {
+		for _, u := range lbs.userPeers {
+
+			//Already in battle, hidden from lobby
+			if strings.Contains(battlePeersIDs, u.UserID) {
+				continue
+			}
+
+			if u.Lobby == nil {
+				plazaPeers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
+				accumulatedLobbyPeersString += plazaPeers
+				plazaPeerCount++
+			} else {
+				_, exists := lobby[u.Lobby.ID]
+				if exists == false {
+					lobby[u.Lobby.ID] = new(lobbyPeers)
+					lobby[u.Lobby.ID].Name = u.Lobby.Name
+
+					locName, ok := gcpLocationName[u.Lobby.McsRegion]
+					if !ok {
+						locName = "Default Server"
+					}
+					if u.Lobby.McsRegion == "best" {
+						locName = "Best Server"
+					}
+					lobby[u.Lobby.ID].RegionName = locName
+
+					var comment string
+					if strings.Contains(u.Lobby.Comment, "TeamShuffle") {
+						comment += "🔀"
+					}
+					if strings.Contains(u.Lobby.Comment, "For JP vs HK") {
+						comment += "( 🇯🇵 vs 🇭🇰 )"
+					}
+					if strings.Contains(u.Lobby.Comment, "Private Room") {
+						comment += "🔒"
+					}
+					if strings.Contains(u.Lobby.Comment, "No 375 Cost MS") {
+						comment += "⛔375"
+					}
+					if strings.Contains(u.Lobby.Comment, "3R") {
+						comment += "3️⃣"
+					}
+
+					lobby[u.Lobby.ID].Comment = comment
 				}
 
-				if u.Lobby == nil {
-					plazaPeers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
-					accumulatedLobbyPeersString += plazaPeers
-					plazaPeerCount++
+				var readyColor string
+				if contains(u.Lobby.EntryUsers, u.UserID) {
+					readyColor = "🟢"
 				} else {
-					_, exists := lobby[u.Lobby.ID]
-					if exists == false {
-						lobby[u.Lobby.ID] = new(lobbyPeers)
-						lobby[u.Lobby.ID].Name = u.Lobby.Name
-
-						locName, ok := gcpLocationName[u.Lobby.McsRegion]
-						if !ok {
-							locName = "Default Server"
-						}
-						if u.Lobby.McsRegion == "best" {
-							locName = "Best Server"
-						}
-						lobby[u.Lobby.ID].RegionName = locName
-
-						var comment string
-						if strings.Contains(u.Lobby.Comment, "TeamShuffle") {
-							comment += "🔀"
-						}
-						if strings.Contains(u.Lobby.Comment, "For JP vs HK") {
-							comment += "( 🇯🇵 vs 🇭🇰 )"
-						}
-						if strings.Contains(u.Lobby.Comment, "Private Room") {
-							comment += "🔒"
-						}
-						if strings.Contains(u.Lobby.Comment, "No 375 Cost MS") {
-							comment += "⛔375"
-						}
-						if strings.Contains(u.Lobby.Comment, "3R") {
-							comment += "3️⃣"
-						}
-
-						lobby[u.Lobby.ID].Comment = comment
-					}
-
-					var readyColor string
-					if contains(u.Lobby.EntryUsers, u.UserID) {
-						readyColor = "🟢"
+					readyColor = "🔴"
+				}
+				if u.Room != nil {
+					readyColor = "📢"
+				}
+				var peer string
+				switch u.Team {
+				case TeamRenpo:
+					peer = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+					if u.Room == nil {
+						lobby[u.Lobby.ID].RenpoPeers += peer
 					} else {
-						readyColor = "🔴"
+						lobby[u.Lobby.ID].RenpoRoomPeers += peer
 					}
-					if u.Room != nil {
-						readyColor = "📢"
+				case TeamZeon:
+					peer = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
+					if u.Room == nil {
+						lobby[u.Lobby.ID].ZeonPeers += peer
+					} else {
+						lobby[u.Lobby.ID].ZeonRoomPeers += peer
 					}
-					var peer string
-					switch u.Team {
-					case TeamRenpo:
-						peer = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
-						if u.Room == nil {
-							lobby[u.Lobby.ID].RenpoPeers += peer
-						} else {
-							lobby[u.Lobby.ID].RenpoRoomPeers += peer
-						}
-					case TeamZeon:
-						peer = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
-						if u.Room == nil {
-							lobby[u.Lobby.ID].ZeonPeers += peer
-						} else {
-							lobby[u.Lobby.ID].ZeonRoomPeers += peer
-						}
-					default:
-						peer = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
-						lobby[u.Lobby.ID].NoForcePeers += peer
-					}
-					accumulatedLobbyPeersString += peer
-
-					lobby[u.Lobby.ID].Count++
+				default:
+					peer = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
+					lobby[u.Lobby.ID].NoForcePeers += peer
 				}
-				lobbyPeerCount++
-			}
-		})
+				accumulatedLobbyPeersString += peer
 
-		//
-		// Handle oversized string
-		//
-		embedAccumulatedLobbyStringLength := len(accumulatedLobbyPeersString)
-		logger.Info("Lobby string Size", zap.Int("length", embedAccumulatedLobbyStringLength))
-		if embedAccumulatedLobbyStringLength > 6000 {
-			plazaPeers = reducePeerStringSize(plazaPeers)
-
-			for _, l := range lobby {
-				l.RenpoPeers = reducePeerStringSize(l.RenpoPeers)
-				l.ZeonPeers = reducePeerStringSize(l.ZeonPeers)
-				l.RenpoRoomPeers = reducePeerStringSize(l.RenpoRoomPeers)
-				l.ZeonRoomPeers = reducePeerStringSize(l.ZeonRoomPeers)
-				l.NoForcePeers = reducePeerStringSize(l.NoForcePeers)
+				lobby[u.Lobby.ID].Count++
 			}
-			logger.Info("Lobby string size reduced!")
+			lobbyPeerCount++
 		}
-		embedAccumulatedBattleStringLength := len(accumulatedBattlePeersString)
-		logger.Info("Battle string Size", zap.Int("length", embedAccumulatedBattleStringLength))
-		if embedAccumulatedBattleStringLength > 6000 {
-			for _, b := range battle {
-				b.RenpoPeers = reducePeerStringSize(b.RenpoPeers)
-				b.ZeonPeers = reducePeerStringSize(b.ZeonPeers)
-			}
-			logger.Info("Battle string size reduced!")
-		}
-
-		//
-		// Start to create JSON payload
-		//
-		payload := new(statusPayload)
-		payload.BotName = "Live Status"
-
-		//
-		//1st Embed, online count
-		//
-		payload.Embed = append(payload.Embed, &discordEmbed{
-			Title:     fmt.Sprintf("**同時接続数 %d 人 **", lobbyPeerCount+battlePeerCount),
-			Color:     52224,
-			Footer:    &discordEmbedFooter{Text: "🕒"},
-			Timestamp: fmt.Sprintf(time.Now().UTC().Format("2006-01-02T15:04:05.000Z")),
-		})
-
-		//
-		//2nd Embed, lobby count
-		//
-
-		//1st Field is always Plaza
-		var lobbyFields []*discordEmbedField
-		if plazaPeerCount > 0 {
-			for i, v := range splitEmbedFieldValues(plazaPeers) {
-				name := "⠀"
-				if i == 0 {
-					name = fmt.Sprintf("**Plaza － %d 人**", plazaPeerCount)
-				}
-
-				lobbyFields = append(lobbyFields, &discordEmbedField{
-					Name:  name,
-					Value: v,
-				})
-			}
-		}
-
-		//Following Fields would be all lobbies
-		//Use sortedKeys to fix the ordering
-		for _, i := range sortedKeys(lobby) {
-			l := lobby[i]
-
-			value := addBlankIfRequired(l.RenpoPeers+l.ZeonPeers) + addBlankIfRequired(l.RenpoRoomPeers+l.ZeonRoomPeers) + addBlankIfRequired(l.NoForcePeers)
-
-			for i, v := range splitEmbedFieldValues(value) {
-				name := "⠀"
-				if i == 0 {
-					name = fmt.Sprintf("**%s － %d 人\n%s %s**", l.Name, l.Count, l.RegionName, l.Comment)
-				}
-
-				lobbyFields = append(lobbyFields, &discordEmbedField{
-					Name:  name,
-					Value: v,
-				})
-			}
-
-		}
-		for i, fields := range splitEmbedFields(lobbyFields) {
-			description := ""
-			if i == 0 {
-				description = fmt.Sprintf("🌐 **待機中 %d 人**", lobbyPeerCount)
-			}
-			payload.Embed = append(payload.Embed, &discordEmbed{
-				Description: description,
-				Color:       24041,
-				Fields:      fields,
-			})
-		}
-
-		//
-		//3rd Embed, battle count
-		//
-		var battleFields []*discordEmbedField
-		for _, b := range battle {
-
-			value := addBlankIfRequired(b.RenpoPeers + b.ZeonPeers)
-
-			for i, v := range splitEmbedFieldValues(value) {
-				name := "⠀"
-				if i == 0 {
-					name = b.RegionName
-				}
-
-				battleFields = append(battleFields, &discordEmbedField{
-					Name:  name,
-					Value: v,
-				})
-			}
-		}
-		for i, fields := range splitEmbedFields(battleFields) {
-			description := ""
-			if i == 0 {
-				description = fmt.Sprintf("💥 **戦闘中 %d 人**", battlePeerCount)
-			}
-			payload.Embed = append(payload.Embed, &discordEmbed{
-				Description: description,
-				Color:       13179394,
-				Fields:      fields,
-			})
-		}
-
-		return payload, nil
 	})
 
+	if lobby[2] != nil {
+		for i := 0; i < 4; i++ {
+			lobby[2].NoForcePeers += lobby[2].NoForcePeers
+			lobby[2].RenpoPeers += lobby[2].RenpoPeers
+		}
+	}
+
+	//
+	// Handle oversized string
+	//
+	embedAccumulatedLobbyStringLength := len(accumulatedLobbyPeersString)
+	logger.Info("Lobby string Size", zap.Int("length", embedAccumulatedLobbyStringLength))
+	if embedAccumulatedLobbyStringLength > 6000 {
+		plazaPeers = reducePeerStringSize(plazaPeers)
+
+		for _, l := range lobby {
+			l.RenpoPeers = reducePeerStringSize(l.RenpoPeers)
+			l.ZeonPeers = reducePeerStringSize(l.ZeonPeers)
+			l.RenpoRoomPeers = reducePeerStringSize(l.RenpoRoomPeers)
+			l.ZeonRoomPeers = reducePeerStringSize(l.ZeonRoomPeers)
+			l.NoForcePeers = reducePeerStringSize(l.NoForcePeers)
+		}
+		logger.Info("Lobby string size reduced!")
+	}
+	embedAccumulatedBattleStringLength := len(accumulatedBattlePeersString)
+	logger.Info("Battle string Size", zap.Int("length", embedAccumulatedBattleStringLength))
+	if embedAccumulatedBattleStringLength > 6000 {
+		for _, b := range battle {
+			b.RenpoPeers = reducePeerStringSize(b.RenpoPeers)
+			b.ZeonPeers = reducePeerStringSize(b.ZeonPeers)
+		}
+		logger.Info("Battle string size reduced!")
+	}
+
+	//
+	// Start to create JSON payload
+	//
+	payload := new(statusPayload)
+	payload.BotName = "Live Status"
+
+	//
+	//1st Embed, online count
+	//
+	payload.Embed = append(payload.Embed, &discordEmbed{
+		Title:     fmt.Sprintf("**同時接続数 %d 人 **", lobbyPeerCount+battlePeerCount),
+		Color:     52224,
+		Footer:    &discordEmbedFooter{Text: "🕒"},
+		Timestamp: fmt.Sprintf(time.Now().UTC().Format("2006-01-02T15:04:05.000Z")),
+	})
+
+	//
+	//2nd Embed, lobby count
+	//
+
+	//1st Field is always Plaza
+	var lobbyFields []*discordEmbedField
+	if plazaPeerCount > 0 {
+		for i, v := range splitEmbedFieldValues(plazaPeers) {
+			name := "⠀"
+			if i == 0 {
+				name = fmt.Sprintf("**Plaza － %d 人**", plazaPeerCount)
+			}
+
+			lobbyFields = append(lobbyFields, &discordEmbedField{
+				Name:  name,
+				Value: v,
+			})
+		}
+	}
+
+	//Following Fields would be all lobbies
+	//Use sortedKeys to fix the ordering
+	for _, i := range sortedKeys(lobby) {
+		l := lobby[i]
+
+		value := addBlankIfRequired(l.RenpoPeers+l.ZeonPeers) + addBlankIfRequired(l.RenpoRoomPeers+l.ZeonRoomPeers) + addBlankIfRequired(l.NoForcePeers)
+
+		for i, v := range splitEmbedFieldValues(value) {
+			name := "⠀"
+			if i == 0 {
+				name = fmt.Sprintf("**%s － %d 人\n%s %s**", l.Name, l.Count, l.RegionName, l.Comment)
+			}
+
+			lobbyFields = append(lobbyFields, &discordEmbedField{
+				Name:  name,
+				Value: v,
+			})
+		}
+
+	}
+	for i, fields := range splitEmbedFields(lobbyFields) {
+		description := ""
+		if i == 0 {
+			description = fmt.Sprintf("🌐 **待機中 %d 人**", lobbyPeerCount)
+		}
+		payload.Embed = append(payload.Embed, &discordEmbed{
+			Description: description,
+			Color:       24041,
+			Fields:      fields,
+		})
+	}
+
+	//
+	//3rd Embed, battle count
+	//
+	var battleFields []*discordEmbedField
+	for _, b := range battle {
+
+		value := addBlankIfRequired(b.RenpoPeers + b.ZeonPeers)
+
+		for i, v := range splitEmbedFieldValues(value) {
+			name := "⠀"
+			if i == 0 {
+				name = b.RegionName
+			}
+
+			battleFields = append(battleFields, &discordEmbedField{
+				Name:  name,
+				Value: v,
+			})
+		}
+	}
+	for i, fields := range splitEmbedFields(battleFields) {
+		description := ""
+		if i == 0 {
+			description = fmt.Sprintf("💥 **戦闘中 %d 人**", battlePeerCount)
+		}
+		payload.Embed = append(payload.Embed, &discordEmbed{
+			Description: description,
+			Color:       13179394,
+			Fields:      fields,
+		})
+	}
+
+	//
+	// Create the json
+	//
 	var jsonData []byte
 	jsonData, err := json.Marshal(payload)
 
@@ -440,38 +467,43 @@ func (lbs *Lbs) PublishStatusToDiscord() {
 	jsonString := string(jsonData)
 	logger.Info(jsonString, zap.Int("length", len(jsonString)))
 
-	var publish func(jsonData []byte)
-	publish = func(jsonData []byte) {
-		req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, bytes.NewBuffer(jsonData))
-		req.Header.Set("Content-Type", "application/json")
+	send(jsonData)
 
-		client := &http.Client{}
-		resp, err := client.Do(req)
+}
+
+//
+// Send to Discord
+//
+func send(jsonData []byte) {
+
+	req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, bytes.NewBuffer(jsonData))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("Failed to publish to Discord", zap.Error(err))
+		return
+	}
+	defer resp.Body.Close()
+
+	logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
+	if resp.Status == "400 Bad Request" {
+		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			logger.Error("Failed to publish to Discord", zap.Error(err))
+			logger.Error("Failed to read response body", zap.Error(err))
+			return
 		}
-		defer resp.Body.Close()
+		logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
+	} else if resp.Status == "429 Too Many Requests" {
 
-		logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
-		if resp.Status == "400 Bad Request" {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				logger.Error("Failed to read response body", zap.Error(err))
-				return
-			}
-			logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
-		} else if resp.Status == "429 Too Many Requests" {
+		resetepochTime := resp.Header.Get("x-ratelimit-reset")
+		sec, _ := strconv.ParseInt(resetepochTime, 10, 64)
+		logger.Info("Rate limit", zap.Int64("x-ratelimit-reset", sec))
 
-			resetepochTime := resp.Header.Get("x-ratelimit-reset")
-			sec, _ := strconv.ParseInt(resetepochTime, 10, 64)
-			logger.Info("Rate limit", zap.Int64("x-ratelimit-reset", sec))
-
-			retryTimer = time.AfterFunc(time.Unix(sec, 0).Sub(time.Now()), func() {
-				logger.Info("Retrying last request", zap.Int64("epoch", time.Now().Unix()))
-				publish(jsonData)
-			})
-		}
+		retryTimer = time.AfterFunc(time.Unix(sec, 0).Sub(time.Now()), func() {
+			logger.Info("Retrying last request", zap.Int64("epoch", time.Now().Unix()))
+			send(jsonData)
+		})
 	}
 
-	publish(jsonData)
 }
