@@ -96,6 +96,11 @@ CREATE TABLE IF NOT EXISTS battle_record (
 	system      integer default 0,
 	PRIMARY KEY (battle_code, user_id)
 );
+CREATE TABLE IF NOT EXISTS strings (
+	key 		text,
+	value 		text,
+	PRIMARY KEY (key)
+);
 `
 
 const indexes = `
@@ -510,4 +515,10 @@ func (db SQLiteDB) GetKillCountRanking(side byte) ([]*RankingRecord, error) {
 	db.mtx.Unlock()
 
 	return ranking, nil
+}
+
+func (db SQLiteDB) GetString(key string) (string, error) {
+	var value string
+	err := db.QueryRowx(`SELECT value FROM strings WHERE key = ? LIMIT 1`, key).Scan(&value)
+	return value, err
 }

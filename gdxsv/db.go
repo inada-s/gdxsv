@@ -172,4 +172,7 @@ type DB interface {
 
 	// GetWinCountRanking returns top userPeers of kill count.
 	GetKillCountRanking(side byte) (ret []*RankingRecord, err error)
+
+	// GetString returns a string that corresponds to the key.
+	GetString(key string) (value string, err error)
 }

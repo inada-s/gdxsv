@@ -530,8 +530,31 @@ var _ = register(lbsAskKDDICharges, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsAskNewsTag, func(p *LbsPeer, m *LbsMessage) {
 	a := NewServerAnswer(m)
 	w := a.Writer()
-	w.Write8(0)               // news count
-	w.WriteString("News Tag") // news_tag
+
+	newsTag, err := getDB().GetString("news_tag")
+	if err != nil {
+		logger.Error("failed to get news_tag", zap.Error(err))
+	}
+
+	if newsTag == "" {
+		w.Write8(0)       // news count
+		w.WriteString("") // news_tag
+	} else {
+		w.Write8(1)
+		w.WriteString(newsTag)
+	}
+	p.SendMessage(a)
+})
+
+var _ = register(lbsNewsText, func(p *LbsPeer, m *LbsMessage) {
+	// m.ReadString() // unknown
+	newsText, err := getDB().GetString("news_text")
+	if err != nil {
+		logger.Error("failed to get news_text", zap.Error(err))
+	}
+	a := NewServerAnswer(m)
+	w := a.Writer()
+	w.WriteString(newsText)
 	p.SendMessage(a)
 })
 

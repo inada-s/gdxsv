@@ -260,6 +260,14 @@ func main() {
 		os.Remove(conf.DBName)
 		prepareDB()
 		getDB().Init()
+	case "migratedb":
+		prepareDB()
+		err := getDB().Migrate()
+		if err != nil {
+			logger.Error("Migration failed:", zap.Error(err))
+		} else {
+			logger.Info("Migration done")
+		}
 	case "battlelog2json":
 		b, err := ioutil.ReadFile(args[1])
 		if err != nil {
