@@ -587,13 +587,13 @@ func decideGrade(winCount, rank int) uint8 {
 
 	if 12 <= grade {
 		if rank <= 5 {
-			rank = 14 // 1~5 [大将]
+			grade = 14 // 1~5 [大将]
 		} else if rank <= 20 {
-			rank = 13 // 6~20 [中将]
+			grade = 13 // 6~20 [中将]
 		} else if rank <= 50 {
-			rank = 12 // 21~50 [少将]
+			grade = 12 // 21~50 [少将]
 		} else {
-			rank = 11 // 50~ [大佐]
+			grade = 11 // 50~ [大佐]
 		}
 	}
 
