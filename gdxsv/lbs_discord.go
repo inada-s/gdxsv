@@ -462,14 +462,14 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 			defer resp.Body.Close()
 
 			logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
-			if resp.Status == "400 Bad Request" {
+			if resp.StatusCode == http.StatusBadRequest {
 				body, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
 					logger.Error("Failed to read response body", zap.Error(err))
 					return
 				}
 				logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
-			} else if resp.Status == "429 Too Many Requests" {
+			} else if resp.StatusCode == http.StatusTooManyRequests {
 
 				resetepochTime := resp.Header.Get("x-ratelimit-reset")
 				sec, _ := strconv.ParseInt(resetepochTime, 10, 64)
