@@ -77,21 +77,21 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 	}
 
 	type lobbyUsers struct {
-		Count          int
-		Name           string
-		RegionName     string
-		Comment        string
-		RenpoUsers     string
-		ZeonUsers      string
-		RenpoRoomUsers string
-		ZeonRoomUsers  string
-		NoForceUsers   string
+		Count                int
+		Name                 string
+		RegionName           string
+		Comment              string
+		RenpoUsersString     string
+		ZeonUsersString      string
+		RenpoRoomUsersString string
+		ZeonRoomUsersString  string
+		NoForceUsersString   string
 	}
 
 	type battleUsers struct {
-		RegionName string
-		RenpoUsers string
-		ZeonUsers  string
+		RegionName       string
+		RenpoUsersString string
+		ZeonUsersString  string
 	}
 
 	//
@@ -218,10 +218,10 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 			switch u.Side {
 			case TeamRenpo:
 				user = fmt.Sprintf("<:gundam:772467554160738355> `%s` %s\n", u.UserID, u.Name)
-				battle[u.BattleCode].RenpoUsers += user
+				battle[u.BattleCode].RenpoUsersString += user
 			case TeamZeon:
 				user = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
-				battle[u.BattleCode].ZeonUsers += user
+				battle[u.BattleCode].ZeonUsersString += user
 			}
 			accumulatedBattleEmbedStringLength += len(user)
 
@@ -303,20 +303,20 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					case TeamRenpo:
 						user = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
 						if u.Room == nil {
-							lobby[u.Lobby.ID].RenpoUsers += user
+							lobby[u.Lobby.ID].RenpoUsersString += user
 						} else {
-							lobby[u.Lobby.ID].RenpoRoomUsers += user
+							lobby[u.Lobby.ID].RenpoRoomUsersString += user
 						}
 					case TeamZeon:
 						user = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
 						if u.Room == nil {
-							lobby[u.Lobby.ID].ZeonUsers += user
+							lobby[u.Lobby.ID].ZeonUsersString += user
 						} else {
-							lobby[u.Lobby.ID].ZeonRoomUsers += user
+							lobby[u.Lobby.ID].ZeonRoomUsersString += user
 						}
 					default:
 						user = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
-						lobby[u.Lobby.ID].NoForceUsers += user
+						lobby[u.Lobby.ID].NoForceUsersString += user
 					}
 					accumulatedLobbyEmbedStringLength += len(user)
 
@@ -400,7 +400,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		for _, i := range sortedKeys(lobby) {
 			l := lobby[i]
 
-			value := addBlankIfRequired(l.RenpoUsers+l.ZeonUsers) + addBlankIfRequired(l.RenpoRoomUsers+l.ZeonRoomUsers) + addBlankIfRequired(l.NoForceUsers)
+			value := addBlankIfRequired(l.RenpoUsersString+l.ZeonUsersString) + addBlankIfRequired(l.RenpoRoomUsersString+l.ZeonRoomUsersString) + addBlankIfRequired(l.NoForceUsersString)
 
 			for i, v := range splitEmbedFieldValues(value) {
 				name := "⠀"
@@ -433,7 +433,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		var battleFields []*discordEmbedField
 		for _, b := range battle {
 
-			value := addBlankIfRequired(b.RenpoUsers + b.ZeonUsers)
+			value := addBlankIfRequired(b.RenpoUsersString + b.ZeonUsersString)
 
 			for i, v := range splitEmbedFieldValues(value) {
 				name := "⠀"
