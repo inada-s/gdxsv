@@ -47,17 +47,17 @@ var (
 )
 
 type Config struct {
-	LobbyAddr         string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost:3333"`
-	LobbyPublicAddr   string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"127.0.0.1:3333"`
-	LobbyHttpAddr     string `env:"GDXSV_LOBBY_HTTP_ADDR" envDefault:":3380"`
-	BattleAddr        string `env:"GDXSV_BATTLE_ADDR" envDefault:"localhost:3334"`
-	BattlePublicAddr  string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
-	BattleRegion      string `env:"GDXSV_BATTLE_REGION" envDefault:""`
-	BattleLogPath     string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
-	McsFuncKey        string `env:"GDXSV_MCSFUNC_KEY" envDefault:""`
-	McsFuncURL        string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
-	DiscordWebhookURL string `env:"GDXSV_DISCORD_WEBHOOK_URL" envDefault:""`
-	DBName            string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
+	LobbyAddr                   string `env:"GDXSV_LOBBY_ADDR" envDefault:"localhost:3333"`
+	LobbyPublicAddr             string `env:"GDXSV_LOBBY_PUBLIC_ADDR" envDefault:"127.0.0.1:3333"`
+	LobbyHttpAddr               string `env:"GDXSV_LOBBY_HTTP_ADDR" envDefault:":3380"`
+	BattleAddr                  string `env:"GDXSV_BATTLE_ADDR" envDefault:"localhost:3334"`
+	BattlePublicAddr            string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
+	BattleRegion                string `env:"GDXSV_BATTLE_REGION" envDefault:""`
+	BattleLogPath               string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
+	McsFuncKey                  string `env:"GDXSV_MCSFUNC_KEY" envDefault:""`
+	McsFuncURL                  string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
+	DiscordLiveStatusWebhookURL string `env:"GDXSV_DISCORD_LIVESTATUS_WEBHOOK_URL" envDefault:""`
+	DBName                      string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }
 
 func printHeader() {
