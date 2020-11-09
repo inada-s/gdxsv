@@ -22,7 +22,7 @@ var discordLiveStatusIsPublishing uint32
 
 //PublishLiveStatusToDiscord : Update server status to the predefined Discord message thru Web Hook
 func (lbs *Lbs) PublishLiveStatusToDiscord() {
-	if len(conf.DiscordWebhookURL) == 0 {
+	if len(conf.DiscordLiveStatusWebhookURL) == 0 {
 		return
 	}
 
@@ -451,7 +451,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		var send func(buf *bytes.Buffer)
 		send = func(buf *bytes.Buffer) {
 
-			req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, buf)
+			req, err := http.NewRequest("PATCH", conf.DiscordLiveStatusWebhookURL, buf)
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := http.DefaultClient.Do(req)
