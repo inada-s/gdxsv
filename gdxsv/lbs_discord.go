@@ -18,6 +18,8 @@ import (
 )
 
 var discordLiveStatusRetryTimer *time.Timer
+var discordLiveStatusRateRemaining int
+var discordLiveStatusRateResetEpoch int64
 var discordLiveStatusIsPublishing uint32
 
 //PublishLiveStatusToDiscord : Update server status to the predefined Discord message thru Web Hook
@@ -472,6 +474,13 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 			}
 			defer resp.Body.Close()
 
+			ratelimitRemaining := resp.Header.Get("x-ratelimit-remaining")
+			if len(ratelimitRemaining) > 0 {
+				discordLiveStatusRateRemaining, _ = strconv.Atoi(ratelimitRemaining)
+			}
+			ratelimitReset := resp.Header.Get("x-ratelimit-reset")
+			discordLiveStatusRateResetEpoch, _ = strconv.ParseInt(ratelimitReset, 10, 64)
+
 			logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
 			if resp.StatusCode == http.StatusBadRequest {
 				body, err := ioutil.ReadAll(resp.Body)
@@ -482,20 +491,35 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 				logger.Error("Discord 400 Bad Request", zap.String("Error:", string(body)))
 
 			} else if resp.StatusCode == http.StatusTooManyRequests {
+				logger.Info("Rate limit", zap.Int64("x-ratelimit-reset", discordLiveStatusRateResetEpoch))
 
-				resetepochTime := resp.Header.Get("x-ratelimit-reset")
-				sec, _ := strconv.ParseInt(resetepochTime, 10, 64)
-				logger.Info("Rate limit", zap.Int64("x-ratelimit-reset", sec))
-
-				discordLiveStatusRetryTimer = time.AfterFunc(time.Unix(sec, 0).Sub(time.Now()), func() {
+				discordLiveStatusRetryTimer = time.AfterFunc(time.Unix(discordLiveStatusRateResetEpoch, 0).Sub(time.Now()), func() {
 					logger.Info("Retrying last request", zap.Int64("epoch", time.Now().Unix()))
-					send(buf)
+					publish()
 				})
 			}
 
 		}
 
-		send(buffer)
+		//
+		// Postpone request if we are going to hit the rate limit
+		//
+		postpone := false
+		var duration time.Duration = 0
+		if discordLiveStatusRateRemaining == 0 {
+			duration = time.Unix(discordLiveStatusRateResetEpoch, 0).Sub(time.Now())
+			if duration > 0 {
+				postpone = true
+			}
+		}
+		if postpone {
+			logger.Info("Postpone request", zap.Any("until", duration))
+			discordLiveStatusRetryTimer = time.AfterFunc(duration, func() {
+				send(buffer)
+			})
+		} else {
+			send(buffer)
+		}
 
 	}
 
