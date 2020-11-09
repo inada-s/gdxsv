@@ -29,6 +29,9 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 	// Core function for Discord webhook
 	var publish func()
 
+	//
+	// Ensure only 1 publishing job can be run, block all other requests
+	//
 	if atomic.CompareAndSwapUint32(&discordLiveStatusIsPublishing, 0, 1) {
 		go func() {
 			publish()
