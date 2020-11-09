@@ -167,14 +167,13 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		return divided
 	}
 
-	reduceUserStringSize := func(s string) string {
+	reduceJSONStringSize := func(s string) string {
 		//Reduce size by removing userid
 		re := regexp.MustCompile("`.*?`\\s")
 		s = re.ReplaceAllString(s, "")
 
-		//Reduce size by replacing custom emoji (from 28 char to 1 char)
-		s = strings.ReplaceAll(s, "<:gundam:772467554160738355>", "🌎")
-		s = strings.ReplaceAll(s, "<:zaku:772467605008023563>", "🪐")
+		replacer := strings.NewReplacer("<:gundam:772467554160738355>", "🌎", "<:zaku:772467605008023563>", "🪐")
+		s = replacer.Replace(s)
 
 		return s
 	}
@@ -196,7 +195,6 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		existingBattleUserIDs := make(map[string]bool)
 
 		battleUserCount := 0
-		accumulatedBattleEmbedStringLength := 0
 
 		for _, u := range sharedData.GetMcsUsers() {
 			_, exists := battle[u.BattleCode]
@@ -211,7 +209,6 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					locName = "Best Server"
 				}
 				battle[u.BattleCode].RegionName = locName
-				accumulatedBattleEmbedStringLength += len(locName)
 			}
 
 			var user string
@@ -223,7 +220,6 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 				user = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
 				battle[u.BattleCode].ZeonUsersString += user
 			}
-			accumulatedBattleEmbedStringLength += len(user)
 
 			battleUserCount++
 			existingBattleUserIDs[u.UserID] = true
@@ -239,8 +235,6 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		plazaUserCount := 0
 		lobbyUserCount := 0
 
-		accumulatedLobbyEmbedStringLength := 0
-
 		lbs.Locked(func(lbs *Lbs) {
 			for _, u := range lbs.userPeers {
 
@@ -251,7 +245,6 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 
 				if u.Lobby == nil {
 					plazaUsers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
-					accumulatedLobbyEmbedStringLength += len(plazaUsers)
 					plazaUserCount++
 				} else {
 					_, exists := lobby[u.Lobby.ID]
@@ -286,7 +279,6 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 						}
 
 						lobby[u.Lobby.ID].Comment = comment
-						accumulatedLobbyEmbedStringLength += len(comment)
 					}
 
 					var readyColor string
@@ -318,46 +310,12 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 						user = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
 						lobby[u.Lobby.ID].NoForceUsersString += user
 					}
-					accumulatedLobbyEmbedStringLength += len(user)
 
 					lobby[u.Lobby.ID].Count++
 				}
 				lobbyUserCount++
 			}
 		})
-
-		if lobby[2] != nil {
-			for i := 0; i < 4; i++ {
-				lobby[2].NoForceUsers += lobby[2].NoForceUsers
-				lobby[2].RenpoUsers += lobby[2].RenpoUsers
-			}
-		}
-
-		//
-		// Handle oversized string
-		//
-		logger.Info("Lobby string Size", zap.Int("length", accumulatedLobbyEmbedStringLength))
-		if accumulatedLobbyEmbedStringLength > 6000 {
-			plazaUsers = reduceUserStringSize(plazaUsers)
-
-			for _, l := range lobby {
-				l.RenpoUsers = reduceUserStringSize(l.RenpoUsers)
-				l.ZeonUsers = reduceUserStringSize(l.ZeonUsers)
-				l.RenpoRoomUsers = reduceUserStringSize(l.RenpoRoomUsers)
-				l.ZeonRoomUsers = reduceUserStringSize(l.ZeonRoomUsers)
-				l.NoForceUsers = reduceUserStringSize(l.NoForceUsers)
-			}
-			logger.Info("Lobby string size reduced!")
-		}
-
-		logger.Info("Battle string Size", zap.Int("length", accumulatedBattleEmbedStringLength))
-		if accumulatedBattleEmbedStringLength > 6000 {
-			for _, b := range battle {
-				b.RenpoUsers = reduceUserStringSize(b.RenpoUsers)
-				b.ZeonUsers = reduceUserStringSize(b.ZeonUsers)
-			}
-			logger.Info("Battle string size reduced!")
-		}
 
 		//
 		// Start to create JSON payload
@@ -462,23 +420,38 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		//
 		// Create the json
 		//
-		var jsonData []byte
-		jsonData, err := json.Marshal(payload)
+		buffer := &bytes.Buffer{}
+		encoder := json.NewEncoder(buffer)
+		encoder.SetEscapeHTML(false)
+		err := encoder.Encode(payload)
 
 		if err != nil {
 			logger.Error("Failed to create Discord JSON", zap.Error(err))
 			return
 		}
-		jsonString := string(jsonData)
-		logger.Info(jsonString, zap.Int("length", len(jsonString)))
+
+		//embed structure must not exceed 6000 characters
+		if buffer.Len() > 6000 {
+			originalSize := buffer.Len()
+
+			start := time.Now()
+			jsonString := reduceJSONStringSize(buffer.String())
+			buffer.Reset()
+			buffer.Write([]byte(jsonString))
+			elapsed := time.Since(start)
+
+			logger.Info("Reduce JSON Size!", zap.Int("original size", originalSize), zap.Any("elapsed", elapsed))
+		}
+
+		logger.Info(buffer.String(), zap.Int("length", buffer.Len()))
 
 		//
 		// Send to Discord
 		//
-		var send func(jsonData []byte)
-		send = func(jsonData []byte) {
+		var send func(buf *bytes.Buffer)
+		send = func(buf *bytes.Buffer) {
 
-			req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, bytes.NewBuffer(jsonData))
+			req, err := http.NewRequest("PATCH", conf.DiscordWebhookURL, buf)
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := http.DefaultClient.Do(req)
@@ -504,13 +477,13 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 
 				discordLiveStatusRetryTimer = time.AfterFunc(time.Unix(sec, 0).Sub(time.Now()), func() {
 					logger.Info("Retrying last request", zap.Int64("epoch", time.Now().Unix()))
-					send(jsonData)
+					send(buf)
 				})
 			}
 
 		}
 
-		send(jsonData)
+		send(buffer)
 
 	}
 
