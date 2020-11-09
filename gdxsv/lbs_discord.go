@@ -468,7 +468,8 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					logger.Error("Failed to read response body", zap.Error(err))
 					return
 				}
-				logger.Error("Failed to create Discord JSON", zap.String("Error:", string(body)))
+				logger.Error("Discord 400 Bad Request", zap.String("Error:", string(body)))
+
 			} else if resp.StatusCode == http.StatusTooManyRequests {
 
 				resetepochTime := resp.Header.Get("x-ratelimit-reset")
