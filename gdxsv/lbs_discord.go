@@ -195,6 +195,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		existingBattleUserIDs := make(map[string]bool)
 
 		battleUserCount := 0
+		accumulatedEmbedStringLength := 0
 
 		for _, u := range sharedData.GetMcsUsers() {
 			_, exists := battle[u.BattleCode]
@@ -209,6 +210,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					locName = "Best Server"
 				}
 				battle[u.BattleCode].RegionName = locName
+				accumulatedEmbedStringLength += len(locName)
 			}
 
 			var user string
@@ -220,6 +222,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 				user = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
 				battle[u.BattleCode].ZeonUsersString += user
 			}
+			accumulatedEmbedStringLength += len(user)
 
 			battleUserCount++
 			existingBattleUserIDs[u.UserID] = true
@@ -245,6 +248,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 
 				if u.Lobby == nil {
 					plazaUsers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
+					accumulatedEmbedStringLength += len(plazaUsers)
 					plazaUserCount++
 				} else {
 					_, exists := lobby[u.Lobby.ID]
@@ -279,6 +283,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 						}
 
 						lobby[u.Lobby.ID].Comment = comment
+						accumulatedEmbedStringLength += len(comment)
 					}
 
 					var readyColor string
@@ -310,6 +315,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 						user = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
 						lobby[u.Lobby.ID].NoForceUsersString += user
 					}
+					accumulatedEmbedStringLength += len(user)
 
 					lobby[u.Lobby.ID].Count++
 				}
@@ -350,6 +356,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					Name:  name,
 					Value: v,
 				})
+				accumulatedEmbedStringLength += len(name) + len(v)
 			}
 		}
 
@@ -370,6 +377,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					Name:  name,
 					Value: v,
 				})
+				accumulatedEmbedStringLength += len(name) + len(v)
 			}
 
 		}
@@ -383,6 +391,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 				Color:       24041,
 				Fields:      fields,
 			})
+			accumulatedEmbedStringLength += len(description)
 		}
 
 		//
@@ -403,6 +412,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 					Name:  name,
 					Value: v,
 				})
+				accumulatedEmbedStringLength += len(name) + len(v)
 			}
 		}
 		for i, fields := range splitEmbedFields(battleFields) {
@@ -415,6 +425,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 				Color:       13179394,
 				Fields:      fields,
 			})
+			accumulatedEmbedStringLength += len(description)
 		}
 
 		//
@@ -431,7 +442,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		}
 
 		//embed structure must not exceed 6000 characters
-		if buffer.Len() > 6000 {
+		if accumulatedEmbedStringLength > 6000 {
 			originalSize := buffer.Len()
 
 			start := time.Now()
