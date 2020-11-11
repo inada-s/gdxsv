@@ -1,25 +1,31 @@
 {
   "files": {
-    "main.css": "/gdxsv/static/css/main.d3aaa3ee.chunk.css",
-    "main.js": "/gdxsv/static/js/main.b55de6f8.chunk.js",
-    "main.js.map": "/gdxsv/static/js/main.b55de6f8.chunk.js.map",
-    "runtime-main.js": "/gdxsv/static/js/runtime-main.a5cf523a.js",
-    "runtime-main.js.map": "/gdxsv/static/js/runtime-main.a5cf523a.js.map",
+    "main.css": "/gdxsv/static/css/main.30936d75.chunk.css",
+    "main.js": "/gdxsv/static/js/main.2d3be7ef.chunk.js",
+    "main.js.map": "/gdxsv/static/js/main.2d3be7ef.chunk.js.map",
+    "runtime-main.js": "/gdxsv/static/js/runtime-main.af061ded.js",
+    "runtime-main.js.map": "/gdxsv/static/js/runtime-main.af061ded.js.map",
     "static/css/2.2a86faee.chunk.css": "/gdxsv/static/css/2.2a86faee.chunk.css",
-    "static/js/2.ab2ddb4f.chunk.js": "/gdxsv/static/js/2.ab2ddb4f.chunk.js",
-    "static/js/2.ab2ddb4f.chunk.js.map": "/gdxsv/static/js/2.ab2ddb4f.chunk.js.map",
+    "static/js/2.4987579a.chunk.js": "/gdxsv/static/js/2.4987579a.chunk.js",
+    "static/js/2.4987579a.chunk.js.map": "/gdxsv/static/js/2.4987579a.chunk.js.map",
     "index.html": "/gdxsv/index.html",
-    "precache-manifest.2a9f6dc2aa056cefb9a40f423b7bcdb6.js": "/gdxsv/precache-manifest.2a9f6dc2aa056cefb9a40f423b7bcdb6.js",
+    "precache-manifest.21fd1adc3058e8ce994ae17c888031f7.js": "/gdxsv/precache-manifest.21fd1adc3058e8ce994ae17c888031f7.js",
     "service-worker.js": "/gdxsv/service-worker.js",
     "static/css/2.2a86faee.chunk.css.map": "/gdxsv/static/css/2.2a86faee.chunk.css.map",
-    "static/css/main.d3aaa3ee.chunk.css.map": "/gdxsv/static/css/main.d3aaa3ee.chunk.css.map",
-    "static/js/2.ab2ddb4f.chunk.js.LICENSE.txt": "/gdxsv/static/js/2.ab2ddb4f.chunk.js.LICENSE.txt"
+    "static/css/main.30936d75.chunk.css.map": "/gdxsv/static/css/main.30936d75.chunk.css.map",
+    "static/js/2.4987579a.chunk.js.LICENSE.txt": "/gdxsv/static/js/2.4987579a.chunk.js.LICENSE.txt",
+    "static/media/flycast.png": "/gdxsv/static/media/flycast.7fcf2fb8.png",
+    "static/media/game.jpg": "/gdxsv/static/media/game.fff3aa67.jpg",
+    "static/media/headset.jpg": "/gdxsv/static/media/headset.d5ffaa20.jpg",
+    "static/media/stick.jpg": "/gdxsv/static/media/stick.f7923533.jpg",
+    "static/media/App.css": "/gdxsv/static/media/title.aa1bc33f.png",
+    "static/media/world.jpg": "/gdxsv/static/media/world.06a46146.jpg"
   },
   "entrypoints": [
-    "static/js/runtime-main.a5cf523a.js",
+    "static/js/runtime-main.af061ded.js",
     "static/css/2.2a86faee.chunk.css",
-    "static/js/2.ab2ddb4f.chunk.js",
-    "static/css/main.d3aaa3ee.chunk.css",
-    "static/js/main.b55de6f8.chunk.js"
+    "static/js/2.4987579a.chunk.js",
+    "static/css/main.30936d75.chunk.css",
+    "static/js/main.2d3be7ef.chunk.js"
   ]
 }
