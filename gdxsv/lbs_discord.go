@@ -461,8 +461,7 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 		//
 		// Send to Discord
 		//
-		var send func(buf *bytes.Buffer)
-		send = func(buf *bytes.Buffer) {
+		send := func(buf *bytes.Buffer) {
 
 			req, err := http.NewRequest("PATCH", conf.DiscordLiveStatusWebhookURL, buf)
 			req.Header.Set("Content-Type", "application/json")
@@ -474,12 +473,12 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 			}
 			defer resp.Body.Close()
 
-			ratelimitRemaining := resp.Header.Get("x-ratelimit-remaining")
-			if len(ratelimitRemaining) > 0 {
+			if ratelimitRemaining := resp.Header.Get("x-ratelimit-remaining"); len(ratelimitRemaining) > 0 {
 				discordLiveStatusRateRemaining, _ = strconv.Atoi(ratelimitRemaining)
 			}
-			ratelimitReset := resp.Header.Get("x-ratelimit-reset")
-			discordLiveStatusRateResetEpoch, _ = strconv.ParseInt(ratelimitReset, 10, 64)
+			if ratelimitReset := resp.Header.Get("x-ratelimit-reset"); len(ratelimitReset) > 0 {
+				discordLiveStatusRateResetEpoch, _ = strconv.ParseInt(ratelimitReset, 10, 64)
+			}
 
 			logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
 			if resp.StatusCode == http.StatusBadRequest {
