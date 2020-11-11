@@ -1,4 +1,183 @@
-.App {
-  text-align: center;
+#page-header {
+    flex: none;
+    padding: 20px;
+    width: 100%;
+    height: 80px;
+    max-width: 100%;
+    background-color: black;
+    color: white;
+    font-size: x-large;
 }
 
+#page-header-brand {
+    color: white;
+    font-size: x-large;
+    margin-left: 20px;
+}
+
+#page-header > button {
+    margin-left: 25px;
+    margin-right: 25px;
+    background-color: whitesmoke;
+}
+
+.navbar-light .navbar-toggler-icon {
+    background-color: whitesmoke;
+}
+
+#page-header .collapsing {
+    background-color: black;
+    text-align: center;
+}
+
+#page-header .show {
+    background-color: black;
+    text-align: center;
+    padding-bottom: 30px;
+}
+
+#basic-navbar-nav {
+    background-color: black;
+}
+
+#basic-navbar-nav > div > a {
+    border-left: 25px;
+    border-right: 25px;
+}
+
+#basic-navbar-nav > div > a {
+    color: white;
+}
+
+#basic-navbar-nav > div > a:hover {
+    color: silver;
+}
+
+.App {
+}
+
+body {
+    background-color: whitesmoke;
+}
+
+.img-thumbnail {
+    background-color: whitesmoke;
+}
+
+.btn {
+    border-radius: 0;
+}
+
+.join-btn {
+    font-size: large;
+}
+
+
+h1, h2, h3, h4, h5 {
+    margin-top: 12px;
+    color: #333;
+    font-weight: bold;
+}
+
+h1, h2 {
+    font-size: 40px;
+    text-align: center;
+}
+
+p {
+    font-size: 20px;
+    text-align: center;
+}
+
+.img-text h3 {
+    text-align: left;
+}
+
+.img-text p {
+    text-align: left;
+}
+
+.gray-text {
+    font-size: 16px;
+    color: gray;
+}
+
+.title-bg:before {
+    background-image: url("title.png");
+    filter: brightness(0.4) grayscale(0.6);
+}
+
+.image:before {
+    content: "";
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 600px;
+    position: absolute;
+    border-radius: inherit;
+    z-index: -2;
+    pointer-events: none;
+    background-size: cover;
+    background-position: 50%;
+    background-position-x: 50%;
+    background-position-y: center;
+}
+
+.Title {
+    text-align: center;
+    align-content: center;
+    align-items: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    height: 600px;
+    justify-content: center;
+    padding: 0 0 0 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+.Title h1 {
+    color: white;
+}
+
+.Title p {
+}
+
+/* Style all font awesome icons */
+.fa {
+    padding: 20px;
+    font-size: 30px;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    text-decoration: none;
+}
+
+/* Add a hover effect if you want */
+.fa:hover {
+    opacity: 0.7;
+}
+
+/* Set a specific color for each brand */
+
+/* Facebook */
+.fa-facebook {
+    background: #3B5998;
+    color: white;
+}
+
+/* Twitter */
+.fa-twitter {
+    background: #55ACEE;
+    color: white;
+}
+
+.fa {
+    padding: 10px;
+    font-size: 30px;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 50%;
+}
