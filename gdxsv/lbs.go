@@ -279,8 +279,7 @@ func (lbs *Lbs) eventLoop() {
 			}
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
-					lobby.CheckLobbyBattleStart()
-					lobby.CheckRoomBattleStart()
+					lobby.Update()
 				}
 			}
 		}

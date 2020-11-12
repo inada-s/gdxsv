@@ -6,28 +6,17 @@ import (
 )
 
 var (
-	RulePresetDefault   *Rule
-	RulePresetNoRanking *Rule
-	RulePresetNo375MS   *Rule
-	RulePresetExtraCost *Rule
+	RulePresetDefault *Rule
+	RulePresetFree    *Rule
 )
 
 func init() {
 	RulePresetDefault = baseRule.Clone()
+	RulePresetFree = baseRule.Clone()
 
-	RulePresetNoRanking = baseRule.Clone()
-	RulePresetNoRanking.NoRanking = 1
-	RulePresetNoRanking.StageFlag = 3
-	RulePresetNoRanking.MaFlag = 1
-
-	RulePresetNo375MS = baseRule.Clone()
-	RulePresetNo375MS.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
-	RulePresetNo375MS.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
-
-	RulePresetExtraCost = baseRule.Clone()
-	RulePresetExtraCost.NoRanking = 1
-	RulePresetExtraCost.RenpoVital = 630
-	RulePresetExtraCost.ZeonVital = 630
+	RulePresetFree.StageFlag = 3
+	RulePresetFree.MaFlag = 1
+	RulePresetFree.NoRanking = 1
 }
 
 // DC MSBitMask
