@@ -243,7 +243,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 						lobby[u.Lobby.ID].RegionName = locName
 
 						var comment string
-						if strings.Contains(u.Lobby.Comment, "TeamShuffle") {
+						if u.Lobby.TeamShuffle {
 							comment += "🔀"
 						}
 						if strings.Contains(u.Lobby.Comment, "For JP vs HK") {
@@ -252,11 +252,18 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 						if strings.Contains(u.Lobby.Comment, "Private Room") {
 							comment += "🔒"
 						}
-						if strings.Contains(u.Lobby.Comment, "No 375 Cost MS") {
+						if u.Lobby.No375MS {
 							comment += "⛔375"
 						}
-						if strings.Contains(u.Lobby.Comment, "3R") {
+						switch u.Lobby.AutoReBattle {
+						case 2:
+							comment += "2️⃣"
+						case 3:
 							comment += "3️⃣"
+						case 4:
+							comment += "4️⃣"
+						case 5:
+							comment += "5️⃣"
 						}
 
 						lobby[u.Lobby.ID].Comment = comment
