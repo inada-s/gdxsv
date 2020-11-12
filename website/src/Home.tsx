@@ -106,12 +106,12 @@ export default function Home() {
 
                 <Jumbotron fluid>
                     <Container>
-                        <h2>作戦開始</h2>
+                        <h2>作 戦 開 始</h2>
                         <div className={"d-flex justify-content-center"}>
                             <Button target="_blank" href={GuideJaUrl} variant={"outline-secondary"}
-                                    className={"secondary join-btn mx-3 my-3 px-3 py-3"}>接続ガイド</Button>
+                                    className={"secondary join-btn mx-2 my-3 px-3 py-3"}>接続ガイド</Button>
                             <Button target="_blank" href={DiscordUrl} variant={"outline-primary"}
-                                    className={"join-btn mx-3 my-3 px-3 py-3"}>参加する</Button>
+                                    className={"join-btn mx-2 my-3 px-4 py-3"}>参加する</Button>
                         </div>
                     </Container>
                 </Jumbotron>
