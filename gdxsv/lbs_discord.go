@@ -463,21 +463,20 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 			}
 
 			logger.Info("Discord Webhook sent", zap.String("Status", resp.Status))
-			if resp.StatusCode == http.StatusBadRequest {
-				body, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					logger.Error("Failed to read response body", zap.Error(err))
-					return
-				}
-				logger.Error("Discord 400 Bad Request", zap.String("Error:", string(body)))
-
-			} else if resp.StatusCode == http.StatusTooManyRequests {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				logger.Error("Failed to read response body", zap.Error(err))
+				return
+			}
+			if resp.StatusCode == http.StatusTooManyRequests {
 				logger.Info("Rate limit", zap.Int64("x-ratelimit-reset", discordLiveStatusRateResetEpoch))
 
 				discordLiveStatusRetryTimer = time.AfterFunc(time.Unix(discordLiveStatusRateResetEpoch, 0).Sub(time.Now()), func() {
 					logger.Info("Retrying last request", zap.Int64("epoch", time.Now().Unix()))
 					publish()
 				})
+			} else if resp.StatusCode >= 400 {
+				logger.Error("Discord HTTP error", zap.String("Error:", string(body)))
 			}
 
 		}
