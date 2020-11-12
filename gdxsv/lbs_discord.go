@@ -54,21 +54,21 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 	}
 
 	type lobbyUsers struct {
-		Count                int
-		Name                 string
-		RegionName           string
-		Comment              string
-		RenpoUsersString     string
-		ZeonUsersString      string
-		RenpoRoomUsersString string
-		ZeonRoomUsersString  string
-		NoForceUsersString   string
+		Count             int
+		Name              string
+		RegionName        string
+		Comment           string
+		RenpoUsersBuf     bytes.Buffer
+		ZeonUsersBuf      bytes.Buffer
+		RenpoRoomUsersBuf bytes.Buffer
+		ZeonRoomUsersBuf  bytes.Buffer
+		NoForceUsersBuf   bytes.Buffer
 	}
 
 	type battleUsers struct {
-		RegionName       string
-		RenpoUsersString string
-		ZeonUsersString  string
+		RegionName    string
+		RenpoUsersBuf bytes.Buffer
+		ZeonUsersBuf  bytes.Buffer
 	}
 
 	//
@@ -92,14 +92,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		}
 		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 		return keys
-	}
-
-	//insert Braille Pattern Blank to create newline at ending
-	addBlankIfRequired := func(s string) string {
-		if len(s) > 0 {
-			return s + "⠀\n"
-		}
-		return s
 	}
 
 	//Embed limits: Field's value is limited toto 1024 characters
@@ -194,10 +186,10 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 			switch u.Side {
 			case TeamRenpo:
 				user = fmt.Sprintf("<:gundam:772467554160738355> `%s` %s\n", u.UserID, u.Name)
-				battle[u.BattleCode].RenpoUsersString += user
+				battle[u.BattleCode].RenpoUsersBuf.WriteString(user)
 			case TeamZeon:
 				user = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
-				battle[u.BattleCode].ZeonUsersString += user
+				battle[u.BattleCode].ZeonUsersBuf.WriteString(user)
 			}
 			accumulatedEmbedStringLength += len(user)
 
@@ -242,32 +234,32 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 						}
 						lobby[u.Lobby.ID].RegionName = locName
 
-						var comment string
+						var commentBuf bytes.Buffer
 						if u.Lobby.TeamShuffle {
-							comment += "🔀"
+							commentBuf.WriteString("🔀")
 						}
 						if strings.Contains(u.Lobby.Comment, "For JP vs HK") {
-							comment += "( 🇯🇵 vs 🇭🇰 )"
+							commentBuf.WriteString("( 🇯🇵 vs 🇭🇰 )")
 						}
 						if strings.Contains(u.Lobby.Comment, "Private Room") {
-							comment += "🔒"
+							commentBuf.WriteString("🔒")
 						}
 						if u.Lobby.No375MS {
-							comment += "⛔375"
+							commentBuf.WriteString("⛔375")
 						}
 						switch u.Lobby.AutoReBattle {
 						case 2:
-							comment += "2️⃣"
+							commentBuf.WriteString("2️⃣")
 						case 3:
-							comment += "3️⃣"
+							commentBuf.WriteString("3️⃣")
 						case 4:
-							comment += "4️⃣"
+							commentBuf.WriteString("4️⃣")
 						case 5:
-							comment += "5️⃣"
+							commentBuf.WriteString("5️⃣")
 						}
 
-						lobby[u.Lobby.ID].Comment = comment
-						accumulatedEmbedStringLength += len(comment)
+						lobby[u.Lobby.ID].Comment = commentBuf.String()
+						accumulatedEmbedStringLength += len(lobby[u.Lobby.ID].Comment)
 					}
 
 					var readyColor string
@@ -284,20 +276,20 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 					case TeamRenpo:
 						user = fmt.Sprintf("<:gundam:772467554160738355>%s `%s` %s\n", readyColor, u.UserID, u.Name)
 						if u.Room == nil {
-							lobby[u.Lobby.ID].RenpoUsersString += user
+							lobby[u.Lobby.ID].RenpoUsersBuf.WriteString(user)
 						} else {
-							lobby[u.Lobby.ID].RenpoRoomUsersString += user
+							lobby[u.Lobby.ID].RenpoRoomUsersBuf.WriteString(user)
 						}
 					case TeamZeon:
 						user = fmt.Sprintf("<:zaku:772467605008023563>%s `%s` %s\n", readyColor, u.UserID, u.Name)
 						if u.Room == nil {
-							lobby[u.Lobby.ID].ZeonUsersString += user
+							lobby[u.Lobby.ID].ZeonUsersBuf.WriteString(user)
 						} else {
-							lobby[u.Lobby.ID].ZeonRoomUsersString += user
+							lobby[u.Lobby.ID].ZeonRoomUsersBuf.WriteString(user)
 						}
 					default:
 						user = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
-						lobby[u.Lobby.ID].NoForceUsersString += user
+						lobby[u.Lobby.ID].NoForceUsersBuf.WriteString(user)
 					}
 					accumulatedEmbedStringLength += len(user)
 
@@ -349,7 +341,23 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		for _, i := range sortedKeys(lobby) {
 			l := lobby[i]
 
-			value := addBlankIfRequired(l.RenpoUsersString+l.ZeonUsersString) + addBlankIfRequired(l.RenpoRoomUsersString+l.ZeonRoomUsersString) + addBlankIfRequired(l.NoForceUsersString)
+			var valueBuf bytes.Buffer
+			valueBuf.Write(l.RenpoUsersBuf.Bytes())
+			valueBuf.Write(l.ZeonUsersBuf.Bytes())
+			if (l.RenpoUsersBuf.Len() + l.ZeonUsersBuf.Len()) > 0 {
+				valueBuf.WriteString("⠀\n") //insert Braille Pattern Blank to create newline at ending
+			}
+			valueBuf.Write(l.RenpoRoomUsersBuf.Bytes())
+			valueBuf.Write(l.ZeonRoomUsersBuf.Bytes())
+			if (l.RenpoRoomUsersBuf.Len() + l.ZeonRoomUsersBuf.Len()) > 0 {
+				valueBuf.WriteString("⠀\n")
+			}
+			valueBuf.Write(l.NoForceUsersBuf.Bytes())
+			if l.NoForceUsersBuf.Len() > 0 {
+				valueBuf.WriteString("⠀\n")
+			}
+
+			value := valueBuf.String()
 
 			for i, v := range splitEmbedFieldValues(value) {
 				name := "⠀"
@@ -384,7 +392,13 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		var battleFields []*discordEmbedField
 		for _, b := range battle {
 
-			value := addBlankIfRequired(b.RenpoUsersString + b.ZeonUsersString)
+			var valueBuf bytes.Buffer
+			valueBuf.Write(b.RenpoUsersBuf.Bytes())
+			valueBuf.Write(b.ZeonUsersBuf.Bytes())
+			if (b.RenpoUsersBuf.Len() + b.ZeonUsersBuf.Len()) > 0 {
+				valueBuf.WriteString("⠀\n") //insert Braille Pattern Blank to create newline at ending
+			}
+			value := valueBuf.String()
 
 			for i, v := range splitEmbedFieldValues(value) {
 				name := "⠀"
