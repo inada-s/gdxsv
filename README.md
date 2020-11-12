@@ -9,7 +9,7 @@ This game has online mode, but the service ended in 2004. This project aims to k
 
 
 ## Running Server links
-- gdxsv : https://discord.gg/ktRw4JX
+- gdxsv : https://gdxsv.net
 - dreamcastlive : https://dreamcastlive.net/mobile-suit-gundam-federation-vs-zeon-dx/
 
 
