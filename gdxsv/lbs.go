@@ -91,6 +91,9 @@ func (lbs *Lbs) ListenAndServe(addr string) error {
 		return err
 	}
 	go lbs.eventLoop()
+	if len(conf.DiscordLiveStatusWebhookURL) > 0 {
+		go lbs.publishLiveStatusToDiscordLoop()
+	}
 	for {
 		tcpConn, err := listener.AcceptTCP()
 		if err != nil {
@@ -220,6 +223,7 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 
 	p.conn.Close()
 	p.left = true
+	discordLiveStatusUpdateAvailable = true
 }
 
 func (lbs *Lbs) eventLoop() {
@@ -378,7 +382,7 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 			}
 		}
 	}
-	lbs.PublishLiveStatusToDiscord()
+	discordLiveStatusUpdateAvailable = true
 }
 
 func (lbs *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
@@ -391,7 +395,7 @@ func (lbs *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
 			p.SendMessage(msg2)
 		}
 	}
-	lbs.PublishLiveStatusToDiscord()
+	discordLiveStatusUpdateAvailable = true
 }
 
 func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
@@ -408,7 +412,7 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 			}
 		}
 	}
-	lbs.PublishLiveStatusToDiscord()
+	discordLiveStatusUpdateAvailable = true
 }
 
 func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {

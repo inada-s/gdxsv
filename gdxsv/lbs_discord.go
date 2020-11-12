@@ -11,45 +11,20 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
 )
 
+var discordLiveStatusUpdateAvailable bool
 var discordLiveStatusRetryTimer *time.Timer
 var discordLiveStatusRateRemaining int
 var discordLiveStatusRateResetEpoch int64
-var discordLiveStatusIsPublishing uint32
 
-//PublishLiveStatusToDiscord : Update server status to the predefined Discord message thru Web Hook
-func (lbs *Lbs) PublishLiveStatusToDiscord() {
-	if len(conf.DiscordLiveStatusWebhookURL) == 0 {
-		return
-	}
-
+//publishLiveStatusToDiscordLoop : Update server status to the predefined Discord message thru Web Hook
+func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 	// Core function for Discord webhook
 	var publish func()
-
-	//
-	// Ensure only 1 publishing job can be run, block all other requests
-	//
-	if atomic.CompareAndSwapUint32(&discordLiveStatusIsPublishing, 0, 1) {
-		go func() {
-			publish()
-			atomic.StoreUint32(&discordLiveStatusIsPublishing, 0)
-		}()
-	} else {
-		logger.Info("Request blocked!")
-		if discordLiveStatusRetryTimer != nil {
-			discordLiveStatusRetryTimer.Stop()
-		}
-		//Retry last blocked request after 0.5s
-		discordLiveStatusRetryTimer = time.AfterFunc(time.Second/2, func() {
-			logger.Info("Retrying!")
-			publish()
-		})
-	}
 
 	//
 	//Type definition
@@ -522,4 +497,17 @@ func (lbs *Lbs) PublishLiveStatusToDiscord() {
 
 	}
 
+	//
+	//Publish Loop
+	//
+	tick := time.Tick(3 * time.Second)
+	for {
+		select {
+		case <-tick:
+			if discordLiveStatusUpdateAvailable {
+				discordLiveStatusUpdateAvailable = false
+				publish()
+			}
+		}
+	}
 }
