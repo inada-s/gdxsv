@@ -15,11 +15,7 @@ type LbsLobby struct {
 
 	LobbySetting
 	lobbySettingMessages []*LbsMessage
-
-	forceStart bool
-	countDown  int
-	extraCost  bool
-	ecTimeout  int
+	forceStartCountDown  int
 
 	GameDisk   uint8
 	ID         uint16
@@ -35,33 +31,40 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 		app:                  app,
 		LobbySetting:         *lbsLobbySettings[lobbyID],
 		lobbySettingMessages: nil,
-
-		forceStart: false,
-		countDown:  10,
-		extraCost:  false,
-		ecTimeout:  0,
+		forceStartCountDown:  0,
 
 		GameDisk:   platform,
 		ID:         lobbyID,
-		Rule:       RulePresetDefault.Clone(),
 		Users:      make(map[string]*DBUser),
 		RenpoRooms: make(map[uint16]*LbsRoom),
 		ZeonRooms:  make(map[uint16]*LbsRoom),
 		EntryUsers: make([]string, 0),
 	}
 
+	if lobby.FreeRule {
+		lobby.Rule = RulePresetFree.Clone()
+	} else {
+		lobby.Rule = RulePresetDefault.Clone()
+	}
+
 	if lobby.LobbySetting.No375MS {
-		lobby.Rule = RulePresetNo375MS.Clone()
+		lobby.Rule.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
+		lobby.Rule.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
+	}
+
+	if lobby.LobbySetting.Cost630 {
+		lobby.Rule.RenpoVital = 630
+		lobby.Rule.ZeonVital = 630
+	}
+
+	if 0 < lobby.LobbySetting.AutoReBattle {
+		lobby.Rule.AutoRebattle = byte(lobby.LobbySetting.AutoReBattle)
 	}
 
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
 		lobby.RenpoRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamRenpo)
 		lobby.ZeonRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamZeon)
-	}
-
-	if 0 < lobby.LobbySetting.AutoReBattle {
-		lobby.Rule.AutoRebattle = byte(lobby.LobbySetting.AutoReBattle)
 	}
 
 	lobby.lobbySettingMessages = lobby.buildLobbySettingMessages()
@@ -101,7 +104,9 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	if l.No375MS {
 		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "No 375 Cost MS", boolToYesNo(l.No375MS))))
 	}
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/ec /nc Allowed", boolToYesNo(l.EnableExtraCostCmd))))
+	if l.Cost630 {
+		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Cost630", boolToYesNo(l.Cost630))))
+	}
 	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
 
 	return msgs
@@ -117,23 +122,12 @@ func (l *LbsLobby) canStartBattle() bool {
 	}
 }
 
-func (l *LbsLobby) ForceStartBattle() {
-	l.countDown = 10
-	l.forceStart = true
+func (l *LbsLobby) StartForceStartCountDown() {
+	l.forceStartCountDown = 10
 }
 
-func (l *LbsLobby) CancelForceStartBattle() {
-	l.forceStart = false
-}
-
-func (l *LbsLobby) EnableExtraCost() {
-	l.ecTimeout = 120
-	l.extraCost = true
-}
-
-func (l *LbsLobby) DisableExtraCost() {
-	l.ecTimeout = 0
-	l.extraCost = false
+func (l *LbsLobby) CancelForceStart() {
+	l.forceStartCountDown = 0
 }
 
 func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
@@ -156,11 +150,6 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 			continue
 		}
 		peer.SendMessage(msg)
-	}
-
-	switch kind {
-	case "ENTER RENPO", "ENTER ZEON", "JOIN RENPO", "JOIN ZEON", "CANCEL", "RETURN":
-		l.CancelForceStartBattle()
 	}
 }
 
@@ -209,13 +198,14 @@ func (l *LbsLobby) Exit(userID string) {
 		for i, id := range l.EntryUsers {
 			if id == userID {
 				l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
-				break
+				l.CancelForceStart()
 			}
 		}
 	}
 }
 
 func (l *LbsLobby) Entry(p *LbsPeer) {
+	l.CancelForceStart()
 	l.EntryUsers = append(l.EntryUsers, p.UserID)
 	if p.Team == TeamRenpo {
 		l.NotifyLobbyEvent("JOIN RENPO", p.Name)
@@ -225,10 +215,10 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 }
 
 func (l *LbsLobby) EntryCancel(p *LbsPeer) {
+	l.CancelForceStart()
 	for i, id := range l.EntryUsers {
 		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
-			break
 		}
 	}
 	l.NotifyLobbyEvent("CANCEL", p.Name)
@@ -238,7 +228,6 @@ func (l *LbsLobby) EntryPicked(p *LbsPeer) {
 	for i, id := range l.EntryUsers {
 		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
-			break
 		}
 	}
 	l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
@@ -380,19 +369,25 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	return peers
 }
 
-func (l *LbsLobby) CheckLobbyBattleStart() {
-	if l.forceStart && l.countDown > 0 {
-		l.NotifyLobbyEvent("", fmt.Sprintf("Force start battle in %d", l.countDown))
-		l.countDown--
+// Update updates lobby functions, should be called every 1 sec in the event loop.
+func (l *LbsLobby) Update() {
+	forceStart := false
+
+	if l.EnableForceStartCmd && 0 < l.forceStartCountDown {
+		l.NotifyLobbyEvent("", fmt.Sprintf("Force start battle in %d", l.forceStartCountDown))
+		l.forceStartCountDown--
+
+		if l.forceStartCountDown == 0 {
+			forceStart = true
+		}
 	}
 
-	if l.ecTimeout > 0 {
-		l.ecTimeout--
-	} else {
-		l.extraCost = false
-	}
+	l.checkLobbyBattleStart(forceStart)
+	l.checkRoomBattleStart()
+}
 
-	if !l.canStartBattle() && !(l.forceStart == true && l.countDown == 0) {
+func (l *LbsLobby) checkLobbyBattleStart(force bool) {
+	if !(force || l.canStartBattle()) {
 		return
 	}
 
@@ -439,21 +434,13 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 
 	b := NewBattle(l.app, l.ID, l.Rule, mcsRegion, mcsAddr)
 
-	if l.extraCost {
-		ecRule := *l.Rule
-		ecRule.RenpoVital = 630
-		ecRule.ZeonVital = 630
-		b.SetRule(&ecRule)
-		l.extraCost = false
-	}
-
 	participants := l.pickLobbyBattleParticipants()
 
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
 		aggregate := 1
-		if l.forceStart {
+		if force || l.Rule.NoRanking == 1 {
 			aggregate = 0
 		}
 		err := getDB().AddBattleRecord(&BattleRecord{
@@ -504,11 +491,9 @@ func (l *LbsLobby) CheckLobbyBattleStart() {
 
 	l.app.BroadcastLobbyUserCount(l)
 	l.app.BroadcastLobbyMatchEntryUserCount(l)
-
-	l.CancelForceStartBattle() //battle started, reset forceStart flag
 }
 
-func (l *LbsLobby) CheckRoomBattleStart() {
+func (l *LbsLobby) checkRoomBattleStart() {
 	var (
 		renpoRoom    *LbsRoom
 		zeonRoom     *LbsRoom
@@ -608,13 +593,17 @@ func (l *LbsLobby) CheckRoomBattleStart() {
 	for _, q := range participants {
 		b.Add(q)
 		q.Battle = b
+		aggregate := 1
+		if l.Rule.NoRanking == 1 {
+			aggregate = 0
+		}
 		err := getDB().AddBattleRecord(&BattleRecord{
 			BattleCode: b.BattleCode,
 			UserID:     q.UserID,
 			UserName:   q.Name,
 			PilotName:  q.PilotName,
 			Players:    len(participants),
-			Aggregate:  1,
+			Aggregate:  aggregate,
 		})
 		if err != nil {
 			logger.Error("AddBattleRecord failed", zap.Error(err))

@@ -16,33 +16,34 @@ var (
 // DC2 LobbyID: 2, 4-6, 9-17, 19-22
 
 type LobbySetting struct {
-	Name                string
-	McsRegion           string
-	Comment             string
-	EnableExtraCostCmd  bool
+	Name        string
+	McsRegion   string
+	Comment     string
+	Description string // automatically filled
+
+	AutoReBattle        int
+	FreeRule            bool // Allow all Stage and MS/MA
 	EnableForceStartCmd bool
 	TeamShuffle         bool
 	PingLimit           bool
-	AutoReBattle        int
 	No375MS             bool
+	Cost630             bool
 }
 
 func init() {
 	lbsLobbySettings = map[uint16]*LobbySetting{
-		// earth lobbies
+		// Earth lobbies
 		1: {
 			// PS2 Only
 			Name:                "",
 			McsRegion:           "",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "1",
 		},
 		2: {
 			Name:                "タクラマカン砂漠",
 			McsRegion:           "",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			TeamShuffle:         true,
 			Comment:             "Default Server",
 		},
@@ -52,7 +53,6 @@ func init() {
 			McsRegion:           "",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "1",
 		},
 		4: {
@@ -60,7 +60,6 @@ func init() {
 			McsRegion:           "asia-east2",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 		},
 		5: {
 			Name:         "オデッサ",
@@ -83,7 +82,6 @@ func init() {
 			Name:                "",
 			McsRegion:           "",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "1",
 		},
 		8: {
@@ -91,7 +89,6 @@ func init() {
 			Name:                "",
 			McsRegion:           "",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "1",
 		},
 		9: {
@@ -99,14 +96,12 @@ func init() {
 			McsRegion:           "asia-northeast1",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 		},
 		10: {
 			Name:                "グレートキャニオン",
 			McsRegion:           "asia-northeast1",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			No375MS:             true,
 			Comment:             "No 375 Cost MS",
 		},
@@ -115,51 +110,46 @@ func init() {
 			McsRegion:           "asia-northeast2",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 		},
 		12: {
 			Name:                "地下基地",
 			McsRegion:           "asia-east1",
 			PingLimit:           true,
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "For JP vs HK",
 		},
 
-		// space lobbies
+		// Universe lobbies
 		13: {
 			Name:                "ソロモン",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
+			FreeRule:            true,
 			Comment:             "Free Lobby",
 		},
 		14: {
 			Name:                "ソロモン宙域",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
+			FreeRule:            true,
 			Comment:             "Free Lobby",
 		},
 		15: {
 			Name:                "ア・バオア・クー宙域",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "Private Room",
 		},
 		16: {
 			Name:                "ア・バオア・クー外部",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "Private Room",
 		},
 		17: {
 			Name:                "ア・バオア・クー内部",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
 			Comment:             "Private Room",
 		},
 		18: {
@@ -167,36 +157,32 @@ func init() {
 			Name:                "",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
+			FreeRule:            true,
 			Comment:             "Free Lobby",
 		},
 		19: {
 			Name:                "衛星軌道1",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
-			Comment:             "Free Lobby",
+			No375MS:             true,
+			Comment:             "No 375 Cost MS",
 		},
 		20: {
 			Name:                "衛星軌道2",
 			McsRegion:           "best",
 			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
-			Comment:             "Free Lobby",
+			Cost630:             true,
+			Comment:             "Cost 630",
 		},
 		21: {
-			Name:                "サイド6宙域",
-			McsRegion:           "best",
-			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
-			Comment:             "Free Lobby",
+			Name:      "サイド6宙域",
+			McsRegion: "best",
+			Comment:   "Event Lobby",
 		},
 		22: {
-			Name:                "サイド7内部",
-			McsRegion:           "best",
-			EnableForceStartCmd: true,
-			EnableExtraCostCmd:  true,
-			Comment:             "Free Lobby",
+			Name:      "サイド7内部",
+			McsRegion: "best",
+			Comment:   "Event Lobby",
 		},
 	}
 
@@ -208,6 +194,6 @@ func init() {
 		if x.McsRegion == "best" {
 			locName = "Best Server [Auto Detection]"
 		}
-		x.Comment = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, x.Comment)
+		x.Description = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, x.Comment)
 	}
 }

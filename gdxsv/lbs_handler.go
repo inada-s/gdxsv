@@ -330,7 +330,6 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	// skip 2~8 that's ok.
-	p.SendMessage(NewServerQuestion(lbsUserInfo2))
 	p.SendMessage(NewServerQuestion(lbsUserInfo9))
 })
 
@@ -765,12 +764,12 @@ var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 	if ok {
 		p.SendMessage(NewServerAnswer(m).Writer().
 			Write16(lobbyID).
-			WriteString(fmt.Sprintf("<B>[%vms]<B>%s", rtt, lobby.Comment)).
+			WriteString(fmt.Sprintf("<B>[%vms]<B>%s", rtt, lobby.Description)).
 			Msg())
 	} else {
 		p.SendMessage(NewServerAnswer(m).Writer().
 			Write16(lobbyID).
-			WriteString(lobby.Comment).
+			WriteString(lobby.Description).
 			Msg())
 	}
 })
@@ -1203,6 +1202,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 
+	// broadcast chat message to users in the same place.
 	if p.Room != nil {
 		for _, u := range p.Room.Users {
 			if q := p.app.FindPeer(u.UserID); q != nil {
@@ -1210,84 +1210,53 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			}
 		}
 	} else if p.Lobby != nil {
-		postInLobby := func(msg *LbsMessage) {
-			for _, u := range p.Lobby.Users {
-				if q := p.app.FindPeer(u.UserID); q != nil {
-					if q.InLobbyChat() {
-						q.SendMessage(msg)
-					}
+		for _, u := range p.Lobby.Users {
+			if q := p.app.FindPeer(u.UserID); q != nil {
+				if q.InLobbyChat() {
+					q.SendMessage(msg)
 				}
 			}
 		}
+	}
 
-		hintMsgBuilder := func(hint string) *LbsMessage {
-			return NewServerNotice(lbsChatMessage).Writer().
-				WriteString("").
-				WriteString("").
-				WriteString(hint).
-				Write8(0). // chat_type
-				Write8(0). // id color
-				Write8(0). // handle color
-				Write8(0).Msg() // msg color
+	// Additional actions.
+	buildHintMsg := func(hint string) *LbsMessage {
+		return NewServerNotice(lbsChatMessage).Writer().
+			WriteString("").
+			WriteString("").
+			WriteString(hint).
+			Write8(0). // chat_type
+			Write8(0). // id color
+			Write8(0). // handle color
+			Write8(0).Msg() // msg color
+	}
+
+	if text == "／ｆ" || text == "／Ｆ" {
+		//intercept message if it is a command
+
+		userHasJoinedForce := false
+		for _, userID := range p.Lobby.EntryUsers {
+			if p.UserID == userID {
+				userHasJoinedForce = true
+				break
+			}
 		}
+		twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
 
-		if text == "／ｆ" || text == "／Ｆ" {
-			//intercept message if it is a command
-
-			userHasJoinedForce := false
-			for _, userID := range p.Lobby.EntryUsers {
-				if p.UserID == userID {
-					userHasJoinedForce = true
-					break
-				}
-			}
-			twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
-
-			if p.Lobby.EnableForceStartCmd && userHasJoinedForce && twoOrMorePlayers {
-				//Print accepted command + induced action to all users (for clarity + educational purpose)
-				postInLobby(msg)
-				p.Lobby.ForceStartBattle()
-				p.Lobby.NotifyLobbyEvent("", fmt.Sprintf("%v starts battle countdown!", p.Name))
-			} else {
-				//only print unaccepted command + hint to sender
-				p.SendMessage(msg)
-
-				if !p.Lobby.EnableForceStartCmd {
-					hint := hintMsgBuilder("/f is disabled in this lobby")
-					p.SendMessage(hint)
-				} else if userHasJoinedForce == false {
-					hint := hintMsgBuilder("Join a force first! (自動選抜→待機)")
-					p.SendMessage(hint)
-				} else if twoOrMorePlayers == false {
-					hint := hintMsgBuilder("Battle requires at least 2 players!")
-					p.SendMessage(hint)
-				}
-
-			}
-		} else if text == "／ｅｃ" || text == "／ＥＣ" {
-			//Extra Cost
-			if !p.Lobby.EnableExtraCostCmd {
-				hint := hintMsgBuilder("/ec is disabled in this lobby")
-				p.SendMessage(hint)
-			} else {
-				postInLobby(msg)
-				hint := hintMsgBuilder("Cost is set to 630!")
-				postInLobby(hint)
-				p.Lobby.EnableExtraCost()
-			}
-		} else if text == "／ｎｃ" || text == "／ＮＣ" {
-			//Normal cost
-			if !p.Lobby.EnableExtraCostCmd {
-				hint := hintMsgBuilder("/nc is disabled in this lobby")
-				p.SendMessage(hint)
-			} else {
-				postInLobby(msg)
-				hint := hintMsgBuilder("Cost is set to 600!")
-				postInLobby(hint)
-				p.Lobby.DisableExtraCost()
-			}
+		if p.Lobby.EnableForceStartCmd && userHasJoinedForce && twoOrMorePlayers {
+			// Print induced action to all users (for clarity + educational purpose)
+			p.Lobby.StartForceStartCountDown()
+			p.Lobby.NotifyLobbyEvent("", fmt.Sprintf("%v starts battle countdown!", p.Name))
 		} else {
-			postInLobby(msg)
+			// Print hints to sender
+			if !p.Lobby.EnableForceStartCmd {
+				p.SendMessage(buildHintMsg("/f is disabled in this lobby"))
+			} else if !userHasJoinedForce {
+				p.SendMessage(buildHintMsg("Join a force first! (自動選抜→待機)"))
+			} else if !twoOrMorePlayers {
+				p.SendMessage(buildHintMsg("Battle requires at least 2 players!"))
+			}
+
 		}
 	}
 })
