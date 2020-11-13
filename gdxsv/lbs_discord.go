@@ -197,7 +197,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		//
 		// Create lobby user list, for the second embed
 		//
-		var plazaUsers string
+		var plazaUsersBuf bytes.Buffer
 
 		lobby := make(map[uint16]*lobbyUsers)
 
@@ -213,7 +213,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 				}
 
 				if u.Lobby == nil {
-					plazaUsers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
+					plazaUsersBuf.WriteString(fmt.Sprintf("`%s` %s\n", u.UserID, u.Name))
 					plazaUserCount++
 				} else {
 					_, exists := lobby[u.Lobby.ID]
@@ -318,7 +318,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		//1st Field is always Plaza
 		var lobbyFields []*discordEmbedField
 		if plazaUserCount > 0 {
-			for i, v := range splitEmbedFieldValues(plazaUsers) {
+			for i, v := range splitEmbedFieldValues(plazaUsersBuf.String()) {
 				name := "⠀"
 				if i == 0 {
 					name = fmt.Sprintf("**Plaza － %d 人**", plazaUserCount)
