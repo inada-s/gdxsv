@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
     HashRouter as Router,
     Switch,
@@ -13,11 +13,22 @@ import Status from './Status';
 import Footer from './Footer';
 
 function App() {
-    console.log('public url: ', process.env.PUBLIC_URL)
+    const router = useRef(null);
+
+    useEffect(() => {
+        // @ts-ignore
+        router.current.history.listen((location) => {
+            // @ts-ignore
+            window.gtag('config', 'G-FJN2KR1FWT', {
+                'page_path': `${location.pathname}${location.search}`
+            });
+        });
+    });
+
     return (
         <React.Fragment>
             <Header/>
-            <Router basename={process.env.PUBLIC_URL}>
+            <Router basename={process.env.PUBLIC_URL} ref={router}>
                 <div>
                     <Switch>
                         <Route exact path="/">
