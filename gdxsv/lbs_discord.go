@@ -34,9 +34,9 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 	}
 
 	type discordEmbedField struct {
-		Name   string `json:"name,omitempty"`
-		Value  string `json:"value,omitempty"`
-		Inline bool   `json:"inline,omitempty"`
+		Name  string `json:"name,omitempty"`
+		Value string `json:"value,omitempty"`
+		// Inline bool   `json:"inline,omitempty"`
 	}
 
 	type discordEmbed struct {
@@ -49,8 +49,8 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 	}
 
 	type statusPayload struct {
-		Embed   []*discordEmbed `json:"embeds"`
-		BotName string          `json:"username"`
+		Embed []*discordEmbed `json:"embeds"`
+		// BotName string          `json:"username"`
 	}
 
 	type lobbyUsers struct {
