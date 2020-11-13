@@ -164,7 +164,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		existingBattleUserIDs := make(map[string]bool)
 
 		battleUserCount := 0
-		accumulatedEmbedStringLength := 0
 
 		for _, u := range sharedData.GetMcsUsers() {
 			_, exists := battle[u.BattleCode]
@@ -179,7 +178,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 					locName = "Best Server"
 				}
 				battle[u.BattleCode].RegionName = locName
-				accumulatedEmbedStringLength += len(locName)
 			}
 
 			var user string
@@ -191,7 +189,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 				user = fmt.Sprintf("<:zaku:772467605008023563> `%s` %s\n", u.UserID, u.Name)
 				battle[u.BattleCode].ZeonUsersBuf.WriteString(user)
 			}
-			accumulatedEmbedStringLength += len(user)
 
 			battleUserCount++
 			existingBattleUserIDs[u.UserID] = true
@@ -217,7 +214,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 
 				if u.Lobby == nil {
 					plazaUsers += fmt.Sprintf("`%s` %s\n", u.UserID, u.Name)
-					accumulatedEmbedStringLength += len(plazaUsers)
 					plazaUserCount++
 				} else {
 					_, exists := lobby[u.Lobby.ID]
@@ -259,7 +255,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 						}
 
 						lobby[u.Lobby.ID].Comment = commentBuf.String()
-						accumulatedEmbedStringLength += len(lobby[u.Lobby.ID].Comment)
 					}
 
 					var readyColor string
@@ -291,7 +286,6 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 						user = fmt.Sprintf("❔⚫ `%s` %s\n", u.UserID, u.Name)
 						lobby[u.Lobby.ID].NoForceUsersBuf.WriteString(user)
 					}
-					accumulatedEmbedStringLength += len(user)
 
 					lobby[u.Lobby.ID].Count++
 				}
@@ -303,7 +297,8 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		// Start to create JSON payload
 		//
 		payload := new(statusPayload)
-		payload.BotName = "Live Status"
+		// payload.BotName = "Live Status"
+		accumulatedEmbedStringLength := 0
 
 		//
 		//1st Embed, online count
@@ -314,6 +309,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 			Footer:    &discordEmbedFooter{Text: "🕒"},
 			Timestamp: fmt.Sprintf(time.Now().UTC().Format("2006-01-02T15:04:05.000Z")),
 		})
+		accumulatedEmbedStringLength += len(payload.Embed[0].Title) + len(payload.Embed[0].Footer.Text)
 
 		//
 		//2nd Embed, lobby count
