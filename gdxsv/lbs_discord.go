@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -137,10 +136,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 	}
 
 	reduceJSONStringSize := func(s string) string {
-		//Reduce size by removing userid
-		re := regexp.MustCompile("`.*?`\\s")
-		s = re.ReplaceAllString(s, "")
-
+		//Reduce size by using standard emoji
 		replacer := strings.NewReplacer("<:gundam:772467554160738355>", "🌎", "<:zaku:772467605008023563>", "🪐")
 		s = replacer.Replace(s)
 
