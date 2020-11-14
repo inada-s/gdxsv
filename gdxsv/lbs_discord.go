@@ -513,6 +513,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 	//Publish Loop
 	//
 	tick := time.Tick(3 * time.Second)
+	tok := time.Tick(5 * time.Minute)
 	for {
 		select {
 		case <-tick:
@@ -520,6 +521,9 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 				discordLiveStatusUpdateAvailable = false
 				publish()
 			}
+		case <-tok:
+			discordLiveStatusUpdateAvailable = false
+			publish()
 		}
 	}
 }
