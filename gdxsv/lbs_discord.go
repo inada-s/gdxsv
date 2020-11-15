@@ -135,13 +135,8 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 		return divided
 	}
 
-	reduceJSONStringSize := func(s string) string {
-		//Reduce size by using standard emoji
-		replacer := strings.NewReplacer("<:gundam:772467554160738355>", "🌎", "<:zaku:772467605008023563>", "🪐")
-		s = replacer.Replace(s)
-
-		return s
-	}
+	//Reduce size by using standard emoji
+	emojiReplacer := strings.NewReplacer("<:gundam:772467554160738355>", "🌎", "<:zaku:772467605008023563>", "🪐")
 
 	//
 	// Implementation for the core function
@@ -436,7 +431,7 @@ func (lbs *Lbs) publishLiveStatusToDiscordLoop() {
 			originalSize := buffer.Len()
 
 			start := time.Now()
-			jsonString := reduceJSONStringSize(buffer.String())
+			jsonString := emojiReplacer.Replace(buffer.String())
 			buffer.Reset()
 			buffer.Write([]byte(jsonString))
 			elapsed := time.Since(start)
