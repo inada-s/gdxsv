@@ -2,12 +2,11 @@ package main
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"math/rand"
 	"sort"
 	"strconv"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type LbsLobby struct {
@@ -72,18 +71,18 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 	return lobby
 }
 
-func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
-	toMsg := func(text string) *LbsMessage {
-		return NewServerNotice(lbsChatMessage).Writer().
-			WriteString("").
-			WriteString("").
-			WriteString(text).
-			Write8(0). // chat_type
-			Write8(0). // id color
-			Write8(0). // handle color
-			Write8(0).Msg() // msg color
-	}
+func toLobbyChatMessage(text string) *LbsMessage {
+	return NewServerNotice(lbsChatMessage).Writer().
+		WriteString("").
+		WriteString("").
+		WriteString(text).
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
+		Write8(0).Msg() // msg color
+}
 
+func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	boolToYesNo := func(yes bool) string {
 		if yes {
 			return "Yes"
@@ -92,24 +91,82 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	}
 
 	var msgs []*LbsMessage
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.PingLimit))))
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "McsRegion", l.McsRegion)))
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "DamageLevel", l.Rule.DamageLevel+1)))
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Difficulty", l.Rule.Difficulty+1)))
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.TeamShuffle))))
+	msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
+
+	if l.PingLimit {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.PingLimit))))
+	}
+	if l.McsRegion != "" {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "McsRegion", l.McsRegion)))
+	}
+
+	msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v/%v", "Dmage/Diff", l.Rule.DamageLevel+1, l.Rule.Difficulty+1)))
+
+	if l.TeamShuffle {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.TeamShuffle))))
+	}
 	if 0 < l.AutoReBattle {
-		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.AutoReBattle)))
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.AutoReBattle)))
 	}
 	if l.No375MS {
-		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "No 375 Cost MS", boolToYesNo(l.No375MS))))
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "No 375 Cost MS", boolToYesNo(l.No375MS))))
 	}
 	if l.Cost630 {
-		msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "Cost630", boolToYesNo(l.Cost630))))
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Cost630", boolToYesNo(l.Cost630))))
 	}
-	msgs = append(msgs, toMsg(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
+	if l.EnableForceStartCmd {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
+	}
 
 	return msgs
+}
+
+func (l *LbsLobby) displayUsersInSameLobby(peer *LbsPeer) {
+	entryUserIDs := map[string]bool{}
+	for _, id := range l.EntryUsers {
+		entryUserIDs[id] = true
+	}
+
+	if 12 < len(l.Users) {
+		peer.SendMessage(toLobbyChatMessage("Many users in this lobby"))
+	} else {
+		for userID := range l.Users {
+			p := l.app.FindPeer(userID)
+			if p == nil || p.Team == TeamNone {
+				continue
+			}
+			if entryUserIDs[userID] {
+				continue
+			}
+
+			if p.Team == TeamRenpo {
+				if p.Room == nil {
+					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in RENPO Lobby", p.Name)))
+				} else {
+					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in RENPO Room", p.Name)))
+				}
+			} else if p.Team == TeamZeon {
+				if p.Room == nil {
+					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in ZEON Lobby", p.Name)))
+				} else {
+					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in ZEON Room", p.Name)))
+				}
+			}
+		}
+	}
+
+	for _, userID := range l.EntryUsers {
+		p := l.app.FindPeer(userID)
+		if p == nil || p.Team == TeamNone {
+			continue
+		}
+
+		if p.Team == TeamRenpo {
+			peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in RENPO Slot", p.Name)))
+		} else if p.Team == TeamZeon {
+			peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in ZEON Slot", p.Name)))
+		}
+	}
 }
 
 func (l *LbsLobby) canStartBattle() bool {
@@ -136,14 +193,8 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 		msgBody = fmt.Sprintf("%-12s", kind) + text
 	}
 
-	msg := NewServerNotice(lbsChatMessage).Writer().
-		WriteString("").
-		WriteString("").
-		WriteString(msgBody).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
-		Write8(0).Msg() // msg color
+	msg := toLobbyChatMessage(msgBody)
+
 	for userID := range l.Users {
 		peer := l.app.FindPeer(userID)
 		if peer.Room != nil {
@@ -173,17 +224,21 @@ func (l *LbsLobby) FindRoom(side, roomID uint16) *LbsRoom {
 func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
 	switch p.Team {
 	case TeamNone:
-		l.NotifyLobbyEvent("EXIT", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v Left from Lobby", p.Name))
 	case TeamRenpo:
 		for _, msg := range l.lobbySettingMessages {
 			p.SendMessage(msg)
 		}
-		l.NotifyLobbyEvent("ENTER RENPO", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v is in RENPO Lobby", p.Name))
+		a, b := l.GetLobbyMatchEntryUserCount()
+		p.SendMessage(toLobbyChatMessage(fmt.Sprintf("RENPO×%d  ZEON×%d", a, b)))
 	case TeamZeon:
 		for _, msg := range l.lobbySettingMessages {
 			p.SendMessage(msg)
 		}
-		l.NotifyLobbyEvent("ENTER ZEON", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v is in ZEON Lobby", p.Name))
+		a, b := l.GetLobbyMatchEntryUserCount()
+		p.SendMessage(toLobbyChatMessage(fmt.Sprintf("RENPO×%d  ZEON×%d", a, b)))
 	}
 }
 
@@ -207,10 +262,13 @@ func (l *LbsLobby) Exit(userID string) {
 func (l *LbsLobby) Entry(p *LbsPeer) {
 	l.CancelForceStart()
 	l.EntryUsers = append(l.EntryUsers, p.UserID)
+	a, b := l.GetLobbyMatchEntryUserCount()
 	if p.Team == TeamRenpo {
-		l.NotifyLobbyEvent("JOIN RENPO", p.Name)
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v joined RENPO Slot", p.Name))
+		l.NotifyLobbyEvent("", fmt.Sprintf("RENPO×%d  ZEON×%d", a, b))
 	} else if p.Team == TeamZeon {
-		l.NotifyLobbyEvent("JOIN ZEON", p.Name)
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v joined ZEON Slot", p.Name))
+		l.NotifyLobbyEvent("", fmt.Sprintf("RENPO×%d  ZEON×%d", a, b))
 	}
 }
 
@@ -221,7 +279,13 @@ func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 		}
 	}
-	l.NotifyLobbyEvent("CANCEL", p.Name)
+
+	if p.Team == TeamRenpo {
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v left from RENPO Slot", p.Name))
+	} else if p.Team == TeamZeon {
+		l.NotifyLobbyEvent("", fmt.Sprintf("%v left from ZEON Slot", p.Name))
+	}
+
 }
 
 func (l *LbsLobby) EntryPicked(p *LbsPeer) {
@@ -230,7 +294,6 @@ func (l *LbsLobby) EntryPicked(p *LbsPeer) {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 		}
 	}
-	l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 }
 
 func (l *LbsLobby) GetUserCountBySide() (uint16, uint16) {
@@ -364,7 +427,11 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 
 	for _, p := range peers {
 		l.EntryPicked(p)
+		l.NotifyLobbyEvent("GO BATTLE", fmt.Sprintf("【%v】%v", p.UserID, p.Name))
 	}
+
+	a, b := l.GetLobbyMatchEntryUserCount()
+	l.NotifyLobbyEvent("", fmt.Sprintf("RENPO×%d  ZEON×%d", a, b))
 
 	return peers
 }
