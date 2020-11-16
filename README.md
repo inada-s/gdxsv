@@ -51,9 +51,9 @@ All settings are specified from environment variables.
 - `GDXSV_LOBBY_ADDR` :  Specifies the TCP address that the lbs listens on. Currently only the port number is used.
 - `GDXSV_BATTLE_PUBLIC_ADDR` : Specifies the TCP/UDP address that a client will use to connect with TCP/UDP.
 - `GDXSV_BATTLE_ADDR` : Specifies the TCP/UDP address that the mcs listens on. Currently only the port number is used.
+- `GDXSV_BATTLE_LOG_PATH` : Specifies a file path that will be used to save battle log file.
 - `GDXSV_MCSFUNC_KEY` : Specifies a GCP key that has permission to call mcsfunc.
 - `GDXSV_MCSFUNC_URL` : Specifies an URL of mcsfunc that you deployed.
-
 
 ## Directory structures
 
