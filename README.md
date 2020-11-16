@@ -9,8 +9,8 @@ This game has online mode, but the service ended in 2004. This project aims to k
 
 
 ## Running Server links
-- gdxsv : https://www.gdxsv.net
-- dreamcastlive : https://dreamcastlive.net/mobile-suit-gundam-federation-vs-zeon-dx/
+- https://www.gdxsv.net : This is the server hosted by this project. Good for flycast emulator players.
+- https://dreamcastlive.net/mobile-suit-gundam-federation-vs-zeon-dx/ : Dreamcastlive commulnity server. Good for real-dreamcast players.
 
 ---
 
