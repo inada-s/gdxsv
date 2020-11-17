@@ -141,16 +141,17 @@ func init() {
 			Comment:             "Private Room",
 		},
 		16: {
-			Name:                "ア・バオア・クー外部",
-			McsRegion:           "best",
-			EnableForceStartCmd: true,
-			Comment:             "Private Room",
+			Name:      "ア・バオア・クー外部",
+			McsRegion: "best",
+			No375MS:   true,
+			Comment:   "Event Lobby",
 		},
 		17: {
-			Name:                "ア・バオア・クー内部",
-			McsRegion:           "best",
-			EnableForceStartCmd: true,
-			Comment:             "Private Room",
+			Name:        "ア・バオア・クー内部",
+			McsRegion:   "best",
+			No375MS:     true,
+			TeamShuffle: true,
+			Comment:     "Event Lobby (TeamShuffle)",
 		},
 		18: {
 			// PS2 Only
@@ -175,14 +176,16 @@ func init() {
 			Comment:             "Cost 630",
 		},
 		21: {
-			Name:      "サイド6宙域",
-			McsRegion: "best",
-			Comment:   "Event Lobby",
+			Name:                "サイド6宙域",
+			McsRegion:           "best",
+			EnableForceStartCmd: true,
+			Comment:             "Private Room",
 		},
 		22: {
-			Name:      "サイド7内部",
-			McsRegion: "best",
-			Comment:   "Event Lobby",
+			Name:                "サイド7内部",
+			McsRegion:           "best",
+			EnableForceStartCmd: true,
+			Comment:             "Private Room",
 		},
 	}
 
