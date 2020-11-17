@@ -36,8 +36,8 @@ This game has online mode, but the service ended in 2004. This project aims to k
 
 ### LBS and MCS architecture
 There are two ways to run the gdxsv binary.
-1. `lbs` starts the lobby and the match server one by one.
-2. `mcs` starts only the match server and connects to the parent` lbs`.
+1. `lbs` serves a lobby and a match server one by one.
+2. `mcs` serves only a match server and connects to the parent `lbs`.
 
 This allows one lobby server to manage match servers around the world.
 There is a CloudFunction script in the `mcsfunc` directory that launches mcs on GCP.
