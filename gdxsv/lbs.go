@@ -57,7 +57,7 @@ func NewLbs() *Lbs {
 	}
 
 	for _, pf := range []string{PlatformConsole, PlatformEmuX8664} {
-		for _, disk := range []string{GameDiskDC1, GameDiskDC1, GameDiskDC2} {
+		for _, disk := range []string{GameDiskDC1, GameDiskDC2, GameDiskPS2} {
 			key := lobbyKey(pf, disk)
 			app.lobbies[key] = make(map[uint16]*LbsLobby)
 
