@@ -26,7 +26,7 @@ func TestSharedData_Sync(t *testing.T) {
 	sd1.ShareMcsGame(&McsGame{
 		BattleCode: "012345",
 		McsAddr:    mcsAddr,
-		GameDisk:   1,
+		GameDisk:   GameDiskDC2,
 		Rule:       *RulePresetDefault,
 		State:      McsGameStateCreated,
 		UpdatedAt:  time.Unix(0, 0),
@@ -39,6 +39,8 @@ func TestSharedData_Sync(t *testing.T) {
 		Name:        "NAME01",
 		PilotName:   "PILOT01",
 		GameParam:   []byte{0, 1, 2, 3},
+		Platform:    PlatformConsole,
+		GameDisk:    GameDiskDC2,
 		BattleCount: 1,
 		WinCount:    2,
 		LoseCount:   3,
@@ -60,7 +62,6 @@ func TestSharedData_Sync(t *testing.T) {
 		t.Error("GetMcsGames is different")
 	}
 
-
 	sd2.UpdateMcsGameState(battleCode, McsGameStateOpened)
 	sd2.UpdateMcsUserState(sessionID, McsUserStateJoined)
 
@@ -80,7 +81,6 @@ func TestSharedData_Sync(t *testing.T) {
 		t.Error("GetMcsGames is different")
 	}
 
-
 	sd2.UpdateMcsUserState(sessionID, McsUserStateLeft)
 
 	if len(sd2.GetMcsUsers()) != 1 {
@@ -99,7 +99,6 @@ func TestSharedData_Sync(t *testing.T) {
 		t.Error("McsUser should be removed")
 	}
 
-
 	sd2.UpdateMcsGameState(battleCode, McsGameStateClosed)
 
 	if len(sd2.GetMcsGames()) != 1 {
@@ -117,7 +116,6 @@ func TestSharedData_Sync(t *testing.T) {
 	if len(sd1.GetMcsGames()) != 0 {
 		t.Error("McsGame should be removed")
 	}
-
 
 	sd2.SyncLbsToMcs(&LbsStatus{
 		McsUsers: sd1.GetMcsUsers(),

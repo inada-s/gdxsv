@@ -47,6 +47,8 @@ type McsUser struct {
 	Name        string `json:"name,omitempty"`
 	PilotName   string `json:"pilot_name,omitempty"`
 	GameParam   []byte `json:"game_param,omitempty"`
+	Platform    string `json:"platform"`
+	GameDisk    string `json:"game_disk"`
 	BattleCount int    `json:"battle_count,omitempty"`
 	WinCount    int    `json:"win_count,omitempty"`
 	LoseCount   int    `json:"lose_count,omitempty"`
@@ -60,7 +62,7 @@ type McsUser struct {
 type McsGame struct {
 	BattleCode string `json:"battle_code,omitempty"`
 	McsAddr    string `json:"mcs_addr,omitempty"`
-	GameDisk   int    `json:"game_disk"`
+	GameDisk   string `json:"game_disk"`
 	Rule       Rule   `json:"rule,omitempty"`
 
 	State     int       `json:"state,omitempty"`

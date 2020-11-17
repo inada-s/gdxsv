@@ -16,7 +16,8 @@ type LbsLobby struct {
 	lobbySettingMessages []*LbsMessage
 	forceStartCountDown  int
 
-	GameDisk   uint8
+	Platform   string
+	GameDisk   string
 	ID         uint16
 	Rule       *Rule
 	Users      map[string]*DBUser
@@ -25,14 +26,15 @@ type LbsLobby struct {
 	EntryUsers []string
 }
 
-func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
+func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 	lobby := &LbsLobby{
 		app:                  app,
 		LobbySetting:         *lbsLobbySettings[lobbyID],
 		lobbySettingMessages: nil,
 		forceStartCountDown:  0,
 
-		GameDisk:   platform,
+		Platform:   platform,
+		GameDisk:   disk,
 		ID:         lobbyID,
 		Users:      make(map[string]*DBUser),
 		RenpoRooms: make(map[uint16]*LbsRoom),
@@ -62,8 +64,8 @@ func NewLobby(app *Lbs, platform uint8, lobbyID uint16) *LbsLobby {
 
 	for i := 1; i <= maxRoomCount; i++ {
 		roomID := uint16(i)
-		lobby.RenpoRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamRenpo)
-		lobby.ZeonRooms[roomID] = NewRoom(app, platform, lobby, roomID, TeamZeon)
+		lobby.RenpoRooms[roomID] = NewRoom(app, platform, disk, lobby, roomID, TeamRenpo)
+		lobby.ZeonRooms[roomID] = NewRoom(app, platform, disk, lobby, roomID, TeamZeon)
 	}
 
 	lobby.lobbySettingMessages = lobby.buildLobbySettingMessages()
@@ -527,7 +529,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
-		GameDisk:   int(l.GameDisk),
+		GameDisk:   l.GameDisk,
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
 		McsAddr:    mcsAddr,
@@ -541,6 +543,8 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			Name:        q.Name,
 			PilotName:   q.PilotName,
 			GameParam:   q.GameParam,
+			Platform:    q.Platform,
+			GameDisk:    q.GameDisk,
 			BattleCount: q.BattleCount,
 			WinCount:    q.WinCount,
 			LoseCount:   q.LoseCount,
@@ -681,7 +685,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
-		GameDisk:   int(l.GameDisk),
+		GameDisk:   l.GameDisk,
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
 		McsAddr:    mcsAddr,
@@ -695,6 +699,8 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			Name:        q.Name,
 			PilotName:   q.PilotName,
 			GameParam:   q.GameParam,
+			Platform:    q.Platform,
+			GameDisk:    q.GameDisk,
 			BattleCount: q.BattleCount,
 			WinCount:    q.WinCount,
 			LoseCount:   q.LoseCount,

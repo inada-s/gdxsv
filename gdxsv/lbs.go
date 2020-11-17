@@ -17,11 +17,19 @@ const (
 )
 
 const (
-	GameDiskUnk = 0 // Unknown
-	GameDiskDC1 = 1 // Dreamcast
-	GameDiskDC2 = 2 // Dreamcast DX
-	GameDiskPS2 = 3 // PS2 DX
+	PlatformConsole  = "console"    // Real PS2 / Dreamcast
+	PlatformEmuX8664 = "emu-x86/64" // PCSX2 / Flycast on x64 platform
 )
+
+const (
+	GameDiskDC1 = "dc1" // Dreamcast
+	GameDiskDC2 = "dc2" // Dreamcast DX
+	GameDiskPS2 = "ps2" // PS2 DX
+)
+
+func lobbyKey(platform string, disk string) string {
+	return fmt.Sprintf("%s|%s", platform, disk)
+}
 
 const (
 	TeamNone  = 0
@@ -33,7 +41,7 @@ type Lbs struct {
 	handlers  map[CmdID]LbsHandler
 	userPeers map[string]*LbsPeer
 	mcsPeers  map[string]*LbsPeer
-	lobbies   map[byte]map[uint16]*LbsLobby
+	lobbies   map[string]map[uint16]*LbsLobby
 	chEvent   chan interface{}
 	chQuit    chan interface{}
 }
@@ -43,30 +51,27 @@ func NewLbs() *Lbs {
 		handlers:  defaultLbsHandlers,
 		userPeers: make(map[string]*LbsPeer),
 		mcsPeers:  make(map[string]*LbsPeer),
-		lobbies:   make(map[byte]map[uint16]*LbsLobby),
+		lobbies:   make(map[string]map[uint16]*LbsLobby),
 		chEvent:   make(chan interface{}, 64),
 		chQuit:    make(chan interface{}),
 	}
 
-	app.lobbies[GameDiskPS2] = make(map[uint16]*LbsLobby)
-	app.lobbies[GameDiskDC1] = make(map[uint16]*LbsLobby)
-	app.lobbies[GameDiskDC2] = make(map[uint16]*LbsLobby)
+	for _, pf := range []string{PlatformConsole, PlatformEmuX8664} {
+		for _, disk := range []string{GameDiskDC1, GameDiskDC1, GameDiskDC2} {
+			key := lobbyKey(pf, disk)
+			app.lobbies[key] = make(map[uint16]*LbsLobby)
 
-	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbies[GameDiskPS2][uint16(i)] = NewLobby(app, GameDiskPS2, uint16(i))
-	}
-	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbies[GameDiskDC1][uint16(i)] = NewLobby(app, GameDiskDC1, uint16(i))
-	}
-	for i := 1; i <= maxLobbyCount; i++ {
-		app.lobbies[GameDiskDC2][uint16(i)] = NewLobby(app, GameDiskDC2, uint16(i))
+			for i := 1; i <= maxLobbyCount; i++ {
+				app.lobbies[key][uint16(i)] = NewLobby(app, pf, disk, uint16(i))
+			}
+		}
 	}
 
 	return app
 }
 
-func (lbs *Lbs) GetLobby(platform uint8, lobbyID uint16) *LbsLobby {
-	lobbies, ok := lbs.lobbies[platform]
+func (lbs *Lbs) GetLobby(platform, disk string, lobbyID uint16) *LbsLobby {
+	lobbies, ok := lbs.lobbies[lobbyKey(platform, disk)]
 	if !ok {
 		return nil
 	}
@@ -105,8 +110,13 @@ func (lbs *Lbs) ListenAndServe(addr string) error {
 
 func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
 	return &LbsPeer{
-		app:          lbs,
-		conn:         conn,
+		app:  lbs,
+		conn: conn,
+
+		// Since it is not possible to distinguish between
+		// the emulator and the real console at this point,
+		// it is treated as an real console.
+		Platform:     PlatformConsole,
 		PlatformInfo: map[string]string{},
 		chWrite:      make(chan bool, 1),
 		chDispatch:   make(chan bool, 1),
@@ -290,26 +300,34 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	if lobby == nil {
 		return
 	}
-	// For lobby select scene.
-	ps2msg := NewServerNotice(lbsPlazaJoin).Writer().
-		Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
 
-	dclobby1 := lbs.GetLobby(GameDiskDC1, lobby.ID)
-	dclobby2 := lbs.GetLobby(GameDiskDC2, lobby.ID)
-	dcmsg := NewServerNotice(lbsPlazaJoin).Writer().
-		Write16(lobby.ID).
-		Write16(uint16(len(dclobby1.Users))).
-		Write16(uint16(len(dclobby2.Users))).Msg()
-
-	for _, u := range lbs.userPeers {
-		if u.IsPS2() {
-			u.SendMessage(ps2msg)
-		} else if u.IsDC() {
-			u.SendMessage(dcmsg)
+	// To lobby select scene.
+	if lobby.GameDisk == GameDiskPS2 {
+		ps2msg := NewServerNotice(lbsPlazaJoin).Writer().
+			Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
+		for _, u := range lbs.userPeers {
+			if u.Platform == lobby.Platform && u.IsPS2() {
+				u.SendMessage(ps2msg)
+			}
+		}
+	} else if lobby.GameDisk == GameDiskDC1 || lobby.GameDisk == GameDiskDC2 {
+		lobby1 := lbs.GetLobby(lobby.Platform, GameDiskDC1, lobby.ID)
+		lobby2 := lbs.GetLobby(lobby.Platform, GameDiskDC2, lobby.ID)
+		if lobby1 == nil || lobby2 == nil {
+			return
+		}
+		dcmsg := NewServerNotice(lbsPlazaJoin).Writer().
+			Write16(lobby.ID).
+			Write16(uint16(len(lobby1.Users))).
+			Write16(uint16(len(lobby2.Users))).Msg()
+		for _, u := range lbs.userPeers {
+			if u.Platform == lobby.Platform && u.IsDC() {
+				u.SendMessage(dcmsg)
+			}
 		}
 	}
 
-	// For lobby chat scene.
+	// To lobby scene.
 	if lobby.GameDisk == GameDiskPS2 {
 		renpo, zeon := lobby.GetUserCountBySide()
 		msgSum1 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamRenpo).Write16(renpo + zeon).Msg()
@@ -328,8 +346,8 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 			}
 		}
 	} else if lobby.GameDisk == GameDiskDC1 || lobby.GameDisk == GameDiskDC2 {
-		lobby1 := lbs.GetLobby(GameDiskDC1, lobby.ID)
-		lobby2 := lbs.GetLobby(GameDiskDC2, lobby.ID)
+		lobby1 := lbs.GetLobby(lobby.Platform, GameDiskDC1, lobby.ID)
+		lobby2 := lbs.GetLobby(lobby.Platform, GameDiskDC2, lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
 			return
 		}
@@ -514,7 +532,8 @@ type LbsPeer struct {
 	Lobby  *LbsLobby
 	Battle *LbsBattle
 
-	GameDisk     byte
+	Platform     string
+	GameDisk     string
 	PlatformInfo map[string]string
 	Team         uint16
 	GameParam    []byte

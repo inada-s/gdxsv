@@ -9,6 +9,7 @@ message BattleLogUser {
   int32 battle_count = 5;
   int32 win_count = 6;
   int32 lose_count = 7;
+  string platform = 10;
 }
 
 message BattleLogMessage {
@@ -20,7 +21,7 @@ message BattleLogMessage {
 }
 
 message BattleLogFile {
-  int32 game_disk = 1;
+  string game_disk = 5;
   string gdxsv_version = 2;
   string battle_code = 3;
   int32 log_file_version = 4;
