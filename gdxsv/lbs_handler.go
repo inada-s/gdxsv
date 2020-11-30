@@ -702,7 +702,7 @@ var _ = register(lbsPlazaJoin, func(p *LbsPeer, m *LbsMessage) {
 	// PS2: LobbyID, UserCount
 	// DC : LobbyID, DC1UserCount, DC2UserCount
 	if p.IsPS2() {
-		lobby := p.app.GetLobby(p.GameDisk, lobbyID)
+		lobby := p.app.GetLobby(p.Platform, p.GameDisk, lobbyID)
 		if lobby == nil {
 			p.SendMessage(NewServerAnswer(m).SetErr())
 			return
@@ -711,8 +711,8 @@ var _ = register(lbsPlazaJoin, func(p *LbsPeer, m *LbsMessage) {
 			Write16(lobbyID).
 			Write16(uint16(len(lobby.Users))).Msg())
 	} else if p.IsDC() {
-		lobby1 := p.app.GetLobby(GameDiskDC1, lobbyID)
-		lobby2 := p.app.GetLobby(GameDiskDC2, lobbyID)
+		lobby1 := p.app.GetLobby(p.Platform, GameDiskDC1, lobbyID)
+		lobby2 := p.app.GetLobby(p.Platform, GameDiskDC2, lobbyID)
 		if lobby1 == nil || lobby2 == nil {
 			p.SendMessage(NewServerAnswer(m).SetErr())
 			return
@@ -728,7 +728,7 @@ var _ = register(lbsPlazaJoin, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.GetLobby(p.GameDisk, lobbyID)
+	lobby := p.app.GetLobby(p.Platform, p.GameDisk, lobbyID)
 	if lobby == nil {
 		p.SendMessage(NewServerAnswer(m).Writer().
 			Write16(lobbyID).
@@ -754,7 +754,7 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.GetLobby(p.GameDisk, lobbyID)
+	lobby := p.app.GetLobby(p.Platform, p.GameDisk, lobbyID)
 	if lobby == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
@@ -776,7 +776,7 @@ var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {
 	lobbyID := m.Reader().Read16()
-	lobby := p.app.GetLobby(p.GameDisk, lobbyID)
+	lobby := p.app.GetLobby(p.Platform, p.GameDisk, lobbyID)
 	if lobby == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
@@ -858,8 +858,8 @@ var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
 			}
 		}
 	case GameDiskDC1, GameDiskDC2:
-		lobby1 := p.app.GetLobby(GameDiskDC1, p.Lobby.ID)
-		lobby2 := p.app.GetLobby(GameDiskDC2, p.Lobby.ID)
+		lobby1 := p.app.GetLobby(p.Lobby.Platform, GameDiskDC1, p.Lobby.ID)
+		lobby2 := p.app.GetLobby(p.Lobby.Platform, GameDiskDC2, p.Lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
 			p.SendMessage(NewServerAnswer(m).SetErr())
 			return
@@ -1499,4 +1499,8 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 		zap.String("os", p.PlatformInfo["os"]),
 		zap.String("cpu", p.PlatformInfo["cpu"]),
 	)
+
+	if p.PlatformInfo["cpu"] == "x86/64" {
+		p.Platform = PlatformEmuX8664
+	}
 })

@@ -17,7 +17,8 @@ type LbsRoom struct {
 	lobby *LbsLobby
 	ready bool
 
-	Platform  uint8
+	Platform  string
+	GameDisk  string
 	ID        uint16
 	Team      uint16
 	Name      string
@@ -28,13 +29,14 @@ type LbsRoom struct {
 	Status    byte
 }
 
-func NewRoom(app *Lbs, platform uint8, lobby *LbsLobby, roomID, team uint16) *LbsRoom {
+func NewRoom(app *Lbs, platform, disk string, lobby *LbsLobby, roomID, team uint16) *LbsRoom {
 	return &LbsRoom{
 		app:   app,
 		lobby: lobby,
 		ready: false,
 
 		Platform:  platform,
+		GameDisk:  disk,
 		ID:        roomID,
 		Team:      team,
 		Name:      "",
@@ -96,7 +98,7 @@ func (r *LbsRoom) Remove() {
 		r.NotifyRoomEvent("EXIT ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
 		r.lobby.NotifyLobbyEvent("RETURN", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
 	}
-	*r = *NewRoom(r.app, r.Platform, r.lobby, r.ID, r.Team)
+	*r = *NewRoom(r.app, r.Platform, r.GameDisk, r.lobby, r.ID, r.Team)
 }
 
 func (r *LbsRoom) Ready(u *LbsPeer, enable uint8) {

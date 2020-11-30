@@ -10,19 +10,6 @@ import (
 var httpRequestGroup singleflight.Group
 
 func (lbs *Lbs) RegisterHTTPHandlers() {
-	diskName := func(disk int) string {
-		if disk == GameDiskDC1 {
-			return "dc1"
-		}
-		if disk == GameDiskDC2 {
-			return "dc2"
-		}
-		if disk == GameDiskPS2 {
-			return "ps2"
-		}
-		return "unknown"
-	}
-
 	teamName := func(team int) string {
 		if team == TeamRenpo {
 			return "renpo"
@@ -52,15 +39,16 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			Name       string `json:"name,omitempty"`
 			Team       string `json:"team,omitempty"`
 			BattleCode string `json:"battle_code,omitempty"`
+			Platform   string `json:"platform,omitempty"`
 			Disk       string `json:"disk,omitempty"`
 		}
 
 		type activeGame struct {
-			BattleCode string        `json:"battle_code,omitempty"`
-			Region     string        `json:"region,omitempty"`
-			Disk       string        `json:"disk,omitempty"`
-			State      string        `json:"state,omitempty"`
-			UpdatedAt  time.Time     `json:"updated_at,omitempty"`
+			BattleCode string    `json:"battle_code,omitempty"`
+			Region     string    `json:"region,omitempty"`
+			Disk       string    `json:"disk,omitempty"`
+			State      string    `json:"state,omitempty"`
+			UpdatedAt  time.Time `json:"updated_at,omitempty"`
 		}
 
 		type statusResponse struct {
@@ -79,13 +67,14 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 						Name:       u.Name,
 						Team:       teamName(int(u.Team)),
 						BattleCode: "",
-						Disk:       diskName(int(u.GameDisk)),
+						Platform:   u.Platform,
+						Disk:       u.GameDisk,
 					})
 				}
 			})
 
 			for _, u := range sharedData.GetMcsUsers() {
-				disk := GameDiskUnk
+				disk := "unknown"
 				b, ok := sharedData.GetBattleGameInfo(u.BattleCode)
 				if ok {
 					disk = b.GameDisk
@@ -96,14 +85,15 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 					Name:       u.Name,
 					Team:       teamName(int(u.Side)),
 					BattleCode: u.BattleCode,
-					Disk:       diskName(disk),
+					Platform:   u.Platform,
+					Disk:       disk,
 				})
 			}
 
 			for _, g := range sharedData.GetMcsGames() {
 				resp.ActiveGames = append(resp.ActiveGames, &activeGame{
 					BattleCode: g.BattleCode,
-					Disk:       diskName(g.GameDisk),
+					Disk:       g.GameDisk,
 					State:      gameStateName(g.State),
 					UpdatedAt:  g.UpdatedAt,
 				})
