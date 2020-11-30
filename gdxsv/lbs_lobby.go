@@ -58,6 +58,13 @@ func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 		lobby.Rule.ZeonVital = 630
 	}
 
+	if lobby.LobbySetting.BeamMSEvent {
+		lobby.Rule.RenpoVital = 605
+		lobby.Rule.ZeonVital = 605
+		lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
+		lobby.Rule.ZeonMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
+	}
+
 	if 0 < lobby.LobbySetting.AutoReBattle {
 		lobby.Rule.AutoRebattle = byte(lobby.LobbySetting.AutoReBattle)
 	}
