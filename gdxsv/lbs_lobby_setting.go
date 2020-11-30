@@ -28,6 +28,8 @@ type LobbySetting struct {
 	PingLimit           bool
 	No375MS             bool
 	Cost630             bool
+
+	BeamMSEvent bool
 }
 
 func init() {
@@ -135,21 +137,21 @@ func init() {
 			Comment:             "Free Lobby",
 		},
 		15: {
-			Name:                "ア・バオア・クー宙域",
-			McsRegion:           "best",
-			EnableForceStartCmd: true,
-			Comment:             "Private Room",
+			Name:        "ア・バオア・クー宙域",
+			McsRegion:   "best",
+			BeamMSEvent: true,
+			Comment:     "Event Lobby",
 		},
 		16: {
-			Name:      "ア・バオア・クー外部",
-			McsRegion: "best",
-			No375MS:   true,
-			Comment:   "Event Lobby",
+			Name:        "ア・バオア・クー外部",
+			McsRegion:   "best",
+			BeamMSEvent: true,
+			Comment:     "Event Lobby",
 		},
 		17: {
 			Name:        "ア・バオア・クー内部",
 			McsRegion:   "best",
-			No375MS:     true,
+			BeamMSEvent: true,
 			TeamShuffle: true,
 			Comment:     "Event Lobby (TeamShuffle)",
 		},
