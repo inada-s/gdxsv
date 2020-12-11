@@ -66,6 +66,7 @@ func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 	}
 
 	if lobby.LobbySetting.LowCostMSEvent {
+		lobby.Rule.Timer = 4
 		lobby.Rule.RenpoMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
 		lobby.Rule.ZeonMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
 	}
