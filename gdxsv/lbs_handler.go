@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"golang.org/x/mod/semver"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/width"
@@ -261,6 +262,14 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 
 	switch loginType {
 	case 2:
+		if p.PlatformInfo["flycast"] != "" {
+			if semver.Compare(p.PlatformInfo["flycast"], requiredFlycastVersion) < 0 {
+				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+					WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
+				return
+			}
+		}
+
 		// Go to account registration flow.
 		p.SendMessage(NewServerQuestion(lbsUserInfo1))
 	case 3:

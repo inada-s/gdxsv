@@ -27,7 +27,7 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 		mcs:  mcs,
 		game: gameInfo,
 		battleLog: &proto.BattleLogFile{
-			LogFileVersion: 20201117,
+			LogFileVersion: 20201212,
 			GameDisk:       gameInfo.GameDisk,
 			GdxsvVersion:   gdxsvVersion,
 			BattleCode:     gameInfo.BattleCode,

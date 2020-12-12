@@ -27,6 +27,9 @@ var (
 	// This will be overwritten via ldflags.
 	gdxsvVersion  string
 	gdxsvRevision string
+
+	// Minimum required flycast version.
+	requiredFlycastVersion = "v0.6.0"
 )
 
 var (
