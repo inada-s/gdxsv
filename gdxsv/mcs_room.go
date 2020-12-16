@@ -44,6 +44,18 @@ func (r *McsRoom) PeerCount() int {
 	return n
 }
 
+func (r *McsRoom) IsClosing() bool {
+	ret := false
+	r.RLock()
+	for i := 0; i < len(r.peers); i++ {
+		if r.peers[i] == nil {
+			ret = true
+		}
+	}
+	r.RUnlock()
+	return ret
+}
+
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 	logMsg := &proto.BattleLogMessage{
 		UserId:    peer.UserID(),
@@ -153,7 +165,7 @@ func (r *McsRoom) Leave(p McsPeer) {
 	}
 	r.Unlock()
 
-	r.mcs.OnUserLeft(r, sessionID)
+	r.mcs.OnUserLeft(r, sessionID, p.GetCloseReason())
 
 	if empty {
 		r.Finalize()

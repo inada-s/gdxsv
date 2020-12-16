@@ -33,13 +33,14 @@ func randInt(min int, max int) int {
 }
 
 type DBAccount struct {
-	LoginKey   string    `db:"login_key" json:"login_key,omitempty"`
-	SessionID  string    `db:"session_id" json:"session_id,omitempty"`
-	LastUserID string    `db:"last_user_id" json:"last_user_id,omitempty"`
-	Created    time.Time `db:"created" json:"created,omitempty"`
-	CreatedIP  string    `db:"created_ip" json:"created_ip,omitempty"`
-	LastLogin  time.Time `db:"last_login" json:"last_login,omitempty"`
-	System     byte      `db:"system" json:"system,omitempty"`
+	LoginKey    string    `db:"login_key" json:"login_key,omitempty"`
+	SessionID   string    `db:"session_id" json:"session_id,omitempty"`
+	LastUserID  string    `db:"last_user_id" json:"last_user_id,omitempty"`
+	Created     time.Time `db:"created" json:"created,omitempty"`
+	CreatedIP   string    `db:"created_ip" json:"created_ip,omitempty"`
+	LastLogin   time.Time `db:"last_login" json:"last_login,omitempty"`
+	LastLoginIP string    `db:"last_login_ip" json:"last_login,omitempty"`
+	System      byte      `db:"system" json:"system,omitempty"`
 }
 
 type DBUser struct {
@@ -132,7 +133,7 @@ type DB interface {
 	GetAccountBySessionID(sessionID string) (*DBAccount, error)
 
 	// LoginAccount updates last login information and update sessionID.
-	LoginAccount(account *DBAccount, sessionID string) error
+	LoginAccount(account *DBAccount, sessionID string, ipAddr string) error
 
 	// RegisterUser creates new user.
 	// An account can hold three userPeers.

@@ -6,14 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"hash/fnv"
 	"io/ioutil"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
-
-	"go.uber.org/zap"
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/encoding/japanese"
@@ -260,6 +259,12 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 	// 2 : 「登録情報変更」
 	// 3 : The user come back from battle server
 
+	if p.app.IsTempBan(p) {
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>TEMPORARY BANNED<END>").Msg())
+		return
+	}
+
 	switch loginType {
 	case 2:
 		if p.PlatformInfo["flycast"] != "" {
@@ -288,7 +293,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		}
 
 		// Update session_id that was generated when the first request.
-		err = getDB().LoginAccount(account, p.SessionID)
+		err = getDB().LoginAccount(account, p.SessionID, p.IP())
 		if err != nil {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>FAILED TO LOGIN<END>").Msg())
@@ -319,7 +324,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	// If the user already have an account, get it.
 	account, err := getDB().GetAccountByLoginKey(loginKey)
 	if err != nil {
-		account, err = getDB().RegisterAccountWithLoginKey(p.Address(), loginKey)
+		account, err = getDB().RegisterAccountWithLoginKey(p.IP(), loginKey)
 		if err != nil {
 			p.logger.Error("failed to create account", zap.Error(err))
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
@@ -330,7 +335,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 
 	// Now the user has valid account.
 	// Update session_id that was generated when the first request.
-	err = getDB().LoginAccount(account, p.SessionID)
+	err = getDB().LoginAccount(account, p.SessionID, p.IP())
 	if err != nil {
 		logger.Error("failed to login account", zap.Error(err))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().

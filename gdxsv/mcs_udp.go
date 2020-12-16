@@ -91,7 +91,7 @@ func (s *McsUDPServer) readLoop() error {
 				peer := NewMcsUDPPeer(s.conn, addr)
 				peer.room = s.mcs.Join(peer, sessionID)
 				if peer.room != nil {
-					logger.Info("join udp peer", zap.String("addr", addr.String()), zap.Any("key", key))
+					peer.logger.Info("join udp peer", zap.Any("key", key))
 					ok = true
 					userID = peer.UserID()
 
@@ -101,16 +101,16 @@ func (s *McsUDPServer) readLoop() error {
 
 					go func(key string) {
 						peer.Serve(s.mcs)
-						logger.Info("leave udp peer", zap.String("reason", peer.GetCloseReason()))
 						if peer.room != nil {
 							peer.room.Leave(peer)
 						}
+						peer.logger.Info("leave udp peer", zap.String("reason", peer.GetCloseReason()))
 						s.mtx.Lock()
 						delete(s.peers, key)
 						s.mtx.Unlock()
 					}(key)
 				} else {
-					logger.Info("udp peer failed to join room", zap.String("addr", key))
+					peer.logger.Info("udp peer failed to join room", zap.String("addr", key))
 				}
 			}
 			if found {
@@ -139,7 +139,7 @@ func (s *McsUDPServer) readLoop() error {
 			if found {
 				reason := "fin"
 				if pkt.GetFinData() != nil {
-					reason = "fin " + pkt.GetFinData().GetDetail()
+					reason = pkt.GetFinData().GetDetail()
 				}
 				peer.SetCloseReason(reason)
 				peer.Close()
@@ -202,28 +202,10 @@ func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
 	return u
 }
 
-func (u *McsUDPPeer) SetCloseReason(reason string) {
-	u.closeMtx.Lock()
-	defer u.closeMtx.Unlock()
-
-	if u.closeReason == "" {
-		u.closeReason = reason
-	}
-}
-
-func (u *McsUDPPeer) GetCloseReason() string {
-	u.closeMtx.Lock()
-	defer u.closeMtx.Unlock()
-
-	if u.closeReason != "" {
-		return u.closeReason
-	}
-	return "unknown"
-}
-
 func (u *McsUDPPeer) Close() error {
 	u.closeMtx.Lock()
 	fn := u.closeFunc
+	u.closeFunc = nil
 	u.closeMtx.Unlock()
 
 	if fn != nil {
@@ -262,7 +244,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		case <-ticker.C:
 			timeout := time.Since(lastRecv).Seconds() > 10.0
 			if timeout {
-				u.SetCloseReason("recv timeout")
+				u.SetCloseReason("sv_recv_timeout")
 				return
 			}
 			if time.Since(lastSend).Seconds() >= 0.016 {
@@ -284,7 +266,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 			proto.PutPacket(pkt)
 			if err != nil {
 				u.logger.Error("Marshal error", zap.Error(err))
-				u.SetCloseReason("marshal error")
+				u.SetCloseReason("sv_marshal_error")
 				return
 			}
 			u.conn.WriteTo(pbuf.Bytes(), u.addr)
@@ -297,7 +279,10 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 			for _, msg := range u.reading2 {
 				if u.room == nil {
 					u.logger.Warn("No room user sent", zap.Any("msg", msg))
-					u.SetCloseReason("no room")
+					u.SetCloseReason("sv_no_room")
+					return
+				} else if u.room.IsClosing() {
+					u.SetCloseReason("sv_room_closing")
 					return
 				} else {
 					u.room.SendMessage(u, msg)

@@ -21,15 +21,6 @@ var sharedData = SharedData{
 	mcsGames: map[string]*McsGame{},
 }
 
-func init() {
-	go func() {
-		for {
-			sharedData.RemoveOldSharedData()
-			time.Sleep(time.Minute)
-		}
-	}()
-}
-
 const (
 	McsGameStateCreated = 0
 	McsGameStateOpened  = 1
@@ -55,8 +46,9 @@ type McsUser struct {
 	Side        uint16 `json:"side,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 
-	State     int       `json:"state,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	State       int       `json:"state,omitempty"`
+	CloseReason string    `json:"close_reason,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }
 
 type McsGame struct {
@@ -102,32 +94,13 @@ func (s *SharedData) SyncMcsToLbs(status *McsStatus) {
 		_, ok := s.mcsUsers[u.SessionID]
 		if ok {
 			s.mcsUsers[u.SessionID] = u
-
-			if u.State == McsUserStateLeft {
-				delete(s.mcsUsers, u.SessionID)
-				logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
-			}
 		}
 	}
 
-	closedBattleCodes := map[string]bool{}
 	for _, g := range status.Games {
 		_, ok := s.mcsGames[g.BattleCode]
 		if ok {
 			s.mcsGames[g.BattleCode] = g
-
-			if g.State == McsGameStateClosed {
-				closedBattleCodes[g.BattleCode] = true
-				delete(s.mcsGames, g.BattleCode)
-				logger.Info("remove mcs game", zap.String("battle_code", g.BattleCode))
-			}
-		}
-	}
-
-	for k, u := range s.mcsUsers {
-		if closedBattleCodes[u.BattleCode] {
-			delete(s.mcsUsers, k)
-			logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
 		}
 	}
 }
@@ -277,6 +250,7 @@ func (s *SharedData) UpdateMcsGameState(battleCode string, newState int) {
 			zap.Int("from", g.State),
 			zap.Int("to", newState))
 		g.State = newState
+		g.UpdatedAt = time.Now()
 		s.mcsGames[battleCode] = g
 	}
 }
@@ -291,7 +265,19 @@ func (s *SharedData) UpdateMcsUserState(sessionID string, newState int) {
 			zap.Int("from", u.State),
 			zap.Int("to", newState))
 		u.State = newState
+		u.UpdatedAt = time.Now()
 		s.mcsUsers[sessionID] = u
+	}
+}
+
+func (s *SharedData) SetMcsUserCloseReason(sessionID string, closeReason string) {
+	s.Lock()
+	defer s.Unlock()
+	if u, ok := s.mcsUsers[sessionID]; ok {
+		if u.CloseReason == "" {
+			u.CloseReason = closeReason
+			s.mcsUsers[sessionID] = u
+		}
 	}
 }
 
@@ -313,7 +299,7 @@ func (s *SharedData) RemoveBattleUserInfo(battleCode string) {
 	}
 }
 
-func (s *SharedData) RemoveOldSharedData() {
+func (s *SharedData) RemoveStaleData() {
 	s.Lock()
 	defer s.Unlock()
 
@@ -328,6 +314,23 @@ func (s *SharedData) RemoveOldSharedData() {
 		if 1.0 <= time.Since(g.UpdatedAt).Hours() {
 			delete(s.mcsGames, key)
 			logger.Warn("remove old zombie game", zap.String("battle_code", key))
+		}
+	}
+
+	for _, g := range s.mcsGames {
+		if g.State == McsGameStateClosed {
+			delete(s.mcsGames, g.BattleCode)
+			logger.Info("remove mcs game", zap.String("battle_code", g.BattleCode))
+
+			// All users left from the game so delete from mcsUsers.
+			for _, u := range s.mcsUsers {
+				if g.BattleCode == u.BattleCode {
+					delete(s.mcsUsers, u.SessionID)
+					logger.Info("remove mcs user",
+						zap.String("session_id", u.SessionID),
+						zap.String("close_reason", u.CloseReason))
+				}
+			}
 		}
 	}
 }

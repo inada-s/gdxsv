@@ -25,15 +25,18 @@ type McsPeer interface {
 	AddSendMessage(*proto.BattleMessage)
 	Address() string
 	Close() error
+	GetCloseReason() string
+	SetCloseReason(string)
 	Logger() *zap.Logger
 }
 
 type BaseMcsPeer struct {
-	sessionID string
-	userID    string
-	roomID    string
-	position  int
-	logger    *zap.Logger
+	sessionID   string
+	userID      string
+	roomID      string
+	position    int
+	closeReason string
+	logger      *zap.Logger
 }
 
 func (p *BaseMcsPeer) SetUserID(userID string) {
@@ -66,6 +69,19 @@ func (p *BaseMcsPeer) SetMcsRoomID(id string) {
 
 func (p *BaseMcsPeer) McsRoomID() string {
 	return p.roomID
+}
+
+func (p *BaseMcsPeer) SetCloseReason(reason string) {
+	if p.closeReason == "" {
+		p.closeReason = reason
+	}
+}
+
+func (p *BaseMcsPeer) GetCloseReason() string {
+	if p.closeReason != "" {
+		return p.closeReason
+	}
+	return "unknown"
 }
 
 func (p *BaseMcsPeer) Logger() *zap.Logger {
@@ -229,8 +245,11 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			status.Games = sharedData.GetMcsGames()
 			err = sendMcsStatus()
 			if err != nil {
-				return err
+				logger.Warn("failed to send mcsStatus", zap.Error(err))
+				// Don't return here not to quit running games when lbs restarted.
 			}
+
+			sharedData.RemoveStaleData()
 
 			if 15 <= time.Since(status.UpdatedAt).Minutes() && len(status.Users) == 0 {
 				logger.Info("mcs exit")
@@ -281,7 +300,8 @@ func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	return room
 }
 
-func (mcs *Mcs) OnUserLeft(room *McsRoom, sessionID string) {
+func (mcs *Mcs) OnUserLeft(room *McsRoom, sessionID string, closeReason string) {
+	sharedData.SetMcsUserCloseReason(sessionID, closeReason)
 	sharedData.UpdateMcsUserState(sessionID, McsUserStateLeft)
 }
 
@@ -291,10 +311,5 @@ func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
 	delete(mcs.rooms, room.game.BattleCode)
 	mcs.mtx.Unlock()
 
-	if mcsMode {
-		sharedData.UpdateMcsGameState(room.game.BattleCode, McsGameStateClosed)
-	} else {
-		sharedData.RemoveBattleUserInfo(room.game.BattleCode)
-		sharedData.RemoveBattleGameInfo(room.game.BattleCode)
-	}
+	sharedData.UpdateMcsGameState(room.game.BattleCode, McsGameStateClosed)
 }

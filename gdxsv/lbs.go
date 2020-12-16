@@ -44,6 +44,10 @@ type Lbs struct {
 	lobbies   map[string]map[uint16]*LbsLobby
 	chEvent   chan interface{}
 	chQuit    chan interface{}
+
+	noban      bool
+	banChecked map[string]bool
+	bannedIPs  map[string]time.Time
 }
 
 func NewLbs() *Lbs {
@@ -54,6 +58,9 @@ func NewLbs() *Lbs {
 		lobbies:   make(map[string]map[uint16]*LbsLobby),
 		chEvent:   make(chan interface{}, 64),
 		chQuit:    make(chan interface{}),
+
+		banChecked: make(map[string]bool),
+		bannedIPs:  make(map[string]time.Time),
 	}
 
 	for _, pf := range []string{PlatformConsole, PlatformEmuX8664} {
@@ -68,6 +75,10 @@ func NewLbs() *Lbs {
 	}
 
 	return app
+}
+
+func (lbs *Lbs) NoBan() {
+	lbs.noban = true
 }
 
 func (lbs *Lbs) GetLobby(platform, disk string, lobbyID uint16) *LbsLobby {
@@ -232,6 +243,17 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 	p.left = true
 }
 
+func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
+	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
+		if lbs.noban {
+			logger.Warn("passed banned user", zap.String("user_id", p.UserID))
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 func (lbs *Lbs) eventLoop() {
 	tick := time.Tick(1 * time.Second)
 	peers := map[string]*LbsPeer{}
@@ -287,6 +309,60 @@ func (lbs *Lbs) eventLoop() {
 					RequestLineCheck(p)
 				}
 			}
+
+			// temp ban check
+			for _, u := range sharedData.GetMcsUsers() {
+				if u.State != McsUserStateLeft {
+					continue
+				}
+
+				if lbs.banChecked[u.BattleCode] {
+					continue
+				}
+
+				switch u.CloseReason {
+				case "cl_hard_reset", "cl_soft_reset", "cl_hard_quit":
+					lbs.banChecked[u.BattleCode] = true
+
+					logger.Info("ban checking",
+						zap.String("user_id", u.UserID),
+						zap.String("battle_code", u.BattleCode),
+						zap.String("close_reason", u.CloseReason))
+
+					user, err := getDB().GetUser(u.UserID)
+					if err != nil {
+						logger.Warn("failed to get banned user", zap.String("user_id", u.UserID), zap.Error(err))
+						continue
+					}
+
+					account, err := getDB().GetAccountByLoginKey(user.LoginKey)
+					if err != nil {
+						logger.Warn("failed to get banned user account", zap.String("user_id", u.UserID), zap.Error(err))
+						continue
+					}
+
+					if account.LastLoginIP == "" {
+						logger.Warn("last login ip is empty", zap.String("user_id", u.UserID))
+						continue
+					}
+
+					logger.Info("temporary ip banned",
+						zap.String("ip_addr", account.LastLoginIP),
+						zap.String("user_id", u.UserID),
+						zap.String("name", u.Name))
+
+					lbs.bannedIPs[account.LastLoginIP] = time.Now()
+
+					for _, p := range lbs.userPeers {
+						if p.IP() == account.LastLoginIP {
+							p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+								WriteString("<LF=5><BODY><CENTER>TEMPORARY BANNED<END>").Msg())
+						}
+					}
+				}
+			}
+			sharedData.RemoveStaleData()
+
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
 					lobby.Update()
@@ -611,6 +687,14 @@ func (p *LbsPeer) SendMessage(msg *LbsMessage) {
 
 func (p *LbsPeer) Address() string {
 	return p.conn.RemoteAddr().String()
+}
+
+func (p *LbsPeer) IP() string {
+	host, _, err := net.SplitHostPort(p.conn.RemoteAddr().String())
+	if err != nil {
+		return ""
+	}
+	return host
 }
 
 func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
