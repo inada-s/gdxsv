@@ -281,24 +281,6 @@ func (s *SharedData) SetMcsUserCloseReason(sessionID string, closeReason string)
 	}
 }
 
-func (s *SharedData) RemoveBattleGameInfo(battleCode string) {
-	s.Lock()
-	defer s.Unlock()
-	delete(s.mcsGames, battleCode)
-	logger.Info("remove mcs game", zap.String("battle_code", battleCode))
-}
-
-func (s *SharedData) RemoveBattleUserInfo(battleCode string) {
-	s.Lock()
-	defer s.Unlock()
-	for key, u := range s.mcsUsers {
-		if u.BattleCode == battleCode {
-			delete(s.mcsUsers, key)
-			logger.Info("remove mcs user", zap.String("session_id", u.SessionID))
-		}
-	}
-}
-
 func (s *SharedData) RemoveStaleData() {
 	s.Lock()
 	defer s.Unlock()
@@ -322,12 +304,14 @@ func (s *SharedData) RemoveStaleData() {
 			delete(s.mcsGames, g.BattleCode)
 			logger.Info("remove mcs game", zap.String("battle_code", g.BattleCode))
 
-			// All users left from the game so delete from mcsUsers.
 			for _, u := range s.mcsUsers {
 				if g.BattleCode == u.BattleCode {
 					delete(s.mcsUsers, u.SessionID)
 					logger.Info("remove mcs user",
 						zap.String("session_id", u.SessionID),
+						zap.String("user_id", u.UserID),
+						zap.String("name", u.Name),
+						zap.Time("updated_at", u.UpdatedAt),
 						zap.String("close_reason", u.CloseReason))
 				}
 			}
