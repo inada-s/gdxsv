@@ -81,6 +81,50 @@ func (lbs *Lbs) NoBan() {
 	lbs.noban = true
 }
 
+func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
+	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
+		if lbs.noban {
+			logger.Warn("passed banned user", zap.String("user_id", p.UserID))
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+func (lbs *Lbs) TempBan(userID string) {
+	user, err := getDB().GetUser(userID)
+	if err != nil {
+		logger.Warn("failed to get banned user", zap.String("user_id", userID), zap.Error(err))
+		return
+	}
+
+	account, err := getDB().GetAccountByLoginKey(user.LoginKey)
+	if err != nil {
+		logger.Warn("failed to get banned user account", zap.String("user_id", userID), zap.Error(err))
+		return
+	}
+
+	if account.LastLoginIP == "" {
+		logger.Warn("last login ip is empty", zap.String("user_id", userID))
+		return
+	}
+
+	logger.Info("temporary ip banned",
+		zap.String("ip_addr", account.LastLoginIP),
+		zap.String("user_id", userID),
+		zap.String("name", user.Name))
+
+	lbs.bannedIPs[account.LastLoginIP] = time.Now()
+
+	for _, p := range lbs.userPeers {
+		if p.IP() == account.LastLoginIP {
+			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+				WriteString("<LF=5><BODY><CENTER>TEMPORARY BANNED<END>").Msg())
+		}
+	}
+}
+
 func (lbs *Lbs) GetLobby(platform, disk string, lobbyID uint16) *LbsLobby {
 	lobbies, ok := lbs.lobbies[lobbyKey(platform, disk)]
 	if !ok {
@@ -223,6 +267,9 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 			lbs.BroadcastLobbyMatchEntryUserCount(p.Lobby)
 			p.Lobby = nil
 		}
+		if p.Battle != nil {
+			p.Battle = nil
+		}
 		delete(lbs.userPeers, p.UserID)
 	}
 
@@ -240,17 +287,6 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 
 	p.conn.Close()
 	p.left = true
-}
-
-func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
-	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
-		if lbs.noban {
-			logger.Warn("passed banned user", zap.String("user_id", p.UserID))
-			return false
-		}
-		return true
-	}
-	return false
 }
 
 func (lbs *Lbs) eventLoop() {
@@ -310,56 +346,50 @@ func (lbs *Lbs) eventLoop() {
 			}
 
 			// temp ban check
-			for _, u := range sharedData.GetMcsUsers() {
-				if u.State != McsUserStateLeft {
+			for _, g := range sharedData.GetMcsGames() {
+				if g.State != McsGameStateClosed {
 					continue
 				}
 
-				if lbs.banChecked[u.BattleCode] {
+				if lbs.banChecked[g.BattleCode] {
 					continue
 				}
 
-				switch u.CloseReason {
-				case "cl_hard_reset", "cl_soft_reset", "cl_hard_quit":
-					lbs.banChecked[u.BattleCode] = true
+				lbs.banChecked[g.BattleCode] = true
 
-					logger.Info("ban checking",
-						zap.String("user_id", u.UserID),
-						zap.String("battle_code", u.BattleCode),
-						zap.String("close_reason", u.CloseReason))
-
-					user, err := getDB().GetUser(u.UserID)
-					if err != nil {
-						logger.Warn("failed to get banned user", zap.String("user_id", u.UserID), zap.Error(err))
-						continue
+				var mcsUsers []*McsUser
+				stateCount := map[int]int{}
+				for _, u := range sharedData.GetMcsUsers() {
+					if g.BattleCode == u.BattleCode {
+						mcsUsers = append(mcsUsers, u)
+						stateCount[u.State]++
 					}
+				}
 
-					account, err := getDB().GetAccountByLoginKey(user.LoginKey)
-					if err != nil {
-						logger.Warn("failed to get banned user account", zap.String("user_id", u.UserID), zap.Error(err))
-						continue
+				if len(mcsUsers) < 4 {
+					continue
+				}
+
+				// All players joined the game except for one player.
+				if stateCount[McsUserStateCreated] == 1 {
+					for _, u := range mcsUsers {
+						if u.State == McsUserStateCreated {
+							lbs.TempBan(u.UserID)
+						}
 					}
+				}
 
-					if account.LastLoginIP == "" {
-						logger.Warn("last login ip is empty", zap.String("user_id", u.UserID))
-						continue
-					}
-
-					logger.Info("temporary ip banned",
-						zap.String("ip_addr", account.LastLoginIP),
-						zap.String("user_id", u.UserID),
-						zap.String("name", u.Name))
-
-					lbs.bannedIPs[account.LastLoginIP] = time.Now()
-
-					for _, p := range lbs.userPeers {
-						if p.IP() == account.LastLoginIP {
-							p.SendMessage(NewServerNotice(lbsShutDown).Writer().
-								WriteString("<LF=5><BODY><CENTER>TEMPORARY BANNED<END>").Msg())
+				// All players joined the game, player disconnected during the game.
+				if stateCount[McsUserStateCreated] == 0 {
+					for _, u := range mcsUsers {
+						switch u.CloseReason {
+						case "cl_hard_reset", "cl_soft_reset", "cl_hard_quit":
+							lbs.TempBan(u.UserID)
 						}
 					}
 				}
 			}
+
 			sharedData.RemoveStaleData()
 
 			for _, pfLobbies := range lbs.lobbies {

@@ -312,6 +312,7 @@ func (s *SharedData) RemoveStaleData() {
 						zap.String("user_id", u.UserID),
 						zap.String("name", u.Name),
 						zap.Time("updated_at", u.UpdatedAt),
+						zap.Int("state", u.State),
 						zap.String("close_reason", u.CloseReason))
 				}
 			}
