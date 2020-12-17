@@ -29,7 +29,7 @@ var (
 	gdxsvRevision string
 
 	// Minimum required flycast version.
-	requiredFlycastVersion = "v0.6.0"
+	requiredFlycastVersion = "v0.7.0"
 )
 
 var (
