@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS account (
 	session_id text default '',
 	last_user_id text default '',
 	created_ip text default '',
+	last_login_ip text default '',
 	created timestamp,
 	last_login timestamp,
 	system integer default 0,
@@ -235,17 +236,19 @@ func (db SQLiteDB) GetAccountBySessionID(sid string) (*DBAccount, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string) error {
+func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string) error {
 	now := time.Now()
 	_, err := db.Exec(`
 UPDATE
 	account
 SET
 	session_id = ?,
+    last_login_ip = ?,
 	last_login = ?
 WHERE
 	login_key = ?`,
 		sessionID,
+		ipAddr,
 		now,
 		a.LoginKey)
 	if err != nil {

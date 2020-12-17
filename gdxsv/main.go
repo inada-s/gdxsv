@@ -29,7 +29,7 @@ var (
 	gdxsvRevision string
 
 	// Minimum required flycast version.
-	requiredFlycastVersion = "v0.6.0"
+	requiredFlycastVersion = "v0.7.0"
 )
 
 var (
@@ -42,6 +42,7 @@ var (
 	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
 	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
+	noban = flag.Bool("noban", false, "not to check bad users")
 )
 
 var (
@@ -71,7 +72,7 @@ func printHeader() {
 
 func printUsage() {
 	fmt.Print(`
-Usage: gdxsv [lbs, mcs, initdb]
+Usage: gdxsv [lbs, mcs, initdb, migratedb]
 
   lbs: Serve lobby server and default battle server.
     A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.
@@ -82,8 +83,11 @@ Usage: gdxsv [lbs, mcs, initdb]
     It is supposed to host mcs in a different location than the lobby server.
 
   initdb: Initialize database.
-    It is supposed to run this command when first booting manually.
+    It is supposed to run this command before you run lbs first time.
     Note that if the database file already exists it will be permanently deleted.
+
+  migratedb: Update database schema.
+    It is supposed to run this command before you run updated gdxsv.
 
   battlelog2json: Convert battle log file to json.
 `)
@@ -147,6 +151,9 @@ func prepareDB() {
 
 func mainLbs() {
 	lbs := NewLbs()
+	if *noban {
+		lbs.NoBan()
+	}
 	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
 	defer lbs.Quit()
 

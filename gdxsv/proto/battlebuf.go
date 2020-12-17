@@ -82,10 +82,14 @@ func NewMessageFilter(acceptIDs []string) *MessageFilter {
 		seq:     1,
 		recvSeq: map[string]uint32{},
 	}
-	for _, id := range acceptIDs {
-		mf.recvSeq[id] = 0
-	}
+	mf.SetAcceptIDs(acceptIDs)
 	return mf
+}
+
+func (m *MessageFilter) SetAcceptIDs(acceptIDs []string) {
+	for _, id := range acceptIDs {
+		m.recvSeq[id] = 0
+	}
 }
 
 func (m *MessageFilter) GenerateMessage(userID string, data []byte) *BattleMessage {

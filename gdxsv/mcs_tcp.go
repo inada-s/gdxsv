@@ -122,9 +122,6 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 			}
 			return
 		}
-		if IsFinData(buf) {
-			return
-		}
 		inbuf = append(inbuf, buf[:n]...)
 
 		if u.room == nil {
@@ -166,13 +163,3 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 	}
 }
 
-func IsFinData(buf []byte) bool {
-	if len(buf) == 4 &&
-		buf[0] == 4 &&
-		buf[1] == 240 &&
-		buf[2] == 0 &&
-		buf[3] == 0 {
-		return true
-	}
-	return false
-}

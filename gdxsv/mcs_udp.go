@@ -56,11 +56,6 @@ func (s *McsUDPServer) readLoop() error {
 			continue
 		}
 
-		key := addr.String()
-		s.mtx.Lock()
-		peer, found := s.peers[key]
-		s.mtx.Unlock()
-
 		pkt.Reset()
 		pbuf.SetBuf(buf[:n])
 		if err := pbuf.Unmarshal(pkt); err != nil {
@@ -68,6 +63,12 @@ func (s *McsUDPServer) readLoop() error {
 			continue
 		}
 
+		key := addr.String() + "#" + pkt.GetSessionId()
+		s.mtx.Lock()
+		peer, found := s.peers[key]
+		s.mtx.Unlock()
+
+		fin := false
 		switch pkt.GetType() {
 		case proto.MessageType_Ping:
 			ts := pkt.PingData.Timestamp
@@ -82,14 +83,17 @@ func (s *McsUDPServer) readLoop() error {
 				s.conn.WriteToUDP(data, addr)
 			}
 		case proto.MessageType_HelloServer:
-			sessionID := pkt.HelloServerData.GetSessionId()
+			sessionID := pkt.GetSessionId()
+			userID := ""
 			ok := found
+
 			if !found && sessionID != "" {
-				peer := NewMcsUDPPeer(s.conn, addr, sessionID)
+				peer := NewMcsUDPPeer(s.conn, addr)
 				peer.room = s.mcs.Join(peer, sessionID)
 				if peer.room != nil {
-					logger.Info("join udp peer", zap.String("addr", key))
+					peer.logger.Info("join udp peer", zap.Any("key", key))
 					ok = true
+					userID = peer.UserID()
 
 					s.mtx.Lock()
 					s.peers[key] = peer
@@ -97,23 +101,27 @@ func (s *McsUDPServer) readLoop() error {
 
 					go func(key string) {
 						peer.Serve(s.mcs)
-						logger.Info("leave udp peer")
 						if peer.room != nil {
 							peer.room.Leave(peer)
 						}
+						peer.logger.Info("leave udp peer", zap.String("reason", peer.GetCloseReason()))
 						s.mtx.Lock()
 						delete(s.peers, key)
 						s.mtx.Unlock()
 					}(key)
 				} else {
-					logger.Info("udp peer failed to join room", zap.String("addr", key))
+					peer.logger.Info("udp peer failed to join room", zap.String("addr", key))
 				}
+			}
+			if found {
+				userID = peer.UserID()
 			}
 
 			pkt.Reset()
 			pkt.Type = proto.MessageType_HelloServer
 			pkt.HelloServerData = &proto.HelloServerMessage{
-				Ok: ok,
+				Ok:     ok,
+				UserId: userID,
 			}
 			if data, err := pb.Marshal(pkt); err != nil {
 				logger.Error("pb.Marshal", zap.Error(err))
@@ -121,13 +129,37 @@ func (s *McsUDPServer) readLoop() error {
 				s.conn.WriteToUDP(data, addr)
 			}
 		case proto.MessageType_Battle:
-			if !found {
-				logger.Error("battle data received but peer not found", zap.Any("pkt", pkt))
-				continue
+			if found {
+				peer.OnReceive(pkt)
+			} else {
+				logger.Error("battle data received but peer not found", zap.Any("pkt", pkt), zap.Any("key", key))
+				fin = true
 			}
-			peer.OnReceive(pkt)
+		case proto.MessageType_Fin:
+			if found {
+				reason := "fin"
+				if pkt.GetFinData() != nil {
+					reason = pkt.GetFinData().GetDetail()
+				}
+				peer.SetCloseReason(reason)
+				peer.Close()
+			}
 		default:
-			logger.Warn("received unexpected pkt type packet ", zap.Any("pkt", pkt))
+			logger.Warn("received unexpected pkt type packet ", zap.Any("pkt", pkt), zap.Any("key", key))
+			fin = true
+		}
+
+		if fin {
+			pkt.Reset()
+			pkt.Type = proto.MessageType_Fin
+			pkt.FinData = &proto.FinMessage{
+				Detail: "close",
+			}
+			if data, err := pb.Marshal(pkt); err != nil {
+				logger.Error("pb.Marshal", zap.Error(err))
+			} else {
+				s.conn.WriteToUDP(data, addr)
+			}
 		}
 	}
 }
@@ -149,17 +181,19 @@ type McsUDPPeer struct {
 	reading    []*proto.BattleMessage
 	reading2   []*proto.BattleMessage
 
-	closeFunc func()
+	closeMtx    sync.Mutex
+	closeFunc   func()
+	closeReason string
 }
 
-func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr, id string) *McsUDPPeer {
+func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
 	u := &McsUDPPeer{
 		addr:    addr,
 		conn:    conn,
 		chFlush: make(chan struct{}, 1),
 		chRecv:  make(chan struct{}, 1),
-		rudp:    proto.NewBattleBuffer(id),
-		filter:  proto.NewMessageFilter([]string{id}),
+		rudp:    proto.NewBattleBuffer(""),
+		filter:  proto.NewMessageFilter([]string{""}),
 	}
 	u.logger = logger.With(
 		zap.String("proto", "udp"),
@@ -169,8 +203,13 @@ func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr, id string) *McsUDPPeer 
 }
 
 func (u *McsUDPPeer) Close() error {
-	if u.closeFunc != nil {
-		u.closeFunc()
+	u.closeMtx.Lock()
+	fn := u.closeFunc
+	u.closeFunc = nil
+	u.closeMtx.Unlock()
+
+	if fn != nil {
+		fn()
 	}
 	return nil
 }
@@ -178,6 +217,7 @@ func (u *McsUDPPeer) Close() error {
 func (u *McsUDPPeer) SetUserID(id string) {
 	u.userID = id
 	u.rudp.SetID(id)
+	u.filter.SetAcceptIDs([]string{id})
 }
 
 func (u *McsUDPPeer) Serve(mcs *Mcs) {
@@ -185,7 +225,11 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	defer u.logger.Info("McsUDPPeer.Serve end")
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	u.closeMtx.Lock()
 	u.closeFunc = cancel
+	u.closeMtx.Unlock()
+
 	defer cancel()
 	pbuf := pb.NewBuffer(nil)
 	ticker := time.NewTicker(16 * time.Millisecond)
@@ -200,6 +244,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		case <-ticker.C:
 			timeout := time.Since(lastRecv).Seconds() > 10.0
 			if timeout {
+				u.SetCloseReason("sv_recv_timeout")
 				return
 			}
 			if time.Since(lastSend).Seconds() >= 0.016 {
@@ -221,6 +266,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 			proto.PutPacket(pkt)
 			if err != nil {
 				u.logger.Error("Marshal error", zap.Error(err))
+				u.SetCloseReason("sv_marshal_error")
 				return
 			}
 			u.conn.WriteTo(pbuf.Bytes(), u.addr)
@@ -233,7 +279,10 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 			for _, msg := range u.reading2 {
 				if u.room == nil {
 					u.logger.Warn("No room user sent", zap.Any("msg", msg))
-				} else if IsFinData(msg.GetBody()) {
+					u.SetCloseReason("sv_no_room")
+					return
+				} else if u.room.IsClosing() {
+					u.SetCloseReason("sv_room_closing")
 					return
 				} else {
 					u.room.SendMessage(u, msg)
@@ -247,17 +296,21 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 func (u *McsUDPPeer) OnReceive(pkt *proto.Packet) {
 	u.rudp.ApplySeqAck(pkt.GetSeq(), pkt.GetAck())
 
+	hasNewMsg := false
 	u.readingMtx.Lock()
 	for _, msg := range pkt.GetBattleData() {
 		if u.filter.Filter(msg) {
 			u.reading = append(u.reading, msg)
+			hasNewMsg = true
 		}
 	}
 	u.readingMtx.Unlock()
 
-	select {
-	case u.chRecv <- struct{}{}:
-	default:
+	if hasNewMsg {
+		select {
+		case u.chRecv <- struct{}{}:
+		default:
+		}
 	}
 }
 

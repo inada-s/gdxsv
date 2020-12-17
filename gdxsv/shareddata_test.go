@@ -81,6 +81,7 @@ func TestSharedData_Sync(t *testing.T) {
 		t.Error("GetMcsGames is different")
 	}
 
+	sd2.SetMcsUserCloseReason(sessionID, "timeout")
 	sd2.UpdateMcsUserState(sessionID, McsUserStateLeft)
 
 	if len(sd2.GetMcsUsers()) != 1 {
@@ -95,10 +96,6 @@ func TestSharedData_Sync(t *testing.T) {
 		UpdatedAt:  time.Unix(2, 0),
 	})
 
-	if len(sd1.GetMcsUsers()) != 0 {
-		t.Error("McsUser should be removed")
-	}
-
 	sd2.UpdateMcsGameState(battleCode, McsGameStateClosed)
 
 	if len(sd2.GetMcsGames()) != 1 {
@@ -112,6 +109,8 @@ func TestSharedData_Sync(t *testing.T) {
 		Games:      sd2.GetMcsGames(),
 		UpdatedAt:  time.Unix(3, 0),
 	})
+
+	sd1.RemoveStaleData()
 
 	if len(sd1.GetMcsGames()) != 0 {
 		t.Error("McsGame should be removed")
