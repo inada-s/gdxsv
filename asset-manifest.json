@@ -1,31 +1,35 @@
 {
   "files": {
-    "main.css": "/static/css/main.b5d4cbc5.chunk.css",
-    "main.js": "/static/js/main.76eb02c2.chunk.js",
-    "main.js.map": "/static/js/main.76eb02c2.chunk.js.map",
+    "main.css": "/static/css/main.d85d164c.chunk.css",
+    "main.js": "/static/js/main.b3223968.chunk.js",
+    "main.js.map": "/static/js/main.b3223968.chunk.js.map",
     "runtime-main.js": "/static/js/runtime-main.b54dcca1.js",
     "runtime-main.js.map": "/static/js/runtime-main.b54dcca1.js.map",
     "static/css/2.2a86faee.chunk.css": "/static/css/2.2a86faee.chunk.css",
-    "static/js/2.ef406cf5.chunk.js": "/static/js/2.ef406cf5.chunk.js",
-    "static/js/2.ef406cf5.chunk.js.map": "/static/js/2.ef406cf5.chunk.js.map",
+    "static/js/2.b4a9c2e3.chunk.js": "/static/js/2.b4a9c2e3.chunk.js",
+    "static/js/2.b4a9c2e3.chunk.js.map": "/static/js/2.b4a9c2e3.chunk.js.map",
     "index.html": "/index.html",
-    "precache-manifest.58f836d1177a7dbb0193d26a1a88cb6a.js": "/precache-manifest.58f836d1177a7dbb0193d26a1a88cb6a.js",
+    "precache-manifest.bc21a3b3d693bcb466d9f9cd4711c375.js": "/precache-manifest.bc21a3b3d693bcb466d9f9cd4711c375.js",
     "service-worker.js": "/service-worker.js",
     "static/css/2.2a86faee.chunk.css.map": "/static/css/2.2a86faee.chunk.css.map",
-    "static/css/main.b5d4cbc5.chunk.css.map": "/static/css/main.b5d4cbc5.chunk.css.map",
-    "static/js/2.ef406cf5.chunk.js.LICENSE.txt": "/static/js/2.ef406cf5.chunk.js.LICENSE.txt",
+    "static/css/main.d85d164c.chunk.css.map": "/static/css/main.d85d164c.chunk.css.map",
+    "static/js/2.b4a9c2e3.chunk.js.LICENSE.txt": "/static/js/2.b4a9c2e3.chunk.js.LICENSE.txt",
     "static/media/flycast.png": "/static/media/flycast.7fcf2fb8.png",
     "static/media/game.jpg": "/static/media/game.fff3aa67.jpg",
     "static/media/headset.jpg": "/static/media/headset.d5ffaa20.jpg",
+    "static/media/renji1.png": "/static/media/renji1.1f47b31c.png",
+    "static/media/renji2.png": "/static/media/renji2.9c6b5d3f.png",
+    "static/media/renpo.png": "/static/media/renpo.a3cb3e29.png",
     "static/media/stick.jpg": "/static/media/stick.f7923533.jpg",
     "static/media/App.css": "/static/media/title.aa1bc33f.png",
-    "static/media/world.jpg": "/static/media/world.06a46146.jpg"
+    "static/media/world.jpg": "/static/media/world.06a46146.jpg",
+    "static/media/zeon.png": "/static/media/zeon.9fd884d4.png"
   },
   "entrypoints": [
     "static/js/runtime-main.b54dcca1.js",
     "static/css/2.2a86faee.chunk.css",
-    "static/js/2.ef406cf5.chunk.js",
-    "static/css/main.b5d4cbc5.chunk.css",
-    "static/js/main.76eb02c2.chunk.js"
+    "static/js/2.b4a9c2e3.chunk.js",
+    "static/css/main.d85d164c.chunk.css",
+    "static/js/main.b3223968.chunk.js"
   ]
 }
