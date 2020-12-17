@@ -1,7 +1,12 @@
 import axios from 'axios';
 import React from 'react';
+import renpoIcon from './renpo.png'
+import zeonIcon from './zeon.png'
+import disk1Icon from './renji1.png'
+import disk2Icon from './renji2.png'
 
 import {
+    Image,
     Container,
     Table,
 } from 'react-bootstrap';
@@ -77,48 +82,78 @@ export default class Status extends React.Component<Props, State> {
     }
 
     render() {
+        const dc1_lobby_users = this.state.lobby_users.filter((u: OnlineUser) => u.disk === "dc1");
+        const dc1_battle_users = this.state.battle_users.filter((u: OnlineUser) => u.disk === "dc1");
+        const dc2_lobby_users = this.state.lobby_users.filter((u: OnlineUser) => u.disk === "dc2");
+        const dc2_battle_users = this.state.battle_users.filter((u: OnlineUser) => u.disk === "dc2");
+
+        const renderOnlineUser = (u: OnlineUser) =>
+            <tr key={u.user_id}>
+                <td>{u.user_id}</td>
+                <td>{u.name}</td>
+                <td className={"text-center"}>
+                    {u.team === "renpo" && (
+                        <Image
+                            src={renpoIcon}
+                            style={{backgroundColor: "CornflowerBlue"}}
+                            height="26" width="26"
+                            roundedCircle/>
+                    )}
+                    {u.team === "zeon" && (
+                        <Image
+                            src={zeonIcon}
+                            style={{backgroundColor: "mediumvioletred"}}
+                            height="26" width="26"
+                            roundedCircle/>
+                    )}
+                </td>
+            </tr>
+
+        const renderOnlineUserTable = (users: OnlineUser[]) =>
+            <Table striped bordered hover size="sm">
+                <thead>
+                <tr>
+                    <th>UserID</th>
+                    <th>Name</th>
+                    <th>Team</th>
+                </tr>
+                </thead>
+                <tbody>
+                {this.state.lobby_users.filter((u: OnlineUser) => u.disk === "dc2").map(renderOnlineUser)}
+                </tbody>
+            </Table>
+
         return (
             <Container>
-                <h2>接続情報</h2>
-                <h3>Lobby {this.state.lobby_users.length} 人</h3>
-                <Table striped bordered hover size="sm">
-                    <thead>
-                    <tr>
-                        <th>UserID</th>
-                        <th>Name</th>
-                        <th>Team</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {this.state.lobby_users.map((u: OnlineUser) => {
-                        return <tr key={u.user_id}>
-                            <td>{u.user_id}</td>
-                            <td>{u.name}</td>
-                            <td>{u.team}</td>
-                        </tr>
-                    })}
-                    </tbody>
-                </Table>
+                <Container>
+                    <div className={"text-center mt-3"}>
+                        <Image
+                            src={disk2Icon}
+                            style={{backgroundColor: "black"}}
+                            height="60"
+                            rounded
+                        />
+                    </div>
+                    <h3>Lobby {dc2_lobby_users.length} 人</h3>
+                    {renderOnlineUserTable(dc2_lobby_users)}
+                    <h3>Battle {dc2_battle_users.length} 人</h3>
+                    {renderOnlineUserTable(dc2_battle_users)}
+                </Container>
 
-                <h3>Battle {this.state.battle_users.length} 人</h3>
-                <Table striped bordered hover size="sm">
-                    <thead>
-                    <tr>
-                        <th>UserID</th>
-                        <th>Name</th>
-                        <th>Team</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {this.state.battle_users.map((u: OnlineUser) => {
-                        return <tr key={u.user_id}>
-                            <td>{u.user_id}</td>
-                            <td>{u.name}</td>
-                            <td>{u.team}</td>
-                        </tr>
-                    })}
-                    </tbody>
-                </Table>
+                <Container>
+                    <div className={"text-center mt-5"}>
+                        <Image
+                            src={disk1Icon}
+                            style={{backgroundColor: "black"}}
+                            height="60"
+                            rounded
+                        />
+                    </div>
+                    <h3>Lobby {dc1_lobby_users.length} 人</h3>
+                    {renderOnlineUserTable(dc1_lobby_users)}
+                    <h3>Battle {dc1_battle_users.length} 人</h3>
+                    {renderOnlineUserTable(dc1_battle_users)}
+                </Container>
             </Container>
         );
     }

@@ -57,7 +57,7 @@ export default function Home() {
                     <Col sm={6}>
                         <h3>Powered by flycast</h3>
                         <p>
-                            ドリームキャスト版の連ジを動かすのは、DCエミュレータ <a
+                            ドリームキャスト版の連ジを動かすのは、DCエミュレーター <a
                             href={"https://github.com/flyinghead/flycast"}>flycast</a> です。<br/>
                             gdxsvではエミュレーター内部に手を加えて通信遅延を最小化しました。
                         </p>
