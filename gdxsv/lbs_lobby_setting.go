@@ -141,22 +141,16 @@ func init() {
 		15: {
 			Name:           "ア・バオア・クー宙域",
 			McsRegion:      "best",
-			LowCostMSEvent: true,
-			UnlimitedAmmo:  true,
 			Comment:        "Event Lobby",
 		},
 		16: {
 			Name:           "ア・バオア・クー外部",
 			McsRegion:      "best",
-			LowCostMSEvent: true,
-			UnlimitedAmmo:  true,
 			Comment:        "Event Lobby",
 		},
 		17: {
 			Name:           "ア・バオア・クー内部",
 			McsRegion:      "best",
-			LowCostMSEvent: true,
-			UnlimitedAmmo:  true,
 			TeamShuffle:    true,
 			Comment:        "Event Lobby (TeamShuffle)",
 		},
