@@ -119,7 +119,7 @@ export default class Status extends React.Component<Props, State> {
                 </tr>
                 </thead>
                 <tbody>
-                {this.state.lobby_users.filter((u: OnlineUser) => u.disk === "dc2").map(renderOnlineUser)}
+                {users.map(renderOnlineUser)}
                 </tbody>
             </Table>
 
