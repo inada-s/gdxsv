@@ -697,6 +697,7 @@ var _ = register(lbsServerMoney, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsStartLobby, func(p *LbsPeer, m *LbsMessage) {
 	p.SendMessage(NewServerAnswer(m))
+	discordLiveStatusUpdateAvailable = true
 })
 
 var _ = register(lbsInvitationTag, func(p *LbsPeer, m *LbsMessage) {
