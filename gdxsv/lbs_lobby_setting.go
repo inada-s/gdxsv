@@ -30,6 +30,7 @@ type LobbySetting struct {
 	Cost630             bool
 	UnlimitedAmmo       bool
 
+	HLMMCostEvent  bool
 	BeamMSEvent    bool
 	LowCostMSEvent bool
 }
@@ -139,20 +140,23 @@ func init() {
 			Comment:             "Free Lobby",
 		},
 		15: {
-			Name:           "ア・バオア・クー宙域",
-			McsRegion:      "best",
-			Comment:        "Event Lobby",
+			Name:          "ア・バオア・クー宙域",
+			McsRegion:     "best",
+			HLMMCostEvent: true,
+			Comment:       "Event Lobby",
 		},
 		16: {
-			Name:           "ア・バオア・クー外部",
-			McsRegion:      "best",
-			Comment:        "Event Lobby",
+			Name:          "ア・バオア・クー外部",
+			McsRegion:     "best",
+			HLMMCostEvent: true,
+			Comment:       "Event Lobby",
 		},
 		17: {
-			Name:           "ア・バオア・クー内部",
-			McsRegion:      "best",
-			TeamShuffle:    true,
-			Comment:        "Event Lobby (TeamShuffle)",
+			Name:          "ア・バオア・クー内部",
+			McsRegion:     "best",
+			TeamShuffle:   true,
+			HLMMCostEvent: true,
+			Comment:       "Event Lobby (TeamShuffle)",
 		},
 		18: {
 			// PS2 Only

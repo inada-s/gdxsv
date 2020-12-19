@@ -71,6 +71,11 @@ func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 		lobby.Rule.ZeonMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
 	}
 
+	if lobby.LobbySetting.HLMMCostEvent {
+		lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGelgoogS | MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
+		lobby.Rule.ZeonMaskDC = MSMaskDCGelgoog | MSMaskDCGyan | MSMaskDCZgokS | MSMaskDCDom | MSMaskDCGuncannon | MSMaskDCLGundam
+	}
+
 	if lobby.LobbySetting.UnlimitedAmmo {
 		lobby.Rule.ReloadFlag = 1
 	}
