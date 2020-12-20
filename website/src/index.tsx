@@ -6,11 +6,11 @@ import './index.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
 
-import jp from './translations/jp.json';
+import ja from './translations/ja.json';
 
 ReactDOM.render(
     <React.StrictMode>
-        <IntlProvider locale="jp" messages={jp}>
+        <IntlProvider locale="ja" messages={ja}>
             <App/>
         </IntlProvider>
     </React.StrictMode>,
