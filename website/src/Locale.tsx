@@ -10,7 +10,10 @@ export interface ILocaleItem {
     name: string;
     code: string;
 }
-export default ():[string, React.Dispatch<React.SetStateAction<LocaleType>>, ILocaleItem[], any] => {
+
+// seems typescript bug here, use any for now
+// export default ():[string, React.Dispatch<React.SetStateAction<LocaleType>>, ILocaleItem[], any] => {
+export default ():any[] => {
     const defaultLocale:LocaleType =
         localStorage['locale'] ||
         (browserLanguage && browserLanguage.toLowerCase().split(/[_-]+/)[0]) || // Remove the region code
