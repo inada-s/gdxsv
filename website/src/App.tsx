@@ -26,7 +26,7 @@ function App() {
             messages={localeMessage}
         >
             <React.Fragment>
-                <Header/>
+                <Header locale={locale} setLocale={setLocale} localeList={localeList} />
                 <Router basename={process.env.PUBLIC_URL}>
                     <div>
                         <Switch>
