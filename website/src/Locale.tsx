@@ -8,7 +8,7 @@ const browserLanguage:string = (navigator.languages && navigator.languages[0]) |
 export type LocaleType = "ja" | "zh" | "en";
 export interface ILocaleItem {
     name: string;
-    code: string;
+    code: LocaleType;
 }
 
 // seems typescript bug here, use any for now
@@ -22,10 +22,19 @@ export default ():any[] => {
     const localeList:ILocaleItem[] = [
         { name: '日本語', code: 'ja' },
         { name: '中文', code: 'zh' },
-        { name: 'English', code: 'en' }
+        // { name: 'English', code: 'en' }
     ];
-    const [locale, setLocale] = useState(defaultLocale);
+    const [locale, setLocale] = useState(
+        localeList.map(item => item.code).includes(defaultLocale) ?
+        defaultLocale :
+        'ja'
+    );
     const messages = { ja: ja, zh: zh, en: en };
+
+    const changeLocale = (selectedLocale: LocaleType) => {
+        setLocale(selectedLocale);
+        localStorage.setItem('locale',selectedLocale)
+    }
     
-    return [locale, setLocale, localeList, messages[locale]];
+    return [locale, changeLocale, localeList, messages[locale]];
 };
