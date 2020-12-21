@@ -4,6 +4,8 @@ import {
     Switch,
     Route,
 } from "react-router-dom";
+import { IntlProvider } from 'react-intl';
+import useLocale from './Locale';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
@@ -15,25 +17,33 @@ import {pageview} from './gtag'
 
 
 function App() {
+    const [locale, setLocale, localeList, localeMessage] = useLocale();
     return (
-        <React.Fragment>
-            <Header/>
-            <Router basename={process.env.PUBLIC_URL}>
-                <div>
-                    <Switch>
-                        <Route exact path="/">
-                            {pageview('/')}
-                            <Home/>
-                        </Route>
-                        <Route path="/status">
-                            {pageview('/status')}
-                            <Status/>
-                        </Route>
-                    </Switch>
-                </div>
-            </Router>
-            <Footer/>
-        </React.Fragment>
+        <IntlProvider
+            defaultLocale={localeList[0].code}
+            key={locale}
+            locale={locale}
+            messages={localeMessage}
+        >
+            <React.Fragment>
+                <Header/>
+                <Router basename={process.env.PUBLIC_URL}>
+                    <div>
+                        <Switch>
+                            <Route exact path="/">
+                                {pageview('/')}
+                                <Home/>
+                            </Route>
+                            <Route path="/status">
+                                {pageview('/status')}
+                                <Status/>
+                            </Route>
+                        </Switch>
+                    </div>
+                </Router>
+                <Footer/>
+            </React.Fragment>
+        </IntlProvider>
     );
 }
 

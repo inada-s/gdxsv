@@ -1,18 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { IntlProvider } from 'react-intl';
 
 import './index.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
 
-import ja from './translations/ja.json';
-
 ReactDOM.render(
     <React.StrictMode>
-        <IntlProvider locale="ja" messages={ja}>
-            <App/>
-        </IntlProvider>
+        <App/>
     </React.StrictMode>,
     document.getElementById('root')
 );
