@@ -1,5 +1,7 @@
 import axios from 'axios';
 import React from 'react';
+import { FormattedMessage } from "react-intl";
+
 import renpoIcon from './renpo.png'
 import zeonIcon from './zeon.png'
 import disk1Icon from './renji1.png'
@@ -113,9 +115,9 @@ export default class Status extends React.Component<Props, State> {
             <Table striped bordered hover size="sm">
                 <thead>
                 <tr>
-                    <th>UserID</th>
-                    <th>Name</th>
-                    <th>Team</th>
+                    <th><FormattedMessage id="status.user-id" /></th>
+                    <th><FormattedMessage id="status.user-name" /></th>
+                    <th><FormattedMessage id="status.team" /></th>
                 </tr>
                 </thead>
                 <tbody>
@@ -134,9 +136,9 @@ export default class Status extends React.Component<Props, State> {
                             rounded
                         />
                     </div>
-                    <h3>Lobby {dc2_lobby_users.length} 人</h3>
+                    <h3><FormattedMessage id="status.lobby" values={{ peopleCount: dc2_lobby_users.length }} /></h3>
                     {renderOnlineUserTable(dc2_lobby_users)}
-                    <h3>Battle {dc2_battle_users.length} 人</h3>
+                    <h3><FormattedMessage id="status.battle" values={{ peopleCount: dc2_battle_users.length }} /></h3>
                     {renderOnlineUserTable(dc2_battle_users)}
                 </Container>
 
@@ -149,9 +151,9 @@ export default class Status extends React.Component<Props, State> {
                             rounded
                         />
                     </div>
-                    <h3>Lobby {dc1_lobby_users.length} 人</h3>
+                    <h3><FormattedMessage id="status.lobby" values={{ peopleCount: dc1_lobby_users.length }} /></h3>
                     {renderOnlineUserTable(dc1_lobby_users)}
-                    <h3>Battle {dc1_battle_users.length} 人</h3>
+                    <h3><FormattedMessage id="status.battle" values={{ peopleCount: dc1_battle_users.length }} /></h3>
                     {renderOnlineUserTable(dc1_battle_users)}
                 </Container>
             </Container>

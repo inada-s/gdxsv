@@ -1,0 +1,33 @@
+{
+  "common.title": "gdxsv",
+  "common.connection-guide": "連線教學",
+  "common.join": "立即加入",
+  "common.start-now": "作 戰 開 始",
+
+  "header.status": "系統狀態",
+
+  "home.revive.title": "Gundam DX 網上對戰！",
+  "home.revive.description": "gdxsv為2001年發售的「機動戦士ガンダム連邦vs.ジオンDX」網上對戰復活計劃。",
+  "home.dreamcast.title": "Dreamcast版",
+  "home.dreamcast.description": "以DC版作為基礎。{br}DC版對街機版進行一些修正，即使如此，街機玩家也會樂在其中",
+  "home.dreamcast.caption": "『機動戦士ガンダム 連邦vs.ジオン & DX』{br}©創通エージェンシー・サンライズ ©BANDAI 2001{br}©CAPCOM CO.,LTD. 2001 ALL RIGHTS RESERVED",
+  "home.flycast.title": "Powered by flycast",
+  "home.flycast.description": " 你必須以DC模擬器 {flycastGithub} 來啟動Gundam DX。{br}gdxsv對模擬器內部進行了針對性修改，務求將連線延遲減到最低。",
+  "home.server.title": "伺服器遍佈世界各地",
+  "home.server.description": "利用雲端技術、將對戰伺服器分佈至全球。{br}於大廳選擇伺服器後，系統會自動將最適合的對手及同伴跟您配對。",
+  "home.free.title": "完全免費",
+  "home.free.description": "gdxsv由義工團隊開發及經營。{br}再無須以1分鐘13円進行遊戲。{br}只須自備電腦、控制器及遊戲軟件即可遊玩。",
+  "home.voice-chat.title": "語音對話共享時光",
+  "home.voice-chat.description": "免費App Discord作為通話橋樑。{br}以訊息招募對手，與戰友、對手進行語音對話，增加臨場感。",
+
+  "footer.tweet.title": "Tweet",
+  "footer.tweet.data-text": "連ジDX通信対戦",
+  "footer.facebook.title": "Share",
+  "footer.copyright": "© gdxsv project 2020",
+
+  "status.user-id": "UserID",
+  "status.user-name": "Name",
+  "status.team": "Team",
+  "status.lobby": "Lobby {peopleCount} 人",
+  "status.battle": "Battle {peopleCount} 人"
+}
