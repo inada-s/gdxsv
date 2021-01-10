@@ -11,6 +11,6 @@
   "license": "ISC",
   "dependencies": {
     "@google-cloud/functions-framework": "^1.7.1",
-    "axios": "^0.21.0"
+    "axios": "^0.21.1"
   }
 }
