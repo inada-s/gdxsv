@@ -102,6 +102,12 @@ CREATE TABLE IF NOT EXISTS strings (
 	value 		text,
 	PRIMARY KEY (key)
 );
+CREATE TABLE IF NOT EXISTS m_ban (
+	key 		text,
+	until		timestamp,
+	created		timestamp,
+	PRIMARY KEY (key)
+);
 `
 
 const indexes = `
@@ -524,4 +530,10 @@ func (db SQLiteDB) GetString(key string) (string, error) {
 	var value string
 	err := db.QueryRowx(`SELECT value FROM strings WHERE key = ? LIMIT 1`, key).Scan(&value)
 	return value, err
+}
+
+func (db SQLiteDB) GetBan(key string) (UserBan, error) {
+	var userBan UserBan
+	err := db.QueryRowx(`SELECT key, until, created FROM m_ban WHERE key = ? LIMIT 1`, key).StructScan(&userBan)
+	return userBan, err
 }

@@ -265,6 +265,12 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
+	if p.app.IsBan(p) {
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>YOU ARE BANNED<END>").Msg())
+		return
+	}
+
 	switch loginType {
 	case 2:
 		if p.PlatformInfo["flycast"] != "" {

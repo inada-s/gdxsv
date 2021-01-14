@@ -39,7 +39,7 @@ type DBAccount struct {
 	Created     time.Time `db:"created" json:"created,omitempty"`
 	CreatedIP   string    `db:"created_ip" json:"created_ip,omitempty"`
 	LastLogin   time.Time `db:"last_login" json:"last_login,omitempty"`
-	LastLoginIP string    `db:"last_login_ip" json:"last_login,omitempty"`
+	LastLoginIP string    `db:"last_login_ip" json:"last_login_ip,omitempty"`
 	System      byte      `db:"system" json:"system,omitempty"`
 }
 
@@ -111,6 +111,12 @@ type RankingRecord struct {
 	DBUser
 }
 
+type UserBan struct {
+	Key     string    `db:"key" json:"key,omitempty"`
+	Until   time.Time `db:"until" json:"until,omitempty"`
+	Created time.Time `db:"created" json:"created,omitempty"`
+}
+
 // DB is an interface of database operation.
 type DB interface {
 	// Init initializes the database.
@@ -176,4 +182,7 @@ type DB interface {
 
 	// GetString returns a string that corresponds to the key.
 	GetString(key string) (value string, err error)
+
+	// GetBan returns user's ban information.
+	GetBan(key string) (ban UserBan, err error)
 }
