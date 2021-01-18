@@ -20,9 +20,13 @@
   "home.voice-chat.title": "語音對話共享時光",
   "home.voice-chat.description": "免費App Discord作為通話橋樑。{br}以訊息招募對手，與戰友、對手進行語音對話，增加臨場感。",
 
-  "footer.tweet.title": "Tweet",
-  "footer.tweet.data-text": "連ジDX通信対戦",
-  "footer.facebook.title": "Share",
+  "share.data-text": "連ジDX通信対戦",
+  "share.facebook.title": "Share",
+  "share.facebook.label": "分享到Facebook",
+  "share.twitter.label": "分享到Twitter",
+  "share.mewe.label": "分享到Mewe",
+  "share.line.label": "與LINE好友分享",
+
   "footer.copyright": "© gdxsv project 2020",
 
   "status.user-id": "UserID",
