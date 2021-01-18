@@ -1,7 +1,7 @@
 import React from 'react';
 import { useIntl } from 'react-intl';
 import { WebsiteUrl } from './Const';
-import { TwitterButton, FacebookButton, MeweButton } from "./ShareButtons";
+import { TwitterButton, FacebookButton, MeweButton, LineButton } from "./ShareButtons";
 
 export default function Footer() {
     const intl = useIntl();
@@ -11,6 +11,7 @@ export default function Footer() {
                 <TwitterButton />
                 <FacebookButton />
                 <MeweButton />
+                <LineButton />
             </div>
             <p>{intl.formatMessage({ id: "footer.copyright" })}</p>
         </footer>

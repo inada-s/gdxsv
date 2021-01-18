@@ -85,4 +85,4 @@ const LineButton = () => {
     );
 }
 
-export { TwitterButton, FacebookButton, MeweButton };
+export { TwitterButton, FacebookButton, MeweButton, LineButton };
