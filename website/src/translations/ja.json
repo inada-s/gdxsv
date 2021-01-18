@@ -1,0 +1,37 @@
+{
+  "common.title": "gdxsv",
+  "common.connection-guide": "接続ガイド",
+  "common.join": "参加する",
+  "common.start-now": "作 戦 開 始",
+
+  "header.status": "接続情報",
+
+  "home.revive.title": "今、連ジの通信対戦が蘇る！",
+  "home.revive.description": "gdxsvは2001年に発売された「機動戦士ガンダム連邦vs.ジオンDX」の通信対戦を復活させるプロジェクトです。",
+  "home.dreamcast.title": "ドリキャス版",
+  "home.dreamcast.description": "DC版を戦場に選びました。{br}DC版はアーケード版から多少修正が加えられていますが、アーケードプレイヤーにとっても大きな違和感なく楽しめるでしょう。",
+  "home.dreamcast.caption": "『機動戦士ガンダム 連邦vs.ジオン & DX』{br}©創通エージェンシー・サンライズ ©BANDAI 2001{br}©CAPCOM CO.,LTD. 2001 ALL RIGHTS RESERVED",
+  "home.flycast.title": "Powered by flycast",
+  "home.flycast.description": "ドリームキャスト版の連ジを動かすのは、DCエミュレーター {flycastGithub} です。{br}gdxsvではエミュレーター内部に手を加えて通信遅延を最小化しました。",
+  "home.server.title": "世界中にサーバーを用意しました",
+  "home.server.description": "クラウドを活用して、対戦サーバーを世界中に用意しました。{br}地域固定のロビーもあれば、対戦相手と一番相性のよい対戦サーバーを自動的に検索して接続することもできます。",
+  "home.free.title": "無料です",
+  "home.free.description": "gdxsvはボランティアによって開発・運営されています。{br}対戦中1分13円の課金は発生しません。{br}ゲームソフトやPC・周辺機器は各自で準備する必要があります。",
+  "home.voice-chat.title": "ボイスチャットで時間を共有しよう",
+  "home.voice-chat.description": "無料アプリ Discord のサーバーを用意しました。{br}テキストチャットで対戦相手の募集したり、ボイスチャットで味方や対戦相手と通話しながら遊べます。スマートフォンでも通話に参加できます。",
+
+  "share.data-text": "連ジDX通信対戦",
+  "share.facebook.title": "Share",
+  "share.facebook.label": "Facebookでシェア",
+  "share.twitter.label": "Twitterで共有する",
+  "share.mewe.label": "Meweで共有する",
+  "share.line.label": "LINEでシェア",
+
+  "footer.copyright": "© gdxsv project 2020",
+
+  "status.user-id": "UserID",
+  "status.user-name": "Name",
+  "status.team": "Team",
+  "status.lobby": "Lobby {peopleCount} 人",
+  "status.battle": "Battle {peopleCount} 人"
+}

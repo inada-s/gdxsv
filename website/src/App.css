@@ -30,7 +30,7 @@
     text-align: center;
 }
 
-#page-header .show {
+#page-header #basic-navbar-nav.show {
     background-color: black;
     text-align: center;
     padding-bottom: 30px;
