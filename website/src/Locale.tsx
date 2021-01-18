@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import ja from './translations/ja.json';
 import zh from './translations/zh.json';
 import en from './translations/en.json';

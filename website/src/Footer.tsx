@@ -1,6 +1,5 @@
 import React from 'react';
 import { useIntl } from 'react-intl';
-import { WebsiteUrl } from './Const';
 import { TwitterButton, FacebookButton, MeweButton, LineButton } from "./ShareButtons";
 
 export default function Footer() {
