@@ -20,9 +20,13 @@
   "home.voice-chat.title": "ボイスチャットで時間を共有しよう",
   "home.voice-chat.description": "無料アプリ Discord のサーバーを用意しました。{br}テキストチャットで対戦相手の募集したり、ボイスチャットで味方や対戦相手と通話しながら遊べます。スマートフォンでも通話に参加できます。",
 
-  "footer.tweet.title": "Tweet",
-  "footer.tweet.data-text": "連ジDX通信対戦",
-  "footer.facebook.title": "Share",
+  "share.data-text": "連ジDX通信対戦",
+  "share.facebook.title": "Share",
+  "share.facebook.label": "Facebookでシェア",
+  "share.twitter.label": "Twitterで共有する",
+  "share.mewe.label": "Meweで共有する",
+  "share.line.label": "LINEでシェア",
+
   "footer.copyright": "© gdxsv project 2020",
 
   "status.user-id": "UserID",
