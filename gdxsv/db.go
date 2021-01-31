@@ -120,7 +120,6 @@ type MLobbySetting struct {
 	McsRegion        string `db:"mcs_region" json:"mcs_region"`
 	Comment          string `db:"comment" json:"comment"`
 	RuleID           string `db:"rule_id" json:"rule_id"`
-	AutoRebattle     int    `db:"auto_rebattle" json:"auto_rebattle"`
 	EnableForceStart bool   `db:"enable_force_start" json:"enable_force_start"`
 	TeamShuffle      bool   `db:"team_shuffle" json:"team_shuffle"`
 	PingLimit        bool   `db:"ping_limit" json:"ping_limit"`

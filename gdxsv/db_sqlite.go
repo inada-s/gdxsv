@@ -121,7 +121,6 @@ CREATE TABLE IF NOT EXISTS m_lobby_setting
     mcs_region         text default '',
     comment            text default '',
     rule_id            text default '',
-    auto_rebattle      integer not null,
     enable_force_start integer not null,
     team_shuffle       integer not null,
     ping_limit         integer not null,
@@ -171,7 +170,10 @@ func (db SQLiteDB) Init() error {
 
 func (db SQLiteDB) Migrate() error {
 	ctx := context.Background()
-	tables := []string{"account", "user", "battle_record"}
+	tables := []string{
+		"account", "user", "battle_record",
+		"m_string", "m_ban", "m_lobby_setting", "m_rule",
+	}
 
 	// begin tx
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})

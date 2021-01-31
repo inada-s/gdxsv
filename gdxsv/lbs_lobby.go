@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+const (
+	PingLimitTh = 64
+)
+
+type LobbySetting MLobbySetting
+
 type LbsLobby struct {
 	app                  *Lbs
 	Platform             string
@@ -48,36 +54,6 @@ func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 		lobby.RenpoRooms[roomID] = NewRoom(app, platform, disk, lobby, roomID, TeamRenpo)
 		lobby.ZeonRooms[roomID] = NewRoom(app, platform, disk, lobby, roomID, TeamZeon)
 	}
-
-	/*
-		if lobby.LobbySetting.No375MS {
-			lobby.Rule.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
-			lobby.Rule.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
-		}
-
-		if lobby.LobbySetting.Cost630 {
-			lobby.Rule.RenpoVital = 630
-			lobby.Rule.ZeonVital = 630
-		}
-
-		if lobby.LobbySetting.BeamMSEvent {
-			lobby.Rule.RenpoVital = 605
-			lobby.Rule.ZeonVital = 605
-			lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
-			lobby.Rule.ZeonMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
-		}
-
-		if lobby.LobbySetting.LowCostMSEvent {
-			lobby.Rule.Timer = 4
-			lobby.Rule.RenpoMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
-			lobby.Rule.ZeonMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
-		}
-
-		if lobby.LobbySetting.HLMMCostEvent {
-			lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGelgoogS | MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
-			lobby.Rule.ZeonMaskDC = MSMaskDCGelgoog | MSMaskDCGyan | MSMaskDCZgokS | MSMaskDCDom | MSMaskDCGuncannon | MSMaskDCLGundam
-		}
-	*/
 
 	err := lobby.LoadLobbySetting()
 	if err != nil {
@@ -157,8 +133,8 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	if l.LobbySetting.TeamShuffle {
 		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.LobbySetting.TeamShuffle))))
 	}
-	if 0 < l.LobbySetting.AutoRebattle {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.LobbySetting.AutoRebattle)))
+	if 0 < l.Rule.AutoRebattle {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.Rule.AutoRebattle)))
 	}
 	if l.LobbySetting.EnableForceStart {
 		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.LobbySetting.EnableForceStart))))
