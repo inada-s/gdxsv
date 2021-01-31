@@ -112,9 +112,11 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 	})
 
 	http.HandleFunc("/ops/reload", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
 		lbs.Locked(func(lbs *Lbs) {
 			lbs.reload = true
 		})
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte("OK"))
 	})
 }

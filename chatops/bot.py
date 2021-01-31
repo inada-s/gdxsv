@@ -18,7 +18,12 @@ async def ping(ctx):
 
 
 @bot.command()
-async def update_masterdata(ctx):
+async def master(ctx: commands.Context):
+    await ctx.send("https://docs.google.com/spreadsheets/d/" + os.getenv("GDXSV_SPREADSHEET_ID"))
+
+
+@bot.command()
+async def master_up(ctx: commands.Context):
     await ctx.send("Updating masterdata...")
     try:
         tables = ops.normalize_tables(ops.download_masterdata())
@@ -30,9 +35,13 @@ async def update_masterdata(ctx):
         await ctx.send("Failed to update masterdata")
         await ctx.send(str(e))
 
+    await ctx.send("Reloading masterdata...")
+
     req = urllib.request.Request("http://localhost:9880/ops/reload")
     with urllib.request.urlopen(req) as res:
-        await ctx.send(res.read())
+        await ctx.send(body)
+
+    await ctx.send("Done")
 
 
 if __name__ == '__main__':
