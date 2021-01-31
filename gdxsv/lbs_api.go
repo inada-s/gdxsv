@@ -117,5 +117,4 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			lbs.reload = true
 		})
 	})
-})
 }
