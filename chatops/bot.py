@@ -7,7 +7,7 @@ import sqlite3
 import urllib.request
 
 bot = commands.Bot(
-    command_prefix='op',
+    command_prefix='op ',
     activity=discord.Game(gethostname()),
 )
 
@@ -27,12 +27,12 @@ async def update_masterdata(ctx):
             ops.insert_sqlite(conn, tables)
             conn.commit()
     except Exception as e:
-        ctx.send("Failed to update masterdata")
-        ctx.send(e)
+        await ctx.send("Failed to update masterdata")
+        await ctx.send(str(e))
 
     req = urllib.request.Request("http://localhost:9880/ops/reload")
     with urllib.request.urlopen(req) as res:
-        ctx.send(res.read())
+        await ctx.send(res.read())
 
 
 if __name__ == '__main__':
@@ -40,4 +40,4 @@ if __name__ == '__main__':
     assert os.getenv("GDXSV_DISCORD_TOKEN")
     assert os.getenv("GDXSV_SERVICE_KEY")
     assert os.getenv("GDXSV_SPREADSHEET_ID")
-    bot.run(os.getenv("DISCORD_TOKEN"))
+    bot.run(os.getenv("GDXSV_DISCORD_TOKEN"))
