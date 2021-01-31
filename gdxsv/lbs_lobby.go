@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"go.uber.org/zap"
 	"math/rand"
@@ -10,78 +11,36 @@ import (
 )
 
 type LbsLobby struct {
-	app *Lbs
-
-	LobbySetting
+	app                  *Lbs
+	Platform             string
+	GameDisk             string
+	ID                   uint16
+	Users                map[string]*DBUser
+	RenpoRooms           map[uint16]*LbsRoom
+	ZeonRooms            map[uint16]*LbsRoom
+	EntryUsers           []string
+	Description          string
+	LobbySetting         LobbySetting
+	Rule                 Rule
 	lobbySettingMessages []*LbsMessage
 	forceStartCountDown  int
-
-	Platform   string
-	GameDisk   string
-	ID         uint16
-	Rule       *Rule
-	Users      map[string]*DBUser
-	RenpoRooms map[uint16]*LbsRoom
-	ZeonRooms  map[uint16]*LbsRoom
-	EntryUsers []string
 }
 
 func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 	lobby := &LbsLobby{
 		app:                  app,
-		LobbySetting:         *lbsLobbySettings[lobbyID],
+		Platform:             platform,
+		GameDisk:             disk,
+		ID:                   lobbyID,
+		Users:                make(map[string]*DBUser),
+		RenpoRooms:           make(map[uint16]*LbsRoom),
+		ZeonRooms:            make(map[uint16]*LbsRoom),
+		EntryUsers:           make([]string, 0),
+		LobbySetting:         LobbySetting{},
+		Rule:                 DefaultRule,
+		Description:          "",
 		lobbySettingMessages: nil,
 		forceStartCountDown:  0,
-
-		Platform:   platform,
-		GameDisk:   disk,
-		ID:         lobbyID,
-		Users:      make(map[string]*DBUser),
-		RenpoRooms: make(map[uint16]*LbsRoom),
-		ZeonRooms:  make(map[uint16]*LbsRoom),
-		EntryUsers: make([]string, 0),
-	}
-
-	if lobby.FreeRule {
-		lobby.Rule = RulePresetFree.Clone()
-	} else {
-		lobby.Rule = RulePresetDefault.Clone()
-	}
-
-	if lobby.LobbySetting.No375MS {
-		lobby.Rule.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
-		lobby.Rule.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
-	}
-
-	if lobby.LobbySetting.Cost630 {
-		lobby.Rule.RenpoVital = 630
-		lobby.Rule.ZeonVital = 630
-	}
-
-	if lobby.LobbySetting.BeamMSEvent {
-		lobby.Rule.RenpoVital = 605
-		lobby.Rule.ZeonVital = 605
-		lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
-		lobby.Rule.ZeonMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
-	}
-
-	if lobby.LobbySetting.LowCostMSEvent {
-		lobby.Rule.Timer = 4
-		lobby.Rule.RenpoMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
-		lobby.Rule.ZeonMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
-	}
-
-	if lobby.LobbySetting.HLMMCostEvent {
-		lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGelgoogS | MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
-		lobby.Rule.ZeonMaskDC = MSMaskDCGelgoog | MSMaskDCGyan | MSMaskDCZgokS | MSMaskDCDom | MSMaskDCGuncannon | MSMaskDCLGundam
-	}
-
-	if lobby.LobbySetting.UnlimitedAmmo {
-		lobby.Rule.ReloadFlag = 1
-	}
-
-	if 0 < lobby.LobbySetting.AutoReBattle {
-		lobby.Rule.AutoRebattle = byte(lobby.LobbySetting.AutoReBattle)
 	}
 
 	for i := 1; i <= maxRoomCount; i++ {
@@ -90,9 +49,78 @@ func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
 		lobby.ZeonRooms[roomID] = NewRoom(app, platform, disk, lobby, roomID, TeamZeon)
 	}
 
-	lobby.lobbySettingMessages = lobby.buildLobbySettingMessages()
+	/*
+		if lobby.LobbySetting.No375MS {
+			lobby.Rule.RenpoMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
+			lobby.Rule.ZeonMaskDC = MSMaskAll & ^MSMaskDCGundam & ^MSMaskDCGelgoogS & ^MSMaskDCZeong & ^MSMaskDCElmeth
+		}
+
+		if lobby.LobbySetting.Cost630 {
+			lobby.Rule.RenpoVital = 630
+			lobby.Rule.ZeonVital = 630
+		}
+
+		if lobby.LobbySetting.BeamMSEvent {
+			lobby.Rule.RenpoVital = 605
+			lobby.Rule.ZeonVital = 605
+			lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
+			lobby.Rule.ZeonMaskDC = MSMaskDCGundam | MSMaskDCGM | MSMaskDCGelgoogS | MSMaskDCGelgoog | MSMaskDCZgokS | MSMaskDCZgok
+		}
+
+		if lobby.LobbySetting.LowCostMSEvent {
+			lobby.Rule.Timer = 4
+			lobby.Rule.RenpoMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
+			lobby.Rule.ZeonMaskDC = MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
+		}
+
+		if lobby.LobbySetting.HLMMCostEvent {
+			lobby.Rule.RenpoMaskDC = MSMaskDCGundam | MSMaskDCGelgoogS | MSMaskDCGuntank | MSMaskDCZgok | MSMaskDCZock | MSMaskDCGogg | MSMaskDCGouf | MSMaskDCGM | MSMaskDCZaku2S | MSMaskDCLGM | MSMaskDCAcguy | MSMaskDCZaku2 | MSMaskDCZaku1
+			lobby.Rule.ZeonMaskDC = MSMaskDCGelgoog | MSMaskDCGyan | MSMaskDCZgokS | MSMaskDCDom | MSMaskDCGuncannon | MSMaskDCLGundam
+		}
+	*/
+
+	err := lobby.LoadLobbySetting()
+	if err != nil {
+		if err != sql.ErrNoRows {
+			logger.Warn("Failed to load lobby setting",
+				zap.Error(err), zap.String("platform", platform),
+				zap.String("disk", disk), zap.Int("lobby_id", int(lobbyID)))
+		}
+	}
 
 	return lobby
+}
+
+func (l *LbsLobby) LoadLobbySetting() error {
+	setting, err := getDB().GetLobbySetting(l.Platform, l.GameDisk, int(l.ID))
+	if err == sql.ErrNoRows {
+		l.Rule = DefaultRule
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	var rule *MRule = nil
+	if setting.RuleID != "" {
+		rule, err = getDB().GetRule(setting.RuleID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if setting != nil {
+		l.LobbySetting = LobbySetting(*setting)
+	}
+
+	if rule != nil {
+		l.Rule = Rule(*rule)
+	}
+
+	l.lobbySettingMessages = l.buildLobbySettingMessages()
+
+	return err
 }
 
 func toLobbyChatMessage(text string) *LbsMessage {
@@ -117,32 +145,41 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	var msgs []*LbsMessage
 	msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
 
-	if l.PingLimit {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.PingLimit))))
+	if l.LobbySetting.PingLimit {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.LobbySetting.PingLimit))))
 	}
-	if l.McsRegion != "" {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "McsRegion", l.McsRegion)))
+	if l.LobbySetting.McsRegion != "" {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "McsRegion", l.LobbySetting.McsRegion)))
 	}
 
 	msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v/%v", "Dmage/Diff", l.Rule.DamageLevel+1, l.Rule.Difficulty+1)))
 
-	if l.TeamShuffle {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.TeamShuffle))))
+	if l.LobbySetting.TeamShuffle {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.LobbySetting.TeamShuffle))))
 	}
-	if 0 < l.AutoReBattle {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.AutoReBattle)))
+	if 0 < l.LobbySetting.AutoRebattle {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.LobbySetting.AutoRebattle)))
 	}
-	if l.No375MS {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "No 375 Cost MS", boolToYesNo(l.No375MS))))
-	}
-	if l.Cost630 {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Cost630", boolToYesNo(l.Cost630))))
-	}
-	if l.EnableForceStartCmd {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.EnableForceStartCmd))))
+	if l.LobbySetting.EnableForceStart {
+		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.LobbySetting.EnableForceStart))))
 	}
 
 	return msgs
+}
+
+func (l *LbsLobby) buildDescription(ping string) string {
+	locName, ok := gcpLocationName[l.LobbySetting.McsRegion]
+	if !ok {
+		locName = "Default Server"
+	}
+	if l.LobbySetting.McsRegion == "best" {
+		locName = "Best Server [Auto Detection]"
+	}
+	if ping == "" {
+		return fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, l.LobbySetting.Comment)
+	} else {
+		return fmt.Sprintf("<B>[%sms]%s<B><BR><B>%s<END>", ping, locName, l.LobbySetting.Comment)
+	}
 }
 
 func (l *LbsLobby) displayUsersInSameLobby(peer *LbsPeer) {
@@ -196,7 +233,7 @@ func (l *LbsLobby) displayUsersInSameLobby(peer *LbsPeer) {
 func (l *LbsLobby) canStartBattle() bool {
 	a, b := l.GetLobbyMatchEntryUserCount()
 
-	if l.TeamShuffle {
+	if l.LobbySetting.TeamShuffle {
 		return 4 <= a+b
 	} else {
 		return 2 <= a && 2 <= b
@@ -395,7 +432,7 @@ func (l *LbsLobby) findBestGCPRegion(peers []*LbsPeer) (string, error) {
 func (l *LbsLobby) getNextLobbyBattleParticipants() []*LbsPeer {
 	var peers []*LbsPeer
 
-	if l.TeamShuffle {
+	if l.LobbySetting.TeamShuffle {
 		for _, userID := range l.EntryUsers {
 			if p := l.app.FindPeer(userID); p != nil {
 				peers = append(peers, p)
@@ -431,7 +468,7 @@ func (l *LbsLobby) getNextLobbyBattleParticipants() []*LbsPeer {
 func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	peers := l.getNextLobbyBattleParticipants()
 
-	if l.TeamShuffle {
+	if l.LobbySetting.TeamShuffle {
 		var teams = []uint16{1, 1, 2, 2}
 
 		rand.Shuffle(len(teams), func(i, j int) {
@@ -464,7 +501,7 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 func (l *LbsLobby) Update() {
 	forceStart := false
 
-	if l.EnableForceStartCmd && 0 < l.forceStartCountDown {
+	if l.LobbySetting.EnableForceStart && 0 < l.forceStartCountDown {
 		l.NotifyLobbyEvent("", fmt.Sprintf("Force start battle in %d", l.forceStartCountDown))
 		l.forceStartCountDown--
 
@@ -482,7 +519,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		return
 	}
 
-	var mcsRegion = l.McsRegion
+	var mcsRegion = l.LobbySetting.McsRegion
 	var mcsPeer *LbsPeer
 	var mcsAddr = conf.BattlePublicAddr
 
@@ -523,7 +560,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
 
-	b := NewBattle(l.app, l.ID, l.Rule, mcsRegion, mcsAddr)
+	b := NewBattle(l.app, l.ID, &l.Rule, mcsRegion, mcsAddr)
 
 	participants := l.pickLobbyBattleParticipants()
 
@@ -637,7 +674,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		return
 	}
 
-	var mcsRegion = l.McsRegion
+	var mcsRegion = l.LobbySetting.McsRegion
 	var mcsPeer *LbsPeer
 	var mcsAddr = conf.BattlePublicAddr
 
@@ -681,7 +718,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	renpoRoom.NotifyRoomEvent("", "START ROOM BATTLE")
 	zeonRoom.NotifyRoomEvent("", "START ROOM BATTLE")
 
-	b := NewBattle(l.app, l.ID, l.Rule, mcsRegion, mcsAddr)
+	b := NewBattle(l.app, l.ID, &l.Rule, mcsRegion, mcsAddr)
 
 	for _, q := range participants {
 		b.Add(q)

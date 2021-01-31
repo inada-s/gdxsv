@@ -265,6 +265,12 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
+	if p.app.IsBan(p) {
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>YOU ARE BANNED<END>").Msg())
+		return
+	}
+
 	switch loginType {
 	case 2:
 		if p.PlatformInfo["flycast"] != "" {
@@ -751,8 +757,8 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	status := 3 // available
-	if lobby.PingLimit && lobby.McsRegion != "" {
-		rtt, err := strconv.Atoi(p.PlatformInfo[lobby.McsRegion])
+	if lobby.LobbySetting.PingLimit && lobby.LobbySetting.McsRegion != "" {
+		rtt, err := strconv.Atoi(p.PlatformInfo[lobby.LobbySetting.McsRegion])
 		if err != nil {
 			rtt = 999
 		}
@@ -774,18 +780,11 @@ var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	rtt, ok := p.PlatformInfo[lobby.McsRegion]
-	if ok {
-		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(lobbyID).
-			WriteString(fmt.Sprintf("<B>[%vms]<B>%s", rtt, lobby.Description)).
-			Msg())
-	} else {
-		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(lobbyID).
-			WriteString(lobby.Description).
-			Msg())
-	}
+	rtt := p.PlatformInfo[lobby.LobbySetting.McsRegion]
+	p.SendMessage(NewServerAnswer(m).Writer().
+		Write16(lobbyID).
+		WriteString(lobby.buildDescription(rtt)).
+		Msg())
 })
 
 var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {
@@ -1257,13 +1256,13 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		}
 		twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
 
-		if p.Lobby.EnableForceStartCmd && userHasJoinedForce && twoOrMorePlayers {
+		if p.Lobby.LobbySetting.EnableForceStart && userHasJoinedForce && twoOrMorePlayers {
 			// Print induced action to all users (for clarity + educational purpose)
 			p.Lobby.StartForceStartCountDown()
 			p.Lobby.NotifyLobbyEvent("", fmt.Sprintf("%v starts battle countdown!", p.Name))
 		} else {
 			// Print hints to sender
-			if !p.Lobby.EnableForceStartCmd {
+			if !p.Lobby.LobbySetting.EnableForceStart {
 				p.SendMessage(buildHintMsg("/f is disabled in this lobby"))
 			} else if !userHasJoinedForce {
 				p.SendMessage(buildHintMsg("Join a force first! (自動選抜→待機)"))
@@ -1422,7 +1421,7 @@ var _ = register(lbsAskRuleData, func(p *LbsPeer, m *LbsMessage) {
 	// 001e2830: NetHeyaDataSet    overwrite ?
 	a := NewServerAnswer(m)
 	w := a.Writer()
-	bin := p.Battle.Rule.Serialize()
+	bin := SerializeRule(p.Battle.Rule)
 	w.Write16(uint16(len(bin)))
 	w.Write(bin)
 	p.SendMessage(a)

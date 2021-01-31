@@ -31,7 +31,7 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 			GameDisk:       gameInfo.GameDisk,
 			GdxsvVersion:   gdxsvVersion,
 			BattleCode:     gameInfo.BattleCode,
-			RuleBin:        gameInfo.Rule.Serialize(),
+			RuleBin:        SerializeRule(&gameInfo.Rule),
 			StartAt:        time.Now().UnixNano(),
 		},
 	}

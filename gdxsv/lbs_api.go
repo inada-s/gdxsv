@@ -110,4 +110,12 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	})
+
+	http.HandleFunc("/ops/reload", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		lbs.Locked(func(lbs *Lbs) {
+			lbs.reload = true
+		})
+	})
+})
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"go.uber.org/zap"
@@ -46,6 +47,7 @@ type Lbs struct {
 	chQuit    chan interface{}
 
 	noban      bool
+	reload     bool
 	banChecked map[string]bool
 	bannedIPs  map[string]time.Time
 }
@@ -81,10 +83,29 @@ func (lbs *Lbs) NoBan() {
 	lbs.noban = true
 }
 
+func (lbs *Lbs) IsBan(p *LbsPeer) bool {
+	ban, err := getDB().GetBan(p.IP())
+	if err == sql.ErrNoRows {
+		return false
+	}
+	if err != nil {
+		logger.Warn("GetBan returned err", zap.Error(err))
+		return false
+	}
+	if 0 < time.Until(ban.Until) {
+		if lbs.noban {
+			logger.Warn("passed banned user", zap.String("user_id", p.UserID), zap.String("name", p.Name))
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
 	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
 		if lbs.noban {
-			logger.Warn("passed banned user", zap.String("user_id", p.UserID))
+			logger.Warn("passed temp banned user", zap.String("user_id", p.UserID), zap.String("name", p.Name))
 			return false
 		}
 		return true
@@ -394,6 +415,9 @@ func (lbs *Lbs) eventLoop() {
 
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
+					if lbs.reload {
+						lobby.LoadLobbySetting()
+					}
 					lobby.Update()
 				}
 			}

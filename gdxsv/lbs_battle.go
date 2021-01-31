@@ -58,7 +58,7 @@ func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsRegion string, mcsAddr s
 	}
 
 	if rule == nil {
-		rule = RulePresetDefault.Clone()
+		rule = &DefaultRule
 	}
 
 	return &LbsBattle{

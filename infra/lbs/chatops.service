@@ -1,0 +1,14 @@
+[Unit]
+Description=gdxsv chatops bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Restart=always
+Type=simple
+User=zdxsv
+WorkingDirectory=/home/zdxsv/gdxsv
+ExecStart=/home/zdxsv/gdxsv/launch-chatops.sh
+
+[Install]
+WantedBy=multi-user.target
