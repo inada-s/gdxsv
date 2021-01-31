@@ -13,16 +13,18 @@ bot = commands.Bot(
 
 
 @bot.command()
-async def ping(ctx):
+async def ping(ctx: commands.Context):
     await ctx.send('pong')
 
 
 @bot.command()
+@commands.has_any_role("Moderator")
 async def master(ctx: commands.Context):
     await ctx.send("https://docs.google.com/spreadsheets/d/" + os.getenv("GDXSV_SPREADSHEET_ID"))
 
 
 @bot.command()
+@commands.has_any_role("Moderator")
 async def master_up(ctx: commands.Context):
     await ctx.send("Updating masterdata...")
     try:
@@ -39,8 +41,7 @@ async def master_up(ctx: commands.Context):
 
     req = urllib.request.Request("http://localhost:9880/ops/reload")
     with urllib.request.urlopen(req) as res:
-        await ctx.send(body)
-
+        await ctx.send("Reload: " + res.read().decode('utf-8'))
     await ctx.send("Done")
 
 
