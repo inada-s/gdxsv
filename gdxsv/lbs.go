@@ -47,6 +47,7 @@ type Lbs struct {
 	chQuit    chan interface{}
 
 	noban      bool
+	reload     bool
 	banChecked map[string]bool
 	bannedIPs  map[string]time.Time
 }
@@ -414,6 +415,9 @@ func (lbs *Lbs) eventLoop() {
 
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
+					if lbs.reload {
+						lobby.LoadLobbySetting()
+					}
 					lobby.Update()
 				}
 			}

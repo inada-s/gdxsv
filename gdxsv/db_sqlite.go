@@ -36,77 +36,124 @@ func (c *SQLiteCache) deleteRankingCache() {
 	c.mtx.Unlock()
 }
 
-const schema = `
-CREATE TABLE IF NOT EXISTS account (
-	login_key text,
-	session_id text default '',
-	last_user_id text default '',
-	created_ip text default '',
-	last_login_ip text default '',
-	created timestamp,
-	last_login timestamp,
-	system integer default 0,
-	PRIMARY KEY (login_key)
+const schema = `CREATE TABLE IF NOT EXISTS account
+(
+    login_key     text,
+    session_id    text    default '',
+    last_user_id  text    default '',
+    created_ip    text    default '',
+    last_login_ip text    default '',
+    created       timestamp,
+    last_login    timestamp,
+    system        integer default 0,
+    PRIMARY KEY (login_key)
 );
-CREATE TABLE IF NOT EXISTS user (
-	user_id text,
-	login_key text,
-	session_id text default '',
-	name text default 'default',
-	team text default '',
-	battle_count integer default 0,
-	win_count integer default 0,
-	lose_count integer default 0,
-	kill_count integer default 0,
-	death_count integer default 0,
-	renpo_battle_count integer default 0,
-	renpo_win_count integer default 0,
-	renpo_lose_count integer default 0,
-	renpo_kill_count integer default 0,
-	renpo_death_count integer default 0,
-	zeon_battle_count integer default 0,
-	zeon_win_count integer default 0,
-	zeon_lose_count integer default 0,
-	zeon_kill_count integer default 0,
-	zeon_death_count integer default 0,
-	daily_battle_count integer default 0,
-	daily_win_count integer default 0,
-	daily_lose_count integer default 0,
-	created timestamp,
-	system integer default 0,
-	PRIMARY KEY (user_id, login_key)
+CREATE TABLE IF NOT EXISTS user
+(
+    user_id            text,
+    login_key          text,
+    session_id         text    default '',
+    name               text    default 'default',
+    team               text    default '',
+    battle_count       integer default 0,
+    win_count          integer default 0,
+    lose_count         integer default 0,
+    kill_count         integer default 0,
+    death_count        integer default 0,
+    renpo_battle_count integer default 0,
+    renpo_win_count    integer default 0,
+    renpo_lose_count   integer default 0,
+    renpo_kill_count   integer default 0,
+    renpo_death_count  integer default 0,
+    zeon_battle_count  integer default 0,
+    zeon_win_count     integer default 0,
+    zeon_lose_count    integer default 0,
+    zeon_kill_count    integer default 0,
+    zeon_death_count   integer default 0,
+    daily_battle_count integer default 0,
+    daily_win_count    integer default 0,
+    daily_lose_count   integer default 0,
+    created            timestamp,
+    system             integer default 0,
+    PRIMARY KEY (user_id, login_key)
 );
-CREATE TABLE IF NOT EXISTS battle_record (
-	battle_code text,
-	user_id     text,
-	user_name 	text,
-	pilot_name 	text,
-	players     integer default 0,
-	aggregate   integer default 0,
-	pos         integer default 0,
-	side        integer default 0,
-	round       integer default 0,
-	win         integer default 0,
-	lose        integer default 0,
-	kill        integer default 0,
-	death       integer default 0,
-	frame       integer default 0,
-	result      text default '',
-	created     timestamp,
-	updated     timestamp,
-	system      integer default 0,
-	PRIMARY KEY (battle_code, user_id)
+CREATE TABLE IF NOT EXISTS battle_record
+(
+    battle_code text,
+    user_id     text,
+    user_name   text,
+    pilot_name  text,
+    players     integer default 0,
+    aggregate   integer default 0,
+    pos         integer default 0,
+    side        integer default 0,
+    round       integer default 0,
+    win         integer default 0,
+    lose        integer default 0,
+    kill        integer default 0,
+    death       integer default 0,
+    frame       integer default 0,
+    result      text    default '',
+    created     timestamp,
+    updated     timestamp,
+    system      integer default 0,
+    PRIMARY KEY (battle_code, user_id)
 );
-CREATE TABLE IF NOT EXISTS strings (
-	key 		text,
-	value 		text,
-	PRIMARY KEY (key)
+CREATE TABLE IF NOT EXISTS m_string
+(
+    key   text,
+    value text,
+    PRIMARY KEY (key)
 );
-CREATE TABLE IF NOT EXISTS m_ban (
-	key 		text,
-	until		timestamp,
-	created		timestamp,
-	PRIMARY KEY (key)
+CREATE TABLE IF NOT EXISTS m_ban
+(
+    key     text,
+    until   timestamp,
+    created timestamp,
+    PRIMARY KEY (key)
+);
+CREATE TABLE IF NOT EXISTS m_lobby_setting
+(
+    platform           text,
+    disk               text,
+    no                 integer,
+    name               text,
+    mcs_region         text default '',
+    comment            text default '',
+    rule_id            text default '',
+    auto_rebattle      integer not null,
+    enable_force_start integer not null,
+    team_shuffle       integer not null,
+    ping_limit         integer not null,
+    PRIMARY KEY (platform, disk, no)
+);
+CREATE TABLE IF NOT EXISTS m_rule
+(
+    id             text,
+    difficulty     integer not null,
+    damage_level   integer not null,
+    timer          integer not null,
+    team_flag      integer not null,
+    stage_flag     integer not null,
+    ms_flag        integer not null,
+    renpo_vital    integer not null,
+    zeon_vital     integer not null,
+    ma_flag        integer not null,
+    reload_flag    integer not null,
+    boost_keep     integer not null,
+    redar_flag     integer not null,
+    lockon_flag    integer not null,
+    onematch       integer not null,
+    renpo_mask_ps2 integer not null,
+    zeon_mask_ps2  integer not null,
+    auto_rebattle  integer not null,
+    no_ranking     integer not null,
+    cpu_flag       integer not null,
+    select_look    integer not null,
+    renpo_mask_dc  integer not null,
+    zeon_mask_dc   integer not null,
+    stage_no       integer not null,
+    PRIMARY KEY (id)
 );
 `
 
@@ -287,7 +334,7 @@ func (db SQLiteDB) GetUserList(loginKey string) ([]*DBUser, error) {
 	}
 	defer rows.Close()
 
-	users := []*DBUser{}
+	var users []*DBUser
 	for rows.Next() {
 		u := new(DBUser)
 		err = rows.StructScan(u)
@@ -528,7 +575,7 @@ func (db SQLiteDB) GetKillCountRanking(side byte) ([]*RankingRecord, error) {
 
 func (db SQLiteDB) GetString(key string) (string, error) {
 	var value string
-	err := db.QueryRowx(`SELECT value FROM strings WHERE key = ? LIMIT 1`, key).Scan(&value)
+	err := db.QueryRowx(`SELECT value FROM m_string WHERE key = ? LIMIT 1`, key).Scan(&value)
 	return value, err
 }
 
@@ -536,4 +583,22 @@ func (db SQLiteDB) GetBan(key string) (UserBan, error) {
 	var userBan UserBan
 	err := db.QueryRowx(`SELECT key, until, created FROM m_ban WHERE key = ? LIMIT 1`, key).StructScan(&userBan)
 	return userBan, err
+}
+
+func (db SQLiteDB) GetLobbySetting(platform, disk string, no int) (*MLobbySetting, error) {
+	m := &MLobbySetting{}
+	err := db.QueryRowx("SELECT * FROM m_lobby_setting WHERE platform = ? AND disk = ? AND no = ?", platform, disk, no).StructScan(m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (db SQLiteDB) GetRule(id string) (*MRule, error) {
+	m := &MRule{}
+	err := db.QueryRowx("SELECT * FROM m_rule WHERE id = ?", id).StructScan(m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }

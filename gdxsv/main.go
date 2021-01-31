@@ -42,7 +42,7 @@ var (
 	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
 	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
-	noban = flag.Bool("noban", false, "not to check bad users")
+	noban    = flag.Bool("noban", false, "not to check bad users")
 )
 
 var (

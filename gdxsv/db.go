@@ -27,11 +27,6 @@ func genSessionID() string {
 	return randomString(8, "123456789")
 }
 
-func randInt(min int, max int) int {
-	rand.Seed(time.Now().UTC().UnixNano())
-	return min + rand.Intn(max-min)
-}
-
 type DBAccount struct {
 	LoginKey    string    `db:"login_key" json:"login_key,omitempty"`
 	SessionID   string    `db:"session_id" json:"session_id,omitempty"`
@@ -117,6 +112,47 @@ type UserBan struct {
 	Created time.Time `db:"created" json:"created,omitempty"`
 }
 
+type MLobbySetting struct {
+	Platform         string `db:"platform" json:"platform"`
+	Disk             string `db:"disk" json:"disk"`
+	No               int    `db:"no" json:"no"`
+	Name             string `db:"name" json:"name"`
+	McsRegion        string `db:"mcs_region" json:"mcs_region"`
+	Comment          string `db:"comment" json:"comment"`
+	RuleID           string `db:"rule_id" json:"rule_id"`
+	AutoRebattle     int    `db:"auto_rebattle" json:"auto_rebattle"`
+	EnableForceStart bool   `db:"enable_force_start" json:"enable_force_start"`
+	TeamShuffle      bool   `db:"team_shuffle" json:"team_shuffle"`
+	PingLimit        bool   `db:"ping_limit" json:"ping_limit"`
+}
+
+type MRule struct {
+	ID           string `db:"id" json:"id"`
+	Difficulty   int    `db:"difficulty" json:"difficulty"`
+	DamageLevel  int    `db:"damage_level" json:"damage_level"`
+	Timer        int    `db:"timer" json:"timer"`
+	TeamFlag     int    `db:"team_flag" json:"team_flag"`
+	StageFlag    int    `db:"stage_flag" json:"stage_flag"`
+	MsFlag       int    `db:"ms_flag" json:"ms_flag"`
+	RenpoVital   int    `db:"renpo_vital" json:"renpo_vital"`
+	ZeonVital    int    `db:"zeon_vital" json:"zeon_vital"`
+	MaFlag       int    `db:"ma_flag" json:"ma_flag"`
+	ReloadFlag   int    `db:"reload_flag" json:"reload_flag"`
+	BoostKeep    int    `db:"boost_keep" json:"boost_keep"`
+	RedarFlag    int    `db:"redar_flag" json:"redar_flag"`
+	LockonFlag   int    `db:"lockon_flag" json:"lockon_flag"`
+	Onematch     int    `db:"onematch" json:"onematch"`
+	RenpoMaskPS2 int    `db:"renpo_mask_ps2" json:"renpo_mask_ps2"`
+	ZeonMaskPS2  int    `db:"zeon_mask_ps2" json:"zeon_mask_ps2"`
+	AutoRebattle int    `db:"auto_rebattle" json:"auto_rebattle"`
+	NoRanking    int    `db:"no_ranking" json:"no_ranking"`
+	CPUFlag      int    `db:"cpu_flag" json:"cpu_flag"`
+	SelectLook   int    `db:"select_look" json:"select_look"`
+	RenpoMaskDC  uint   `db:"renpo_mask_dc" json:"renpo_mask_dc"`
+	ZeonMaskDC   uint   `db:"zeon_mask_dc" json:"zeon_mask_dc"`
+	StageNo      int    `db:"stage_no" json:"stage_no"`
+}
+
 // DB is an interface of database operation.
 type DB interface {
 	// Init initializes the database.
@@ -185,4 +221,10 @@ type DB interface {
 
 	// GetBan returns user's ban information.
 	GetBan(key string) (ban UserBan, err error)
+
+	// GetLobbySetting returns lobby setting.
+	GetLobbySetting(platform, disk string, no int) (*MLobbySetting, error)
+
+	// GetRule returns game rule.
+	GetRule(id string) (*MRule, error)
 }

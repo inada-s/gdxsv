@@ -1,40 +1,30 @@
 package main
 
-import (
-	"fmt"
-)
 
 const (
 	PingLimitTh = 64
 )
 
-var (
-	lbsLobbySettings map[uint16]*LobbySetting
-)
+type LobbySetting MLobbySetting
+
+var BaseLobbySetting = LobbySetting{}
+
+/*
+func (x *LobbySetting) BuildDescription() {
+	locName, ok := gcpLocationName[x.McsRegion]
+	if !ok {
+		locName = "Default Server"
+	}
+	if x.McsRegion == "best" {
+		locName = "Best Server [Auto Detection]"
+	}
+	x.Description = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, x.Comment)
+}
+*/
 
 // PS2 LobbyID: 1-23
 // DC2 LobbyID: 2, 4-6, 9-17, 19-22
-
-type LobbySetting struct {
-	Name        string
-	McsRegion   string
-	Comment     string
-	Description string // automatically filled
-
-	AutoReBattle        int
-	FreeRule            bool // Allow all Stage and MS/MA
-	EnableForceStartCmd bool
-	TeamShuffle         bool
-	PingLimit           bool
-	No375MS             bool
-	Cost630             bool
-	UnlimitedAmmo       bool
-
-	HLMMCostEvent  bool
-	BeamMSEvent    bool
-	LowCostMSEvent bool
-}
-
+/*
 func init() {
 	lbsLobbySettings = map[uint16]*LobbySetting{
 		// Earth lobbies
@@ -205,3 +195,4 @@ func init() {
 		x.Description = fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, x.Comment)
 	}
 }
+*/
