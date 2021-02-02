@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS battle_record
     players     integer default 0,
     aggregate   integer default 0,
     pos         integer default 0,
-    side        integer default 0,
+    team        integer default 0,
     round       integer default 0,
     win         integer default 0,
     lose        integer default 0,
@@ -225,8 +225,22 @@ func (db SQLiteDB) Migrate() error {
 
 		_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
 		if err != nil {
-			tx.Rollback()
-			return errors.Wrap(err, "INSERT failed")
+			if err.Error() == "table battle_record has no column named side" {
+				// NOTE: A column renamed. battle_record.side -> battle_record.team
+				for i := 0; i < len(columns); i++ {
+					if columns[i] == "side" {
+						columns[i] = "team"
+					}
+				}
+				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
+				if err != nil {
+					tx.Rollback()
+					return errors.Wrap(err, "2021-02 INSERT failed")
+				}
+			} else {
+				tx.Rollback()
+				return errors.Wrap(err, "INSERT failed")
+			}
 		}
 
 		_, err = tx.Exec(`DROP TABLE ` + tmp)
@@ -407,9 +421,9 @@ func (db SQLiteDB) AddBattleRecord(battleRecord *BattleRecord) error {
 	battleRecord.Created = now
 	_, err := db.NamedExec(`
 INSERT INTO battle_record
-	(battle_code, user_id, user_name, pilot_name, lobby_id, players, aggregate, pos, side, created, updated, system)
+	(battle_code, user_id, user_name, pilot_name, lobby_id, players, aggregate, pos, team, created, updated, system)
 VALUES
-	(:battle_code, :user_id, :user_name, :pilot_name, :lobby_id, :players, :aggregate, :pos, :side, :created, :updated, :system)`,
+	(:battle_code, :user_id, :user_name, :pilot_name, :lobby_id, :players, :aggregate, :pos, :team, :created, :updated, :system)`,
 		battleRecord)
 	return err
 }
@@ -444,8 +458,8 @@ func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*Battl
 	return b, err
 }
 
-func (db SQLiteDB) CalculateUserTotalBattleCount(userID string, side byte) (ret BattleCountResult, err error) {
-	if side == 0 {
+func (db SQLiteDB) CalculateUserTotalBattleCount(userID string, team byte) (ret BattleCountResult, err error) {
+	if team == 0 {
 		r := db.QueryRow(`
 			SELECT TOTAL(round), TOTAL(win), TOTAL(lose), TOTAL(kill), TOTAL(death) FROM battle_record
 			WHERE user_id = ? AND aggregate <> 0 AND players = 4`, userID)
@@ -454,7 +468,7 @@ func (db SQLiteDB) CalculateUserTotalBattleCount(userID string, side byte) (ret 
 	}
 	r := db.QueryRow(`
 		SELECT TOTAL(round), TOTAL(win), TOTAL(lose), TOTAL(kill), TOTAL(death) FROM battle_record
-		WHERE user_id = ? AND aggregate <> 0 AND players = 4 AND side = ?`, userID, side)
+		WHERE user_id = ? AND aggregate <> 0 AND players = 4 AND team = ?`, userID, team)
 	err = r.Scan(&ret.Battle, &ret.Win, &ret.Lose, &ret.Kill, &ret.Death)
 	return
 }
@@ -468,8 +482,8 @@ func (db SQLiteDB) CalculateUserDailyBattleCount(userID string) (ret BattleCount
 	return
 }
 
-func (db SQLiteDB) GetWinCountRanking(side byte) ([]*RankingRecord, error) {
-	cacheKey := fmt.Sprint("win", side)
+func (db SQLiteDB) GetWinCountRanking(team byte) ([]*RankingRecord, error) {
+	cacheKey := fmt.Sprint("win", team)
 	db.mtx.Lock()
 	ranking, ok := db.rankingCache[cacheKey]
 	db.mtx.Unlock()
@@ -481,9 +495,9 @@ func (db SQLiteDB) GetWinCountRanking(side byte) ([]*RankingRecord, error) {
 	var err error
 
 	target := "win_count"
-	if side == 1 {
+	if team == 1 {
 		target = "renpo_win_count"
-	} else if side == 2 {
+	} else if team == 2 {
 		target = "zeon_win_count"
 	}
 
@@ -522,8 +536,8 @@ func (db SQLiteDB) GetWinCountRanking(side byte) ([]*RankingRecord, error) {
 	return ranking, nil
 }
 
-func (db SQLiteDB) GetKillCountRanking(side byte) ([]*RankingRecord, error) {
-	cacheKey := fmt.Sprint("kill", side)
+func (db SQLiteDB) GetKillCountRanking(team byte) ([]*RankingRecord, error) {
+	cacheKey := fmt.Sprint("kill", team)
 	db.mtx.Lock()
 	ranking, ok := db.rankingCache[cacheKey]
 	db.mtx.Unlock()
@@ -535,9 +549,9 @@ func (db SQLiteDB) GetKillCountRanking(side byte) ([]*RankingRecord, error) {
 	var err error
 
 	target := "kill_count"
-	if side == 1 {
+	if team == 1 {
 		target = "renpo_kill_count"
-	} else if side == 2 {
+	} else if team == 2 {
 		target = "zeon_kill_count"
 	}
 

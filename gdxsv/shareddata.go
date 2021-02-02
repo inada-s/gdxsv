@@ -43,7 +43,7 @@ type McsUser struct {
 	BattleCount int    `json:"battle_count,omitempty"`
 	WinCount    int    `json:"win_count,omitempty"`
 	LoseCount   int    `json:"lose_count,omitempty"`
-	Side        uint16 `json:"side,omitempty"`
+	Team        uint16 `json:"side,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 
 	State       int       `json:"state,omitempty"`

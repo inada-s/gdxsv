@@ -122,8 +122,8 @@ const (
 	lbsPlazaEntry         CmdID = 0x6207 // Select a lobby
 	lbsPlazaExit          CmdID = 0x6306 // Exit a lobby
 	lbsLobbyJoin          CmdID = 0x6303 //
-	lbsLobbyEntry         CmdID = 0x6305 // Select join side and enter lobby chat scene
-	lbsLobbyExit          CmdID = 0x6408 // Exit lobby chat and enter join side select scene
+	lbsLobbyEntry         CmdID = 0x6305 // Select team and enter lobby chat scene
+	lbsLobbyExit          CmdID = 0x6408 // Exit lobby chat and enter join team select scene
 	lbsLobbyMatchingJoin  CmdID = 0x640F
 	lbsRoomMax            CmdID = 0x6401
 	lbsRoomTitle          CmdID = 0x6402
@@ -825,8 +825,8 @@ var _ = register(lbsLobbyEntry, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	side := m.Reader().Read16()
-	p.Team = side
+	team := m.Reader().Read16()
+	p.Team = team
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(p.Lobby)
 	p.Lobby.SwitchTeam(p)
@@ -838,7 +838,7 @@ var _ = register(lbsLobbyExit, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	// LobbyExit means go back to side select scene.
+	// LobbyExit means go back to team select scene.
 	// So don't remove Lobby ref here.
 
 	p.Team = TeamNone
@@ -854,20 +854,20 @@ var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	side := m.Reader().Read16()
+	team := m.Reader().Read16()
 	switch p.Lobby.GameDisk {
 	case GameDiskPS2:
-		renpo, zeon := p.Lobby.GetUserCountBySide()
+		renpo, zeon := p.Lobby.GetUserCountByTeam()
 		if p.InLobbyChat() {
 			p.SendMessage(NewServerAnswer(m).Writer().
-				Write16(side).Write16(renpo + zeon).Msg())
+				Write16(team).Write16(renpo + zeon).Msg())
 		} else {
-			if side == 1 {
+			if team== 1 {
 				p.SendMessage(NewServerAnswer(m).Writer().
-					Write16(side).Write16(renpo).Msg())
+					Write16(team).Write16(renpo).Msg())
 			} else {
 				p.SendMessage(NewServerAnswer(m).Writer().
-					Write16(side).Write16(zeon).Msg())
+					Write16(team).Write16(zeon).Msg())
 			}
 		}
 	case GameDiskDC1, GameDiskDC2:
@@ -878,22 +878,22 @@ var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
 			return
 		}
 
-		renpo1, zeon1 := lobby1.GetUserCountBySide()
-		renpo2, zeon2 := lobby2.GetUserCountBySide()
+		renpo1, zeon1 := lobby1.GetUserCountByTeam()
+		renpo2, zeon2 := lobby2.GetUserCountByTeam()
 		if p.InLobbyChat() {
 			p.SendMessage(NewServerAnswer(m).Writer().
-				Write16(side).
+				Write16(team).
 				Write16(renpo1 + zeon1).
 				Write16(renpo2 + zeon2).Msg())
 		} else {
-			if side == 1 {
+			if team == 1 {
 				p.SendMessage(NewServerAnswer(m).Writer().
-					Write16(side).
+					Write16(team).
 					Write16(renpo1).
 					Write16(renpo2).Msg())
 			} else {
 				p.SendMessage(NewServerAnswer(m).Writer().
-					Write16(side).
+					Write16(team).
 					Write16(zeon1).
 					Write16(zeon2).Msg())
 			}
@@ -907,14 +907,14 @@ var _ = register(lbsLobbyMatchingJoin, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	side := m.Reader().Read16()
+	team := m.Reader().Read16()
 	renpo, zeon := p.Lobby.GetLobbyMatchEntryUserCount()
-	if side == 1 {
+	if team == 1 {
 		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(side).Write16(renpo).Msg())
+			Write16(team).Write16(renpo).Msg())
 	} else {
 		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(side).Write16(zeon).Msg())
+			Write16(team).Write16(zeon).Msg())
 	}
 })
 
@@ -1391,7 +1391,7 @@ var _ = register(lbsAskPlayerInfo, func(p *LbsPeer, m *LbsMessage) {
 	pos := m.Reader().Read8()
 	u := p.Battle.GetUserByPos(pos)
 	param := p.Battle.GetGameParamByPos(pos)
-	side := p.Battle.GetUserSide(u.UserID)
+	team := p.Battle.GetUserTeam(u.UserID)
 	grade := decideGrade(u.WinCount, p.Battle.GetUserRankByPos(pos))
 	msg := NewServerAnswer(m).Writer().
 		Write8(pos).
@@ -1404,7 +1404,7 @@ var _ = register(lbsAskPlayerInfo, func(p *LbsPeer, m *LbsMessage) {
 		Write16(0). // draw count
 		Write16(r16(u.BattleCount - u.WinCount - u.LoseCount)).
 		Write16(0). // Unknown
-		Write16(side).
+		Write16(team).
 		Write16(0). // Unknown
 		Msg()
 	p.SendMessage(msg)
