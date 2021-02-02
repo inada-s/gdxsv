@@ -6,6 +6,12 @@ build:
 	go generate ./gdxsv
 	go build -ldflags "-X main.gdxsvVersion=$(shell git describe --tags --abbrev=0) -X main.gdxsvRevision=$(shell git rev-parse --short HEAD)" -o bin/gdxsv ./gdxsv
 
+
+.PHONY: test
+test:
+	go test -v ./...
+
+
 .PHONY: race
 race:
 	mkdir -p bin
