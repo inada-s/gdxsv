@@ -4,3 +4,4 @@
 [submodule "flycast"]
 	path = flycast
 	url = git@github.com:inada-s/flycast.git
+	branch = gdxsv-master
