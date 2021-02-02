@@ -27,7 +27,7 @@ func TestSharedData_Sync(t *testing.T) {
 		BattleCode: "012345",
 		McsAddr:    mcsAddr,
 		GameDisk:   GameDiskDC2,
-		Rule:       *RulePresetDefault,
+		Rule:       DefaultRule,
 		State:      McsGameStateCreated,
 		UpdatedAt:  time.Unix(0, 0),
 	})
