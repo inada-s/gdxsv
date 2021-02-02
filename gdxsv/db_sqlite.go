@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS battle_record
     user_id     text,
     user_name   text,
     pilot_name  text,
+    lobby_id    integer,
     players     integer default 0,
     aggregate   integer default 0,
     pos         integer default 0,
@@ -406,9 +407,9 @@ func (db SQLiteDB) AddBattleRecord(battleRecord *BattleRecord) error {
 	battleRecord.Created = now
 	_, err := db.NamedExec(`
 INSERT INTO battle_record
-	(battle_code, user_id, user_name, pilot_name, players, aggregate, pos, side, created, updated, system)
+	(battle_code, user_id, user_name, pilot_name, lobby_id, players, aggregate, pos, side, created, updated, system)
 VALUES
-	(:battle_code, :user_id, :user_name, :pilot_name, :players, :aggregate, :pos, :side, :created, :updated, :system)`,
+	(:battle_code, :user_id, :user_name, :pilot_name, :lobby_id, :players, :aggregate, :pos, :side, :created, :updated, :system)`,
 		battleRecord)
 	return err
 }

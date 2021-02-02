@@ -552,6 +552,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			UserID:     q.UserID,
 			UserName:   q.Name,
 			PilotName:  q.PilotName,
+			LobbyID:    int(l.ID),
 			Players:    len(participants),
 			Aggregate:  aggregate,
 		})
@@ -708,6 +709,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			UserID:     q.UserID,
 			UserName:   q.Name,
 			PilotName:  q.PilotName,
+			LobbyID:    int(l.ID),
 			Players:    len(participants),
 			Aggregate:  aggregate,
 		})
