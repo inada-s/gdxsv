@@ -75,6 +75,7 @@ type BattleRecord struct {
 	UserID     string `db:"user_id" json:"user_id,omitempty"`
 	UserName   string `db:"user_name" json:"user_name,omitempty"`
 	PilotName  string `db:"pilot_name" json:"pilot_name,omitempty"`
+	LobbyID    int    `db:"lobby_id" json:"lobby_id,omitempty"`
 	Players    int    `db:"players" json:"players,omitempty"`
 	Aggregate  int    `db:"aggregate" json:"aggregate,omitempty"`
 
