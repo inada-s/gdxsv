@@ -458,7 +458,7 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 
 	// To lobby scene.
 	if lobby.GameDisk == GameDiskPS2 {
-		renpo, zeon := lobby.GetUserCountBySide()
+		renpo, zeon := lobby.GetUserCountByTeam()
 		msgSum1 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamRenpo).Write16(renpo + zeon).Msg()
 		msgSum2 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamZeon).Write16(renpo + zeon).Msg()
 		msgRenpo := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamRenpo).Write16(renpo).Msg()
@@ -481,8 +481,8 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 			return
 		}
 
-		renpo1, zeon1 := lobby1.GetUserCountBySide()
-		renpo2, zeon2 := lobby2.GetUserCountBySide()
+		renpo1, zeon1 := lobby1.GetUserCountByTeam()
+		renpo2, zeon2 := lobby2.GetUserCountByTeam()
 		msgSum1 := NewServerNotice(lbsLobbyJoin).Writer().
 			Write16(TeamRenpo).
 			Write16(renpo1 + zeon1).

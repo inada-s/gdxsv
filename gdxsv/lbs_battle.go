@@ -140,7 +140,7 @@ func (b *LbsBattle) GetUserRankByPos(pos byte) int {
 	return b.UserRanks[pos]
 }
 
-func (b *LbsBattle) GetUserSide(userID string) uint16 {
+func (b *LbsBattle) GetUserTeam(userID string) uint16 {
 	for _, id := range b.RenpoIDs {
 		if id == userID {
 			return 1

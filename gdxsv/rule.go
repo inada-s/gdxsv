@@ -56,9 +56,9 @@ var baseRule = Rule{
 	Difficulty:   3,   // Game Difficulty (zero-indexed)
 	DamageLevel:  2,   // Game DamageLevel (zero-indexed)
 	Timer:        3,   // 2:180sec 3:210sec
-	TeamFlag:     0,   // 1:side select (buggy)
+	TeamFlag:     0,   // 1:team select (buggy)
 	StageFlag:    0,   // 0:side7 1:ground 2:space 3:ground and space
-	MsFlag:       1,   // 1:opponent side MS available
+	MsFlag:       1,   // 1:opponent team MS available
 	RenpoVital:   600, // renpo total cost
 	ZeonVital:    600, // zeon total cost
 	MaFlag:       0,   // 1:MA available

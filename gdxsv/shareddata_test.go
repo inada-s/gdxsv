@@ -44,7 +44,7 @@ func TestSharedData_Sync(t *testing.T) {
 		BattleCount: 1,
 		WinCount:    2,
 		LoseCount:   3,
-		Side:        1,
+		Team:        1,
 		SessionID:   sessionID,
 		State:       McsUserStateCreated,
 		UpdatedAt:   time.Unix(0, 0),

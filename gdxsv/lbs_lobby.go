@@ -241,14 +241,14 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 	}
 }
 
-func (l *LbsLobby) FindRoom(side, roomID uint16) *LbsRoom {
-	if side == TeamRenpo {
+func (l *LbsLobby) FindRoom(team, roomID uint16) *LbsRoom {
+	if team == TeamRenpo {
 		r, ok := l.RenpoRooms[roomID]
 		if !ok {
 			return nil
 		}
 		return r
-	} else if side == TeamZeon {
+	} else if team == TeamZeon {
 		r, ok := l.ZeonRooms[roomID]
 		if !ok {
 			return nil
@@ -333,7 +333,7 @@ func (l *LbsLobby) EntryPicked(p *LbsPeer) {
 	}
 }
 
-func (l *LbsLobby) GetUserCountBySide() (uint16, uint16) {
+func (l *LbsLobby) GetUserCountByTeam() (uint16, uint16) {
 	a := uint16(0)
 	b := uint16(0)
 	for userID := range l.Users {
@@ -553,6 +553,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			UserName:   q.Name,
 			PilotName:  q.PilotName,
 			LobbyID:    int(l.ID),
+			Team:       int(q.Team),
 			Players:    len(participants),
 			Aggregate:  aggregate,
 		})
@@ -584,7 +585,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			BattleCount: q.BattleCount,
 			WinCount:    q.WinCount,
 			LoseCount:   q.LoseCount,
-			Side:        q.Team,
+			Team:        q.Team,
 			SessionID:   q.SessionID,
 			UpdatedAt:   time.Now(),
 			State:       McsUserStateCreated,
@@ -710,6 +711,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			UserName:   q.Name,
 			PilotName:  q.PilotName,
 			LobbyID:    int(l.ID),
+			Team:       int(q.Team),
 			Players:    len(participants),
 			Aggregate:  aggregate,
 		})
@@ -741,7 +743,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			BattleCount: q.BattleCount,
 			WinCount:    q.WinCount,
 			LoseCount:   q.LoseCount,
-			Side:        q.Team,
+			Team:        q.Team,
 			SessionID:   q.SessionID,
 			UpdatedAt:   time.Now(),
 			State:       McsUserStateCreated,

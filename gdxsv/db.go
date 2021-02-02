@@ -80,7 +80,7 @@ type BattleRecord struct {
 	Aggregate  int    `db:"aggregate" json:"aggregate,omitempty"`
 
 	Pos    int    `db:"pos" json:"pos,omitempty"`
-	Side   int    `db:"side" json:"side,omitempty"`
+	Team   int    `db:"team" json:"team,omitempty"`
 	Round  int    `db:"round" json:"round,omitempty"`
 	Win    int    `db:"win" json:"win,omitempty"`
 	Lose   int    `db:"lose" json:"lose,omitempty"`
@@ -204,17 +204,17 @@ type DB interface {
 	UpdateBattleRecord(record *BattleRecord) error
 
 	// CalculateUserTotalBattleCount calculates battle count of the user.
-	// You can get the results of one army using the `side` parameter.
-	CalculateUserTotalBattleCount(userID string, side byte) (ret BattleCountResult, err error)
+	// You can get the results of one army using the `team` parameter.
+	CalculateUserTotalBattleCount(userID string, team byte) (ret BattleCountResult, err error)
 
 	// CalculateUserDailyBattleCount calculates daily battle count of the user.
 	CalculateUserDailyBattleCount(userID string) (ret BattleCountResult, err error)
 
 	// GetWinCountRanking returns top userPeers of win count.
-	GetWinCountRanking(side byte) (ret []*RankingRecord, err error)
+	GetWinCountRanking(team byte) (ret []*RankingRecord, err error)
 
 	// GetWinCountRanking returns top userPeers of kill count.
-	GetKillCountRanking(side byte) (ret []*RankingRecord, err error)
+	GetKillCountRanking(team byte) (ret []*RankingRecord, err error)
 
 	// GetString returns a string that corresponds to the key.
 	GetString(key string) (value string, err error)

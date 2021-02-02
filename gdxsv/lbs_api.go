@@ -83,7 +83,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 				resp.BattleUsers = append(resp.BattleUsers, &onlineUser{
 					UserID:     u.UserID,
 					Name:       u.Name,
-					Team:       teamName(int(u.Side)),
+					Team:       teamName(int(u.Team)),
 					BattleCode: u.BattleCode,
 					Platform:   u.Platform,
 					Disk:       disk,
