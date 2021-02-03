@@ -32,6 +32,6 @@
   "status.user-id": "UserID",
   "status.user-name": "Name",
   "status.team": "Team",
-  "status.lobby": "Lobby {peopleCount} 人",
-  "status.battle": "Battle {peopleCount} 人"
+  "status.lobby": "ロビー {peopleCount} 人",
+  "status.battle": "対戦中 {peopleCount} 人"
 }

@@ -22,7 +22,7 @@ export default ():any[] => {
     const localeList:ILocaleItem[] = [
         { name: '日本語', code: 'ja' },
         { name: '中文', code: 'zh' },
-        // { name: 'English', code: 'en' }
+        { name: 'English', code: 'en' }
     ];
     const [locale, setLocale] = useState(
         localeList.map(item => item.code).includes(defaultLocale) ?
