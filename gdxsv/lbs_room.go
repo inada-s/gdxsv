@@ -61,8 +61,13 @@ func (r *LbsRoom) Enter(u *DBUser) {
 	}
 	if !userAlreadyExists {
 		r.Users = append(r.Users, u)
-		r.lobby.NotifyLobbyEvent("GO ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
-		r.NotifyRoomEvent("ENTER ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+
+		if r.Team == TeamRenpo {
+			r.lobby.sendLobbyChat(u.UserID, u.Name, ">連邦>パートナー募集")
+		}
+		if r.Team == TeamZeon {
+			r.lobby.sendLobbyChat(u.UserID, u.Name, ">ジオン>パートナー募集")
+		}
 	}
 
 	if len(r.Users) == int(r.MaxPlayer) {
@@ -76,8 +81,13 @@ func (r *LbsRoom) Exit(userID string) {
 	for i, u := range r.Users {
 		if u.UserID == userID {
 			r.Users, r.Users[len(r.Users)-1] = append(r.Users[:i], r.Users[i+1:]...), nil
-			r.NotifyRoomEvent("EXIT ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
-			r.lobby.NotifyLobbyEvent("RETURN", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+
+			if r.Team == TeamRenpo {
+				r.lobby.sendLobbyChat(u.UserID, u.Name, ">連邦")
+			}
+			if r.Team == TeamZeon {
+				r.lobby.sendLobbyChat(u.UserID, u.Name, ">ジオン")
+			}
 			break
 		}
 	}
@@ -95,8 +105,12 @@ func (r *LbsRoom) Exit(userID string) {
 
 func (r *LbsRoom) Remove() {
 	for _, u := range r.Users {
-		r.NotifyRoomEvent("EXIT ROOM", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
-		r.lobby.NotifyLobbyEvent("RETURN", fmt.Sprintf("【%v】%v", u.UserID, u.Name))
+		if r.Team == TeamRenpo {
+			r.lobby.sendLobbyChat(u.UserID, u.Name, ">連邦")
+		}
+		if r.Team == TeamZeon {
+			r.lobby.sendLobbyChat(u.UserID, u.Name, ">ジオン")
+		}
 	}
 	*r = *NewRoom(r.app, r.Platform, r.GameDisk, r.lobby, r.ID, r.Team)
 }
