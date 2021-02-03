@@ -99,15 +99,26 @@ func (l *LbsLobby) LoadLobbySetting() error {
 	return err
 }
 
-func toLobbyChatMessage(text string) *LbsMessage {
+func chatMsg(userID, name, text string) *LbsMessage {
 	return NewServerNotice(lbsChatMessage).Writer().
-		WriteString("").
-		WriteString("").
+		WriteString(userID).
+		WriteString(name).
 		WriteString(text).
 		Write8(0). // chat_type
 		Write8(0). // id color
 		Write8(0). // handle color
 		Write8(0).Msg() // msg color
+}
+
+func (l *LbsLobby) sendLobbyChat(userID, name, text string) {
+	msg := chatMsg(userID, name, text)
+	for user := range l.Users {
+		peer := l.app.FindPeer(user)
+		if peer.Room != nil {
+			continue
+		}
+		peer.SendMessage(msg)
+	}
 }
 
 func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
@@ -119,25 +130,25 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	}
 
 	var msgs []*LbsMessage
-	msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
+	msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
 
 	if l.LobbySetting.PingLimit {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.LobbySetting.PingLimit))))
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.LobbySetting.PingLimit))))
 	}
 	if l.LobbySetting.McsRegion != "" {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "McsRegion", l.LobbySetting.McsRegion)))
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "McsRegion", l.LobbySetting.McsRegion)))
 	}
 
-	msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v/%v", "Dmage/Diff", l.Rule.DamageLevel+1, l.Rule.Difficulty+1)))
+	msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v/%v", "Dmage/Diff", l.Rule.DamageLevel+1, l.Rule.Difficulty+1)))
 
 	if l.LobbySetting.TeamShuffle {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.LobbySetting.TeamShuffle))))
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "TeamShuffle", boolToYesNo(l.LobbySetting.TeamShuffle))))
 	}
 	if 0 < l.Rule.AutoRebattle {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.Rule.AutoRebattle)))
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "Auto Re Battle", l.Rule.AutoRebattle)))
 	}
 	if l.LobbySetting.EnableForceStart {
-		msgs = append(msgs, toLobbyChatMessage(fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.LobbySetting.EnableForceStart))))
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.LobbySetting.EnableForceStart))))
 	}
 
 	return msgs
@@ -158,16 +169,19 @@ func (l *LbsLobby) buildDescription(ping string) string {
 	}
 }
 
-func (l *LbsLobby) displayUsersInSameLobby(peer *LbsPeer) {
+func (l *LbsLobby) printSameLobbyUsers(peer *LbsPeer) {
 	entryUserIDs := map[string]bool{}
 	for _, id := range l.EntryUsers {
 		entryUserIDs[id] = true
 	}
 
 	if 12 < len(l.Users) {
-		peer.SendMessage(toLobbyChatMessage("Many users in this lobby"))
+		peer.SendMessage(chatMsg("", "", "Many users in this lobby"))
 	} else {
 		for userID := range l.Users {
+			if userID == peer.UserID {
+				continue
+			}
 			p := l.app.FindPeer(userID)
 			if p == nil || p.Team == TeamNone {
 				continue
@@ -178,31 +192,54 @@ func (l *LbsLobby) displayUsersInSameLobby(peer *LbsPeer) {
 
 			if p.Team == TeamRenpo {
 				if p.Room == nil {
-					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in RENPO Lobby", p.Name)))
+					peer.SendMessage(chatMsg(p.UserID, p.Name, ">連邦"))
 				} else {
-					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in RENPO Room", p.Name)))
+					peer.SendMessage(chatMsg(p.UserID, p.Name, ">連邦>パートナー募集"))
 				}
 			} else if p.Team == TeamZeon {
 				if p.Room == nil {
-					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in ZEON Lobby", p.Name)))
+					peer.SendMessage(chatMsg(p.UserID, p.Name, ">ジオン"))
 				} else {
-					peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in ZEON Room", p.Name)))
+					peer.SendMessage(chatMsg(p.UserID, p.Name, ">ジオン>パートナー募集"))
 				}
 			}
 		}
 	}
 
 	for _, userID := range l.EntryUsers {
+		if userID == peer.UserID {
+			continue
+		}
 		p := l.app.FindPeer(userID)
 		if p == nil || p.Team == TeamNone {
 			continue
 		}
 
 		if p.Team == TeamRenpo {
-			peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in RENPO Slot", p.Name)))
+			peer.SendMessage(chatMsg(p.UserID, p.Name, ">連邦>自動選抜"))
 		} else if p.Team == TeamZeon {
-			peer.SendMessage(toLobbyChatMessage(fmt.Sprintf("%s is in ZEON Slot", p.Name)))
+			peer.SendMessage(chatMsg(p.UserID, p.Name, ">ジオン>自動選抜"))
 		}
+	}
+}
+
+func (l *LbsLobby) printLobbyMatchEntryCount(peer *LbsPeer) {
+	a, b := l.GetLobbyMatchEntryUserCount()
+	peer.SendMessage(chatMsg("", "", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b)))
+}
+
+func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
+	switch p.Team {
+	case TeamNone:
+		l.sendLobbyChat(p.UserID, p.Name, "<退")
+	case TeamRenpo:
+		l.printSameLobbyUsers(p)
+		l.sendLobbyChat(p.UserID, p.Name, ">連邦")
+		l.printLobbyMatchEntryCount(p)
+	case TeamZeon:
+		l.printSameLobbyUsers(p)
+		l.sendLobbyChat(p.UserID, p.Name, ">ジオン")
+		l.printLobbyMatchEntryCount(p)
 	}
 }
 
@@ -230,7 +267,7 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 		msgBody = fmt.Sprintf("%-12s", kind) + text
 	}
 
-	msg := toLobbyChatMessage(msgBody)
+	msg := chatMsg("", "", msgBody)
 
 	for userID := range l.Users {
 		peer := l.app.FindPeer(userID)
@@ -258,24 +295,9 @@ func (l *LbsLobby) FindRoom(team, roomID uint16) *LbsRoom {
 	return nil
 }
 
-func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
-	switch p.Team {
-	case TeamNone:
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v Left from Lobby", p.Name))
-	case TeamRenpo:
-		for _, msg := range l.lobbySettingMessages {
-			p.SendMessage(msg)
-		}
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v is in RENPO Lobby", p.Name))
-		a, b := l.GetLobbyMatchEntryUserCount()
-		p.SendMessage(toLobbyChatMessage(fmt.Sprintf("RENPO×%d  ZEON×%d", a, b)))
-	case TeamZeon:
-		for _, msg := range l.lobbySettingMessages {
-			p.SendMessage(msg)
-		}
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v is in ZEON Lobby", p.Name))
-		a, b := l.GetLobbyMatchEntryUserCount()
-		p.SendMessage(toLobbyChatMessage(fmt.Sprintf("RENPO×%d  ZEON×%d", a, b)))
+func (l *LbsLobby) printLobbySetting(p *LbsPeer) {
+	for _, msg := range l.lobbySettingMessages {
+		p.SendMessage(msg)
 	}
 }
 
@@ -301,11 +323,11 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 	l.EntryUsers = append(l.EntryUsers, p.UserID)
 	a, b := l.GetLobbyMatchEntryUserCount()
 	if p.Team == TeamRenpo {
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v joined RENPO Slot", p.Name))
-		l.NotifyLobbyEvent("", fmt.Sprintf("RENPO×%d  ZEON×%d", a, b))
+		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">連邦>自動選抜"))
+		l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
 	} else if p.Team == TeamZeon {
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v joined ZEON Slot", p.Name))
-		l.NotifyLobbyEvent("", fmt.Sprintf("RENPO×%d  ZEON×%d", a, b))
+		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">ジオン>自動選抜"))
+		l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
 	}
 }
 
@@ -316,13 +338,14 @@ func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 		}
 	}
-
 	if p.Team == TeamRenpo {
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v left from RENPO Slot", p.Name))
+		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">連邦"))
 	} else if p.Team == TeamZeon {
-		l.NotifyLobbyEvent("", fmt.Sprintf("%v left from ZEON Slot", p.Name))
+		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">ジオン"))
 	}
 
+	a, b := l.GetLobbyMatchEntryUserCount()
+	l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
 }
 
 func (l *LbsLobby) EntryPicked(p *LbsPeer) {
@@ -468,7 +491,7 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	}
 
 	a, b := l.GetLobbyMatchEntryUserCount()
-	l.NotifyLobbyEvent("", fmt.Sprintf("RENPO×%d  ZEON×%d", a, b))
+	l.NotifyLobbyEvent("", fmt.Sprintf("      【自動選抜】連邦×%d  ジオン×%d", a, b))
 
 	return peers
 }

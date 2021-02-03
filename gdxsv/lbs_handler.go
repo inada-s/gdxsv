@@ -862,7 +862,7 @@ var _ = register(lbsLobbyJoin, func(p *LbsPeer, m *LbsMessage) {
 			p.SendMessage(NewServerAnswer(m).Writer().
 				Write16(team).Write16(renpo + zeon).Msg())
 		} else {
-			if team== 1 {
+			if team == 1 {
 				p.SendMessage(NewServerAnswer(m).Writer().
 					Write16(team).Write16(renpo).Msg())
 			} else {
@@ -1232,21 +1232,21 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		}
 	}
 
+
 	// Additional actions.
-	buildHintMsg := func(hint string) *LbsMessage {
-		return NewServerNotice(lbsChatMessage).Writer().
-			WriteString("").
-			WriteString("").
-			WriteString(hint).
-			Write8(0). // chat_type
-			Write8(0). // id color
-			Write8(0). // handle color
-			Write8(0).Msg() // msg color
-	}
-
 	if text == "／ｆ" || text == "／Ｆ" {
-		//intercept message if it is a command
+		buildHintMsg := func(hint string) *LbsMessage {
+			return NewServerNotice(lbsChatMessage).Writer().
+				WriteString("").
+				WriteString("").
+				WriteString(hint).
+				Write8(0). // chat_type
+				Write8(0). // id color
+				Write8(0). // handle color
+				Write8(0).Msg() // msg color
+		}
 
+		//intercept message if it is a command
 		userHasJoinedForce := false
 		for _, userID := range p.Lobby.EntryUsers {
 			if p.UserID == userID {
@@ -1265,7 +1265,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 			if !p.Lobby.LobbySetting.EnableForceStart {
 				p.SendMessage(buildHintMsg("/f is disabled in this lobby"))
 			} else if !userHasJoinedForce {
-				p.SendMessage(buildHintMsg("Join a force first! (自動選抜→待機)"))
+				p.SendMessage(buildHintMsg("Join a force first! (自動選抜 -> 待機)"))
 			} else if !twoOrMorePlayers {
 				p.SendMessage(buildHintMsg("Battle requires at least 2 players!"))
 			}
