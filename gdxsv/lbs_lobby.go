@@ -233,10 +233,12 @@ func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
 	case TeamNone:
 		l.sendLobbyChat(p.UserID, p.Name, "<退")
 	case TeamRenpo:
+		l.printLobbySetting(p)
 		l.printSameLobbyUsers(p)
 		l.sendLobbyChat(p.UserID, p.Name, ">連邦")
 		l.printLobbyMatchEntryCount(p)
 	case TeamZeon:
+		l.printLobbySetting(p)
 		l.printSameLobbyUsers(p)
 		l.sendLobbyChat(p.UserID, p.Name, ">ジオン")
 		l.printLobbyMatchEntryCount(p)
