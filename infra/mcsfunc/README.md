@@ -9,7 +9,7 @@ This allow us to allocate mcs (battle server) on demand in any region.
 1. Create Cloud Function (Web/CUI)
 1. Generate service account key (for Development) and Download it as json (Web/CUI)
 1. Run `GOOGLE_APPLICATION_CREDENTIALS=/path/to/gcp-key.json npm start` to local development (CUI)
-1. Run `gcloud functions deploy mcsfunc --region asia-northeast1 --entry-point cloudFunctionEntryPoint --trigger-http` to deploy (CUI)
+1. Run `gcloud functions deploy mcsfunc --region asia-northeast1 --entry-point cloudFunctionEntryPoint --trigger-http --runtime nodejs12` to deploy (CUI)
 
 ## Access Control Memo
 1. Generate service account (for function invoker) and its key then download it as json (Web/CUI)

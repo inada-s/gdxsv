@@ -34,15 +34,16 @@ function getStartupScript(version) {
 #!/bin/bash
 echo "startup-script"
 
+su -c "echo 'deb http://packages.cloud.google.com/apt google-compute-engine-bionic-stable main' > /etc/apt/sources.list.d/google-compute-engine.list"
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 apt update
-# installing google-osconfig-agent fail...
-# apt -y install google-osconfig-agent jq wget curl
-apt -y install jq wget curl
+apt -y install google-osconfig-agent jq wget curl
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
 fi
 
+mkdir -p /etc/google-fluentd/config.d
 cat << 'EOF' > /etc/google-fluentd/config.d/gdxsv.conf
 <source>
   @type tail
@@ -108,14 +109,14 @@ chown ubuntu:ubuntu /var/log/gdxsv-mcs.log
 chmod +x /home/ubuntu/launch-mcs.sh
 chmod +x /home/ubuntu/upload-battlelog.sh
 
-systemctl restart google-fluentd
+# systemctl restart google-fluentd
 su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh &'
 su ubuntu -c 'cd /home/ubuntu && nohup ./upload-battlelog.sh &'
 echo "startup-script done"
 `
 }
 
-function forResponse(vm) {
+const forResponse = (vm) => {
     const v = {};
     try {
         v.name = vm.name;
@@ -146,7 +147,6 @@ async function getList(req, res) {
 
     res.setHeader('Content-Type', 'application/json');
     res.send(JSON.stringify(vmlist, null, "  "));
-    return;
 }
 
 async function getDeleteAll(req, res) {
@@ -194,7 +194,7 @@ async function getAlloc(req, res) {
 
     console.log("" + vms.length + "vms found.");
 
-    let vm = vms.find(vm => vm.metadata.status == "RUNNING");
+    let vm = vms.find(vm => vm.metadata.status === "RUNNING");
     if (vm) {
         res.setHeader('Content-Type', 'application/json');
         res.send(JSON.stringify(forResponse(vm), null, "  "));
@@ -203,7 +203,7 @@ async function getAlloc(req, res) {
 
     console.log("running vm not found");
 
-    for (let vm of vms.filter(vm => vm.metadata.status == "TERMINATED")) {
+    for (let vm of vms.filter(vm => vm.metadata.status === "TERMINATED")) {
         try {
             console.log("starting vm...", vm);
             let [operation] = await vm.setMetadata({
@@ -234,7 +234,7 @@ async function getAlloc(req, res) {
             console.log("trying to create new vm in", zoneName);
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
-                os: "ubuntu",
+                os: "ubuntu-1804",
                 http: true,
                 tags: ["gdxsv-mcs"],
                 machineType: "e2-medium",
@@ -259,20 +259,18 @@ async function getAlloc(req, res) {
             await operation.promise();
             console.log("vm created");
             const [metadata] = await vm.waitFor("RUNNING", {timeout: 30});
-            vm.metadata = metadata
+            vm.metadata = metadata;
             console.log("new vm is running", vm);
             res.setHeader('Content-Type', 'application/json');
             res.send(JSON.stringify(forResponse(vm), null, "  "));
             return;
         } catch (e) {
             console.log(e);
-            continue;
         }
     }
 
     console.log('failed to allocate vm');
     res.status(503).send('failed to allocate vm');
-    return;
 }
 
 

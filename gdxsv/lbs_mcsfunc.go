@@ -85,7 +85,7 @@ func McsFuncAlloc(region string) error {
 		return err
 	}
 
-	resp, err := client.Get(conf.McsFuncURL + fmt.Sprintf("/alloc?region=%s&version=%s", region, gdxsvVersion))
+	resp, err := client.Get(conf.McsFuncURL + fmt.Sprintf("/alloc?region=%s&version=%s", region, "latest"))
 	if err != nil {
 		return err
 	}
