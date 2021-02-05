@@ -34,15 +34,16 @@ function getStartupScript(version) {
 #!/bin/bash
 echo "startup-script"
 
+su -c "echo 'deb http://packages.cloud.google.com/apt google-compute-engine-bionic-stable main' > /etc/apt/sources.list.d/google-compute-engine.list"
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 apt update
-# installing google-osconfig-agent fail...
-# apt -y install google-osconfig-agent jq wget curl
-apt -y install jq wget curl
+apt -y install google-osconfig-agent jq wget curl
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
 fi
 
+mkdir -p /etc/google-fluentd/config.d
 cat << 'EOF' > /etc/google-fluentd/config.d/gdxsv.conf
 <source>
   @type tail
@@ -108,7 +109,7 @@ chown ubuntu:ubuntu /var/log/gdxsv-mcs.log
 chmod +x /home/ubuntu/launch-mcs.sh
 chmod +x /home/ubuntu/upload-battlelog.sh
 
-systemctl restart google-fluentd
+# systemctl restart google-fluentd
 su ubuntu -c 'cd /home/ubuntu && nohup ./launch-mcs.sh &'
 su ubuntu -c 'cd /home/ubuntu && nohup ./upload-battlelog.sh &'
 echo "startup-script done"
@@ -234,7 +235,7 @@ async function getAlloc(req, res) {
             console.log("trying to create new vm in", zoneName);
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
-                os: "ubuntu",
+                os: "ubuntu-1804",
                 http: true,
                 tags: ["gdxsv-mcs"],
                 machineType: "e2-medium",
