@@ -85,6 +85,8 @@ if [[ ! -d $TAG_NAME/bin ]]; then
   popd
 fi
 
+export GDXSV_GCP_PROJECT_ID="" # automatically detected on GCE
+export GDXSV_GCP_KEY_PATH="" # automatically detected on GCE
 export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
 export GDXSV_BATTLE_ADDR=:9877
 export GDXSV_BATTLE_REGION=$(basename $(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone))
@@ -92,7 +94,7 @@ export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
 export GDXSV_BATTLE_LOG_PATH=/home/ubuntu/battlelog
 mkdir -p $GDXSV_BATTLE_LOG_PATH
 
-"$TAG_NAME"/bin/gdxsv -prodlog mcs >> /var/log/gdxsv-mcs.log 2>&1
+"$TAG_NAME"/bin/gdxsv -prodlog -cprof=2 mcs >> /var/log/gdxsv-mcs.log 2>&1
 EOF
 
 cat << 'EOF' > /home/ubuntu/upload-battlelog.sh
