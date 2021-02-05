@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gdxsv/gdxsv/proto"
 	pb "github.com/golang/protobuf/proto"
+	"google.golang.org/api/option"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/profiler"
 	"github.com/caarlos0/env"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jmoiron/sqlx"
@@ -38,7 +40,8 @@ var (
 
 	dump     = flag.Bool("dump", false, "enable var dump to dump.txt")
 	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
-	profile  = flag.Int("profile", 1, "0: no profile, 1: enable http pprof, 2: enable blocking profile")
+	pprof    = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
+	cprof    = flag.Int("cprof", 0, "0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile")
 	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
 	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
@@ -58,9 +61,13 @@ type Config struct {
 	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
 	BattleRegion     string `env:"GDXSV_BATTLE_REGION" envDefault:""`
 	BattleLogPath    string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
-	McsFuncKey       string `env:"GDXSV_MCSFUNC_KEY" envDefault:""`
-	McsFuncURL       string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
-	DBName           string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
+
+	GCPProjectID string `env:"GDXSV_GCP_PROJECT_ID" envDefault:""`
+	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`
+	McsFuncKey   string `env:"GDXSV_MCSFUNC_KEY" envDefault:""` // deprecated
+	McsFuncURL   string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
+
+	DBName string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }
 
 func printHeader() {
@@ -72,7 +79,7 @@ func printHeader() {
 
 func printUsage() {
 	fmt.Print(`
-Usage: gdxsv [lbs, mcs, initdb, migratedb]
+Usage: gdxsv <Flags...> [lbs, mcs, initdb, migratedb]
 
   lbs: Serve lobby server and default battle server.
     A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.
@@ -90,13 +97,21 @@ Usage: gdxsv [lbs, mcs, initdb, migratedb]
     It is supposed to run this command before you run updated gdxsv.
 
   battlelog2json: Convert battle log file to json.
+
+Flags:
+
 `)
+	flag.PrintDefaults()
 }
 
 func loadConfig() {
 	var c Config
 	if err := env.Parse(&c); err != nil {
 		logger.Fatal("config load failed", zap.Error(err))
+	}
+
+	if c.GCPKeyPath == "" && c.McsFuncKey != "" {
+		c.GCPKeyPath = c.McsFuncKey
 	}
 
 	logger.Info("config loaded", zap.Any("config", c))
@@ -116,7 +131,14 @@ func pprofPort(mode string) int {
 
 func prepareOption(command string) {
 	runtime.GOMAXPROCS(*cpu)
-	if *profile >= 1 {
+
+	// http pprof
+	if 1 <= *pprof {
+		if 2 <= *pprof {
+			runtime.MemProfileRate = 1
+			runtime.SetBlockProfileRate(1)
+			logger.Warn("mem profile mode enabled")
+		}
 		go func() {
 			port := pprofPort(command)
 			addr := fmt.Sprintf(":%v", port)
@@ -124,10 +146,21 @@ func prepareOption(command string) {
 			logger.Error("http.ListenAndServe error", zap.Error(err), zap.String("addr", addr))
 		}()
 	}
-	if *profile >= 2 {
-		runtime.MemProfileRate = 1
-		runtime.SetBlockProfileRate(1)
-		logger.Warn("mem profile mode enabled")
+
+	// google cloud profiler
+	if 1 <= *cprof {
+		cfg := profiler.Config{
+			Service:        fmt.Sprintf("gdxsv-%s", command),
+			ServiceVersion: gdxsvVersion,
+			ProjectID:      conf.GCPProjectID,
+		}
+		if 2 <= *cprof {
+			cfg.MutexProfiling = true
+		}
+		if err := profiler.Start(cfg, option.WithCredentialsFile(conf.GCPKeyPath)); err != nil {
+			logger.Error("failed to start cloud profiler", zap.Error(err), zap.Any("cfg", cfg))
+		}
+		logger.Info("profiler started")
 	}
 }
 
