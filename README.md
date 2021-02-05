@@ -46,14 +46,59 @@ Using only the `lbs` command to act as a standalone lobby and match server. (Thi
 
 
 ### Configulations
-All settings are specified from environment variables.
+
+#### Environment variables
 - `GDXSV_LOBBY_PUBLIC_ADDR` : Specifies the TCP address that used when a mcs connects to a lbs.
 - `GDXSV_LOBBY_ADDR` :  Specifies the TCP address that the lbs listens on. Currently only the port number is used.
 - `GDXSV_BATTLE_PUBLIC_ADDR` : Specifies the TCP/UDP address that a client will use to connect with TCP/UDP.
 - `GDXSV_BATTLE_ADDR` : Specifies the TCP/UDP address that the mcs listens on. Currently only the port number is used.
 - `GDXSV_BATTLE_LOG_PATH` : Specifies a file path that will be used to save battle log file.
-- `GDXSV_MCSFUNC_KEY` : Specifies a GCP key that has permission to call mcsfunc.
-- `GDXSV_MCSFUNC_URL` : Specifies an URL of mcsfunc that you deployed.
+- `GDXSV_GCP_PROJECT_ID` : Specifies the project id of Google Cloud Platform. Required if you use mcsfunc or CloudProfiler.
+- `GDXSV_GCP_KEY_PATH` : Specifies a GCP Service Account keyfile that have permission for following roles.
+  - `roles/cloudfunctions.invoker`
+  - `roles/cloudprofiler.agent`
+- `GDXSV_MCSFUNC_URL` : Specifies a URL of mcsfunc that you deployed.
+
+#### Commandline arguments
+```
+Usage: gdxsv <Flags...> [lbs, mcs, initdb, migratedb]
+
+  lbs: Serve lobby server and default battle server.
+    A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.
+
+  mcs: Serve battle server.
+    The mcs attempts to register itself with a lbs.
+    When the mcs is vacant for a certain period, it will automatically end.
+    It is supposed to host mcs in a different location than the lobby server.
+
+  initdb: Initialize database.
+    It is supposed to run this command before you run lbs first time.
+    Note that if the database file already exists it will be permanently deleted.
+
+  migratedb: Update database schema.
+    It is supposed to run this command before you run updated gdxsv.
+
+  battlelog2json: Convert battle log file to json.
+
+Flags:
+
+  -cprof int
+        0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile
+  -cpu int
+        setting GOMAXPROCS (default 2)
+  -dump
+        enable var dump to dump.txt
+  -mcsdelay duration
+        mcs room delay for network lag emulation
+  -noban
+        not to check bad users
+  -pprof int
+        0: disable pprof, 1: enable http pprof, 2: enable blocking profile (default 1)
+  -prodlog
+        use production logging mode
+  -v int
+        logging level. 1:error, 2:info, 3:debug (default 2)
+```
 
 ## Directory structures
 

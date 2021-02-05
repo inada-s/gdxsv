@@ -49,7 +49,7 @@ func getMcsFuncClient() (*http.Client, error) {
 		return mcsFuncClientCache, nil
 	}
 
-	jsonKey, err := ioutil.ReadFile(conf.McsFuncKey)
+	jsonKey, err := ioutil.ReadFile(conf.GCPKeyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func getMcsFuncClient() (*http.Client, error) {
 }
 
 func McsFuncEnabled() bool {
-	return conf.McsFuncKey != "" && conf.McsFuncURL != ""
+	return conf.GCPKeyPath != "" && conf.McsFuncURL != ""
 }
 
 func McsFuncAlloc(region string) error {
