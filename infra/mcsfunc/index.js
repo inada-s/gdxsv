@@ -116,7 +116,7 @@ echo "startup-script done"
 `
 }
 
-function forResponse(vm) {
+const forResponse = (vm) => {
     const v = {};
     try {
         v.name = vm.name;
@@ -147,7 +147,6 @@ async function getList(req, res) {
 
     res.setHeader('Content-Type', 'application/json');
     res.send(JSON.stringify(vmlist, null, "  "));
-    return;
 }
 
 async function getDeleteAll(req, res) {
@@ -195,7 +194,7 @@ async function getAlloc(req, res) {
 
     console.log("" + vms.length + "vms found.");
 
-    let vm = vms.find(vm => vm.metadata.status == "RUNNING");
+    let vm = vms.find(vm => vm.metadata.status === "RUNNING");
     if (vm) {
         res.setHeader('Content-Type', 'application/json');
         res.send(JSON.stringify(forResponse(vm), null, "  "));
@@ -204,7 +203,7 @@ async function getAlloc(req, res) {
 
     console.log("running vm not found");
 
-    for (let vm of vms.filter(vm => vm.metadata.status == "TERMINATED")) {
+    for (let vm of vms.filter(vm => vm.metadata.status === "TERMINATED")) {
         try {
             console.log("starting vm...", vm);
             let [operation] = await vm.setMetadata({
@@ -260,20 +259,18 @@ async function getAlloc(req, res) {
             await operation.promise();
             console.log("vm created");
             const [metadata] = await vm.waitFor("RUNNING", {timeout: 30});
-            vm.metadata = metadata
+            vm.metadata = metadata;
             console.log("new vm is running", vm);
             res.setHeader('Content-Type', 'application/json');
             res.send(JSON.stringify(forResponse(vm), null, "  "));
             return;
         } catch (e) {
             console.log(e);
-            continue;
         }
     }
 
     console.log('failed to allocate vm');
     res.status(503).send('failed to allocate vm');
-    return;
 }
 
 
