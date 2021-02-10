@@ -272,6 +272,38 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	switch loginType {
+	case 0:
+		if p.PlatformInfo["flycast"] != "" {
+			if semver.Compare(p.PlatformInfo["flycast"], requiredFlycastVersion) < 0 {
+				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+					WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
+				return
+			}
+		}
+		if p.LoginKey != "" {
+			// Get account by pre-sent loginkey
+			account, err := getDB().GetAccountByLoginKey(p.LoginKey)
+			if err != nil {
+				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+					WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
+				return
+			}
+
+			// Update session_id that was generated when the first request.
+			err = getDB().LoginAccount(account, p.SessionID, p.IP())
+			if err != nil {
+				logger.Error("failed to login account", zap.Error(err))
+				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+					WriteString("<LF=5><BODY><CENTER>FAILED TO LOGIN<END>").Msg())
+				return
+			}
+			sendUserList(p)
+			return
+		}
+
+		p.logger.Info("unsupported login type", zap.Any("login_type", loginType))
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>UNSUPPORTED LOGIN TYPE<END>").Msg())
 	case 2:
 		if p.PlatformInfo["flycast"] != "" {
 			if semver.Compare(p.PlatformInfo["flycast"], requiredFlycastVersion) < 0 {
@@ -349,7 +381,6 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	// skip 2~8 that's ok.
 	p.SendMessage(NewServerQuestion(lbsUserInfo9))
 })
 
@@ -1232,7 +1263,6 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		}
 	}
 
-
 	// Additional actions.
 	if text == "／ｆ" || text == "／Ｆ" {
 		buildHintMsg := func(hint string) *LbsMessage {
@@ -1499,7 +1529,8 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 
 var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 	// patched client sends client-platform information
-	platformInfo := m.Reader().ReadString()
+	r := m.Reader()
+	platformInfo := r.ReadString()
 	for _, line := range strings.Split(strings.TrimSuffix(platformInfo, "\n"), "\n") {
 		kv := strings.SplitN(line, "=", 2)
 		if len(kv) == 2 {
@@ -1512,8 +1543,17 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 		zap.String("os", p.PlatformInfo["os"]),
 		zap.String("cpu", p.PlatformInfo["cpu"]),
 	)
-
 	if p.PlatformInfo["cpu"] == "x86/64" {
 		p.Platform = PlatformEmuX8664
+	}
+
+	// pre-sent loginkey
+	if 0 < r.Remaining() {
+		hasher := fnv.New32()
+		hasher.Write(r.ReadBytes())
+		loginKey := hex.EncodeToString(hasher.Sum(nil))
+		if p.LoginKey == "" {
+			p.LoginKey = loginKey
+		}
 	}
 })
