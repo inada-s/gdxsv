@@ -84,7 +84,7 @@ func (lbs *Lbs) NoBan() {
 }
 
 func (lbs *Lbs) IsBan(p *LbsPeer) bool {
-	ban, err := getDB().GetBan(p.IP())
+	banned, err := getDB().IsBanned(p.IP(), p.PlatformInfo["cpuid"])
 	if err == sql.ErrNoRows {
 		return false
 	}
@@ -92,14 +92,11 @@ func (lbs *Lbs) IsBan(p *LbsPeer) bool {
 		logger.Warn("GetBan returned err", zap.Error(err))
 		return false
 	}
-	if 0 < time.Until(ban.Until) {
-		if lbs.noban {
-			logger.Warn("passed banned user", zap.String("user_id", p.UserID), zap.String("name", p.Name))
-			return false
-		}
-		return true
+	if banned && lbs.noban {
+		logger.Warn("passed banned user", zap.String("ip", p.IP()), zap.String("cpuid", p.PlatformInfo["cpuid"]))
+		return false
 	}
-	return false
+	return banned
 }
 
 func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
