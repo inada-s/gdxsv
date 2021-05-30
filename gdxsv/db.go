@@ -176,7 +176,7 @@ type DB interface {
 	GetAccountBySessionID(sessionID string) (*DBAccount, error)
 
 	// LoginAccount updates last login information and update sessionID.
-	LoginAccount(account *DBAccount, sessionID string, ipAddr string, cpuID string) error
+	LoginAccount(account *DBAccount, sessionID string, ipAddr string, cpuid string) error
 
 	// RegisterUser creates new user.
 	// An account can hold three userPeers.

@@ -307,7 +307,7 @@ func (db SQLiteDB) GetAccountBySessionID(sid string) (*DBAccount, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string, cpuID string) error {
+func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string, cpuid string) error {
 	now := time.Now()
 	_, err := db.Exec(`
 UPDATE
@@ -321,7 +321,7 @@ WHERE
 	login_key = ?`,
 		sessionID,
 		ipAddr,
-		cpuID,
+		cpuid,
 		now,
 		a.LoginKey)
 	if err != nil {
