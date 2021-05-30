@@ -602,9 +602,9 @@ func (db SQLiteDB) GetString(key string) (string, error) {
 func (db SQLiteDB) IsBanned(ip, cpuid string) (bool, error) {
 	banned := 0
 	err := db.QueryRowx(`SELECT 1 FROM account WHERE
-(last_login_ip = ? OR (last_login_cpuid <> "" AND last_login_cpuid = ?)) AND
-(SELECT login_key FROM user WHERE user_id IN (SELECT key FROM m_ban WHERE datetime() < until)) = login_key
-LIMIT 1`, ip, cpuid).Scan(&banned)
+		(last_login_ip = ? OR ( last_login_cpuid <> "" AND last_login_cpuid = ?)) AND
+		(login_key IN (SELECT login_key FROM user WHERE user_id IN (SELECT key FROM m_ban WHERE datetime() < until))) LIMIT 1`,
+		ip, cpuid).Scan(&banned)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
