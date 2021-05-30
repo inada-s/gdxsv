@@ -28,14 +28,15 @@ func genSessionID() string {
 }
 
 type DBAccount struct {
-	LoginKey    string    `db:"login_key" json:"login_key,omitempty"`
-	SessionID   string    `db:"session_id" json:"session_id,omitempty"`
-	LastUserID  string    `db:"last_user_id" json:"last_user_id,omitempty"`
-	Created     time.Time `db:"created" json:"created,omitempty"`
-	CreatedIP   string    `db:"created_ip" json:"created_ip,omitempty"`
-	LastLogin   time.Time `db:"last_login" json:"last_login,omitempty"`
-	LastLoginIP string    `db:"last_login_ip" json:"last_login_ip,omitempty"`
-	System      byte      `db:"system" json:"system,omitempty"`
+	LoginKey       string    `db:"login_key" json:"login_key,omitempty"`
+	SessionID      string    `db:"session_id" json:"session_id,omitempty"`
+	LastUserID     string    `db:"last_user_id" json:"last_user_id,omitempty"`
+	Created        time.Time `db:"created" json:"created,omitempty"`
+	CreatedIP      string    `db:"created_ip" json:"created_ip,omitempty"`
+	LastLogin      time.Time `db:"last_login" json:"last_login,omitempty"`
+	LastLoginIP    string    `db:"last_login_ip" json:"last_login_ip,omitempty"`
+	LastLoginCPUID string    `db:"last_login_cpuid" json:"last_login_cpuid,omitempty"`
+	System         byte      `db:"system" json:"system,omitempty"`
 }
 
 type DBUser struct {
@@ -175,7 +176,7 @@ type DB interface {
 	GetAccountBySessionID(sessionID string) (*DBAccount, error)
 
 	// LoginAccount updates last login information and update sessionID.
-	LoginAccount(account *DBAccount, sessionID string, ipAddr string) error
+	LoginAccount(account *DBAccount, sessionID string, ipAddr string, cpuid string) error
 
 	// RegisterUser creates new user.
 	// An account can hold three userPeers.
@@ -219,8 +220,8 @@ type DB interface {
 	// GetString returns a string that corresponds to the key.
 	GetString(key string) (value string, err error)
 
-	// GetBan returns user's ban information.
-	GetBan(key string) (ban UserBan, err error)
+	// IsBanned returns the user is banned.
+	IsBanned(ip, cpuid string) (banned bool, err error)
 
 	// GetLobbySetting returns lobby setting.
 	GetLobbySetting(platform, disk string, no int) (*MLobbySetting, error)

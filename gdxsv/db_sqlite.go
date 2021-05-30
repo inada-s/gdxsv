@@ -43,6 +43,7 @@ const schema = `CREATE TABLE IF NOT EXISTS account
     last_user_id  text    default '',
     created_ip    text    default '',
     last_login_ip text    default '',
+    last_login_cpuid text default '',
     created       timestamp,
     last_login    timestamp,
     system        integer default 0,
@@ -306,7 +307,7 @@ func (db SQLiteDB) GetAccountBySessionID(sid string) (*DBAccount, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string) error {
+func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string, cpuid string) error {
 	now := time.Now()
 	_, err := db.Exec(`
 UPDATE
@@ -314,11 +315,13 @@ UPDATE
 SET
 	session_id = ?,
     last_login_ip = ?,
+    last_login_cpuid = ?,
 	last_login = ?
 WHERE
 	login_key = ?`,
 		sessionID,
 		ipAddr,
+		cpuid,
 		now,
 		a.LoginKey)
 	if err != nil {
@@ -596,10 +599,16 @@ func (db SQLiteDB) GetString(key string) (string, error) {
 	return value, err
 }
 
-func (db SQLiteDB) GetBan(key string) (UserBan, error) {
-	var userBan UserBan
-	err := db.QueryRowx(`SELECT key, until, created FROM m_ban WHERE key = ? LIMIT 1`, key).StructScan(&userBan)
-	return userBan, err
+func (db SQLiteDB) IsBanned(ip, cpuid string) (bool, error) {
+	banned := 0
+	err := db.QueryRowx(`SELECT 1 FROM account WHERE
+(last_login_ip = ? OR (last_login_cpuid <> "" AND last_login_cpuid = ?)) AND
+(SELECT login_key FROM user WHERE user_id IN (SELECT key FROM m_ban WHERE datetime() < until)) = login_key
+LIMIT 1`, ip, cpuid).Scan(&banned)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return banned == 1, err
 }
 
 func (db SQLiteDB) GetLobbySetting(platform, disk string, no int) (*MLobbySetting, error) {

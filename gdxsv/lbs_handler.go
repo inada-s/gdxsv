@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -290,7 +291,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 			}
 
 			// Update session_id that was generated when the first request.
-			err = getDB().LoginAccount(account, p.SessionID, p.IP())
+			err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["cpuid"])
 			if err != nil {
 				logger.Error("failed to login account", zap.Error(err))
 				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
@@ -331,7 +332,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		}
 
 		// Update session_id that was generated when the first request.
-		err = getDB().LoginAccount(account, p.SessionID, p.IP())
+		err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["cpuid"])
 		if err != nil {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>FAILED TO LOGIN<END>").Msg())
@@ -362,9 +363,17 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	// If the user already have an account, get it.
 	account, err := getDB().GetAccountByLoginKey(loginKey)
 	if err != nil {
-		account, err = getDB().RegisterAccountWithLoginKey(p.IP(), loginKey)
-		if err != nil {
-			p.logger.Error("failed to create account", zap.Error(err))
+		switch err {
+		case sql.ErrNoRows:
+			account, err = getDB().RegisterAccountWithLoginKey(p.IP(), loginKey)
+			if err != nil {
+				p.logger.Error("failed to create account", zap.Error(err))
+				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+					WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
+				return
+			}
+		default:
+			p.logger.Error("failed to get account", zap.Error(err))
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
 			return
@@ -373,7 +382,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 
 	// Now the user has valid account.
 	// Update session_id that was generated when the first request.
-	err = getDB().LoginAccount(account, p.SessionID, p.IP())
+	err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["cpuid"])
 	if err != nil {
 		logger.Error("failed to login account", zap.Error(err))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
