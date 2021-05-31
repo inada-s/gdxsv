@@ -266,7 +266,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	if p.app.IsBan(p) {
+	if p.app.IsBannedEndpoint(p) {
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>YOU ARE BANNED<END>").Msg())
 		return
@@ -282,6 +282,13 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 			}
 		}
 		if p.LoginKey != "" {
+			// Check login key is banned
+			if p.app.IsBannedAccount(p.LoginKey) {
+				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+					WriteString("<LF=5><BODY><CENTER>YOU ARE BANNED<END>").Msg())
+				return
+			}
+
 			// Get account by pre-sent loginkey
 			account, err := getDB().GetAccountByLoginKey(p.LoginKey)
 			if err != nil {
@@ -291,7 +298,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 			}
 
 			// Update session_id that was generated when the first request.
-			err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["cpuid"])
+			err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["machine_id"])
 			if err != nil {
 				logger.Error("failed to login account", zap.Error(err))
 				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
@@ -332,7 +339,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		}
 
 		// Update session_id that was generated when the first request.
-		err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["cpuid"])
+		err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["machine_id"])
 		if err != nil {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>FAILED TO LOGIN<END>").Msg())
@@ -360,6 +367,12 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 	hasher.Write(m.Reader().ReadBytes())
 	loginKey := hex.EncodeToString(hasher.Sum(nil))
 
+	if p.app.IsBannedAccount(loginKey) {
+		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+			WriteString("<LF=5><BODY><CENTER>YOU ARE BANNED<END>").Msg())
+		return
+	}
+
 	// If the user already have an account, get it.
 	account, err := getDB().GetAccountByLoginKey(loginKey)
 	if err != nil {
@@ -382,7 +395,7 @@ var _ = register(lbsUserInfo1, func(p *LbsPeer, m *LbsMessage) {
 
 	// Now the user has valid account.
 	// Update session_id that was generated when the first request.
-	err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["cpuid"])
+	err = getDB().LoginAccount(account, p.SessionID, p.IP(), p.PlatformInfo["machine_id"])
 	if err != nil {
 		logger.Error("failed to login account", zap.Error(err))
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().

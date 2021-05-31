@@ -28,15 +28,15 @@ func genSessionID() string {
 }
 
 type DBAccount struct {
-	LoginKey       string    `db:"login_key" json:"login_key,omitempty"`
-	SessionID      string    `db:"session_id" json:"session_id,omitempty"`
-	LastUserID     string    `db:"last_user_id" json:"last_user_id,omitempty"`
-	Created        time.Time `db:"created" json:"created,omitempty"`
-	CreatedIP      string    `db:"created_ip" json:"created_ip,omitempty"`
-	LastLogin      time.Time `db:"last_login" json:"last_login,omitempty"`
-	LastLoginIP    string    `db:"last_login_ip" json:"last_login_ip,omitempty"`
-	LastLoginCPUID string    `db:"last_login_cpuid" json:"last_login_cpuid,omitempty"`
-	System         byte      `db:"system" json:"system,omitempty"`
+	LoginKey           string    `db:"login_key" json:"login_key,omitempty"`
+	SessionID          string    `db:"session_id" json:"session_id,omitempty"`
+	LastUserID         string    `db:"last_user_id" json:"last_user_id,omitempty"`
+	Created            time.Time `db:"created" json:"created,omitempty"`
+	CreatedIP          string    `db:"created_ip" json:"created_ip,omitempty"`
+	LastLogin          time.Time `db:"last_login" json:"last_login,omitempty"`
+	LastLoginIP        string    `db:"last_login_ip" json:"last_login_ip,omitempty"`
+	LastLoginMachineID string    `db:"last_login_machine_id" json:"last_login_machine_id,omitempty"`
+	System             byte      `db:"system" json:"system,omitempty"`
 }
 
 type DBUser struct {
@@ -176,7 +176,7 @@ type DB interface {
 	GetAccountBySessionID(sessionID string) (*DBAccount, error)
 
 	// LoginAccount updates last login information and update sessionID.
-	LoginAccount(account *DBAccount, sessionID string, ipAddr string, cpuid string) error
+	LoginAccount(account *DBAccount, sessionID string, ipAddr string, machineID string) error
 
 	// RegisterUser creates new user.
 	// An account can hold three userPeers.
@@ -214,14 +214,17 @@ type DB interface {
 	// GetWinCountRanking returns top userPeers of win count.
 	GetWinCountRanking(team byte) (ret []*RankingRecord, err error)
 
-	// GetWinCountRanking returns top userPeers of kill count.
+	// GetKillCountRanking returns top userPeers of kill count.
 	GetKillCountRanking(team byte) (ret []*RankingRecord, err error)
 
 	// GetString returns a string that corresponds to the key.
 	GetString(key string) (value string, err error)
 
-	// IsBanned returns the user is banned.
-	IsBanned(ip, cpuid string) (banned bool, err error)
+	// IsBannedEndpoint returns true if the endpoint is banned.
+	IsBannedEndpoint(ip, machineID string) (banned bool, err error)
+
+	// IsBannedAccount returns true if the account is banned.
+	IsBannedAccount(account string) (banned bool, err error)
 
 	// GetLobbySetting returns lobby setting.
 	GetLobbySetting(platform, disk string, no int) (*MLobbySetting, error)
