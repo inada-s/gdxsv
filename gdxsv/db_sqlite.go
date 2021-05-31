@@ -43,7 +43,7 @@ const schema = `CREATE TABLE IF NOT EXISTS account
     last_user_id  text    default '',
     created_ip    text    default '',
     last_login_ip text    default '',
-    last_login_cpuid text default '',
+    last_login_machine_id text default '',
     created       timestamp,
     last_login    timestamp,
     system        integer default 0,
@@ -159,10 +159,12 @@ CREATE TABLE IF NOT EXISTS m_rule
 `
 
 const indexes = `
+CREATE INDEX IF NOT EXISTS ACCOUNT_LAST_LOGIN_IP ON account(last_login_ip);
+CREATE INDEX IF NOT EXISTS ACCOUNT_LAST_LOGIN_MACHINE_ID ON account(last_login_machine_id);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_USER_ID ON battle_record(user_id);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_PLAYERS ON battle_record(players);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_CREATED ON battle_record(created);
-CREATE INDEX IF NOT EXISTS BATTLE_RECORD_AGGRIGATE ON battle_record(aggregate);
+CREATE INDEX IF NOT EXISTS BATTLE_RECORD_AGGREGATE ON battle_record(aggregate);
 `
 
 func (db SQLiteDB) Init() error {
@@ -238,6 +240,18 @@ func (db SQLiteDB) Migrate() error {
 					tx.Rollback()
 					return errors.Wrap(err, "2021-02 INSERT failed")
 				}
+			} else if err.Error() == "table account has no column named last_login_cpuid" {
+				// NOTE: A column renamed. account.last_login_cpuid -> account.last_login_machine_id
+				for i := 0; i < len(columns); i++ {
+					if columns[i] == "last_login_cpuid" {
+						columns[i] = "last_login_machine_id"
+					}
+				}
+				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
+				if err != nil {
+					tx.Rollback()
+					return errors.Wrap(err, "2021-06 INSERT failed")
+				}
 			} else {
 				tx.Rollback()
 				return errors.Wrap(err, "INSERT failed")
@@ -307,7 +321,7 @@ func (db SQLiteDB) GetAccountBySessionID(sid string) (*DBAccount, error) {
 	return a, nil
 }
 
-func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string, cpuid string) error {
+func (db SQLiteDB) LoginAccount(a *DBAccount, sessionID string, ipAddr string, machineID string) error {
 	now := time.Now()
 	_, err := db.Exec(`
 UPDATE
@@ -315,13 +329,13 @@ UPDATE
 SET
 	session_id = ?,
     last_login_ip = ?,
-    last_login_cpuid = ?,
+    last_login_machine_id = ?,
 	last_login = ?
 WHERE
 	login_key = ?`,
 		sessionID,
 		ipAddr,
-		cpuid,
+		machineID,
 		now,
 		a.LoginKey)
 	if err != nil {
@@ -329,6 +343,8 @@ WHERE
 	}
 	a.LastLogin = now
 	a.SessionID = sessionID
+	a.LastLoginIP = ipAddr
+	a.LastLoginMachineID = machineID
 	return nil
 }
 
@@ -599,12 +615,24 @@ func (db SQLiteDB) GetString(key string) (string, error) {
 	return value, err
 }
 
-func (db SQLiteDB) IsBanned(ip, cpuid string) (bool, error) {
+func (db SQLiteDB) IsBannedEndpoint(ip, machineID string) (bool, error) {
 	banned := 0
 	err := db.QueryRowx(`SELECT 1 FROM account WHERE
-		(last_login_ip = ? OR ( last_login_cpuid <> "" AND last_login_cpuid = ?)) AND
+		(last_login_ip = ? OR (last_login_machine_id <> "" AND last_login_machine_id = ?)) AND
 		(login_key IN (SELECT login_key FROM user WHERE user_id IN (SELECT key FROM m_ban WHERE datetime() < until))) LIMIT 1`,
-		ip, cpuid).Scan(&banned)
+		ip, machineID).Scan(&banned)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return banned == 1, err
+}
+
+func (db SQLiteDB) IsBannedAccount(loginKey string) (bool, error) {
+	banned := 0
+	err := db.QueryRowx(`SELECT 1 FROM account WHERE
+		login_key = ? AND
+		(login_key IN (SELECT login_key FROM user WHERE user_id IN (SELECT key FROM m_ban WHERE datetime() < until))) LIMIT 1`,
+		loginKey).Scan(&banned)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
