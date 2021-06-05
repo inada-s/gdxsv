@@ -104,9 +104,9 @@ func chatMsg(userID, name, text string) *LbsMessage {
 		WriteString(userID).
 		WriteString(name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 }
 

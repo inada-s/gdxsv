@@ -110,7 +110,7 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 	for {
 		err := u.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 		if err != nil {
-			logger.Warn("SetReadDeadline failed",zap.Error(err))
+			logger.Warn("SetReadDeadline failed", zap.Error(err))
 		}
 
 		n, err := u.conn.Read(buf)
@@ -166,4 +166,3 @@ func (u *McsTCPPeer) readLoop(mcs *Mcs) {
 		}
 	}
 }
-

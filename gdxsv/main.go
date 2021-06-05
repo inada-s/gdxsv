@@ -34,7 +34,7 @@ var (
 )
 
 var (
-	conf    Config
+	conf Config
 
 	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
 	pprof    = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
@@ -192,7 +192,12 @@ func mainLbs() {
 
 	if conf.LobbyHttpAddr != "" {
 		lbs.RegisterHTTPHandlers()
-		go http.ListenAndServe(conf.LobbyHttpAddr, nil)
+		go func() {
+			err := http.ListenAndServe(conf.LobbyHttpAddr, nil)
+			if err != nil {
+				logger.Error("http.ListenAndServe", zap.Error(err))
+			}
+		}()
 	}
 
 	logger.Sugar()

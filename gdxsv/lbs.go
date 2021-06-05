@@ -173,18 +173,20 @@ func (lbs *Lbs) GetLobby(platform, disk string, lobbyID uint16) *LbsLobby {
 	return lobby
 }
 
-func (lbs *Lbs) ListenAndServe(addr string) error {
+func (lbs *Lbs) ListenAndServe(addr string) {
 	logger.Info("lbs.ListenAndServe", zap.String("addr", addr))
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		return err
+		logger.Fatal("net.ResolveTCPAddr", zap.Error(err))
 	}
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
-		return err
+		logger.Fatal("net.ListenTCP", zap.Error(err))
 	}
+
 	go lbs.eventLoop()
+
 	for {
 		tcpConn, err := listener.AcceptTCP()
 		if err != nil {

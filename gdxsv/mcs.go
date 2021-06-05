@@ -103,27 +103,24 @@ func NewMcs(delay time.Duration) *Mcs {
 	}
 }
 
-func (mcs *Mcs) ListenAndServe(addr string) error {
+func (mcs *Mcs) ListenAndServe(addr string) {
 	logger.Info("mcs.ListenAndServe", zap.String("addr", addr))
 	tcpSv := NewTCPServer(mcs)
 	udpSv := NewUDPServer(mcs)
-	var err error
 
 	go func(addr string) {
-		err1 := tcpSv.ListenAndServe(addr)
-		if err1 != nil {
-			err = err1
+		err := tcpSv.ListenAndServe(addr)
+		if err != nil {
+			logger.Fatal("tcpSv.ListenAndServe", zap.Error(err))
 		}
 	}(addr)
 
 	go func(addr string) {
-		err1 := udpSv.ListenAndServe(addr)
-		if err1 != nil {
-			err = err1
+		err := udpSv.ListenAndServe(addr)
+		if err != nil {
+			logger.Fatal("udpSv.ListenAndServe", zap.Error(err))
 		}
 	}(addr)
-
-	return err
 }
 
 func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, battleRegion string) error {

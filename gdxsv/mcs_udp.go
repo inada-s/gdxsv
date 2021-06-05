@@ -201,8 +201,8 @@ type McsUDPPeer struct {
 	reading    []*proto.BattleMessage
 	reading2   []*proto.BattleMessage
 
-	closeMtx    sync.Mutex
-	closeFunc   func()
+	closeMtx  sync.Mutex
+	closeFunc func()
 }
 
 func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
