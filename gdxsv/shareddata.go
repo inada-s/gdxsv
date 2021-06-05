@@ -55,7 +55,7 @@ type McsGame struct {
 	BattleCode string `json:"battle_code,omitempty"`
 	McsAddr    string `json:"mcs_addr,omitempty"`
 	GameDisk   string `json:"game_disk"`
-	Rule       Rule  `json:"rule,omitempty"`
+	Rule       Rule   `json:"rule,omitempty"`
 
 	State     int       `json:"state,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`

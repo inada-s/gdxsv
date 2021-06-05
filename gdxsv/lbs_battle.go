@@ -118,7 +118,7 @@ func (b *LbsBattle) GetPosition(userID string) byte {
 
 func (b *LbsBattle) GetUserByPos(pos byte) *DBUser {
 	pos--
-	if pos < 0 || len(b.Users) < int(pos) {
+	if len(b.Users) < int(pos) {
 		return nil
 	}
 	return b.Users[pos]
@@ -126,7 +126,7 @@ func (b *LbsBattle) GetUserByPos(pos byte) *DBUser {
 
 func (b *LbsBattle) GetGameParamByPos(pos byte) []byte {
 	pos--
-	if pos < 0 || len(b.GameParams) < int(pos) {
+	if len(b.GameParams) < int(pos) {
 		return nil
 	}
 	return b.GameParams[pos]
@@ -134,7 +134,7 @@ func (b *LbsBattle) GetGameParamByPos(pos byte) []byte {
 
 func (b *LbsBattle) GetUserRankByPos(pos byte) int {
 	pos--
-	if pos < 0 || len(b.UserRanks) < int(pos) {
+	if len(b.UserRanks) < int(pos) {
 		return 0
 	}
 	return b.UserRanks[pos]

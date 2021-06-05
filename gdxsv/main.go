@@ -19,7 +19,6 @@ import (
 
 	"cloud.google.com/go/profiler"
 	"github.com/caarlos0/env"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/jmoiron/sqlx"
 	"github.com/tommy351/zap-stackdriver"
 	"go.uber.org/zap"
@@ -35,10 +34,8 @@ var (
 )
 
 var (
-	conf    Config
-	mcsMode bool
+	conf Config
 
-	dump     = flag.Bool("dump", false, "enable var dump to dump.txt")
 	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
 	pprof    = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
 	cprof    = flag.Int("cprof", 0, "0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile")
@@ -50,7 +47,6 @@ var (
 
 var (
 	logger *zap.Logger
-	sugger *zap.SugaredLogger
 )
 
 type Config struct {
@@ -196,33 +192,23 @@ func mainLbs() {
 
 	if conf.LobbyHttpAddr != "" {
 		lbs.RegisterHTTPHandlers()
-		go http.ListenAndServe(conf.LobbyHttpAddr, nil)
+		go func() {
+			err := http.ListenAndServe(conf.LobbyHttpAddr, nil)
+			if err != nil {
+				logger.Error("http.ListenAndServe", zap.Error(err))
+			}
+		}()
 	}
 
 	logger.Sugar()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	if *dump {
-		dumper := spew.NewDefaultConfig()
-		dumper.MaxDepth = 7
-		dumper.SortKeys = true
-		dumper.DisableMethods = true
-		dumper.DisablePointerMethods = true
-		dumper.DisablePointerAddresses = true
-		go func() {
-			for {
-				ioutil.WriteFile("dump.txt", []byte(dumper.Sdump(lbs.userPeers)), 0644)
-				time.Sleep(time.Second)
-			}
-		}()
-	}
 	s := <-c
 	fmt.Println("Got signal:", s)
 }
 
 func mainMcs() {
-	mcsMode = true
 	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
@@ -273,7 +259,9 @@ func main() {
 	flag.Parse()
 
 	prepareLogger()
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 
 	logger.Info("hello gdxsv",
 		zap.String("gdxsv_version", gdxsvVersion),
@@ -300,9 +288,12 @@ func main() {
 	case "mcs":
 		mainMcs()
 	case "initdb":
-		os.Remove(conf.DBName)
+		_ = os.Remove(conf.DBName)
 		prepareDB()
-		getDB().Init()
+		err := getDB().Init()
+		if err != nil {
+			logger.Error("InitDB failed", zap.Error(err))
+		}
 	case "migratedb":
 		prepareDB()
 		err := getDB().Migrate()

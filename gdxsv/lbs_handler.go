@@ -1243,7 +1243,7 @@ var _ = register(lbsMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 		r.Ready(p, enable)
 	} else if enable == 0 {
 		for _, u := range r.Users {
-			if q := p.app.FindPeer(u.UserID); p != nil {
+			if q := p.app.FindPeer(u.UserID); q != nil {
 				q.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(1).Msg())
 				q.SendMessage(NewServerNotice(lbsRoomLeaver).Writer().
 					WriteString(p.UserID).
@@ -1263,9 +1263,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1292,9 +1292,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0). // chat_type
-				Write8(0). // id color
-				Write8(0). // handle color
+				Write8(0).      // chat_type
+				Write8(0).      // id color
+				Write8(0).      // handle color
 				Write8(0).Msg() // msg color
 		}
 

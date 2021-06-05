@@ -30,13 +30,24 @@ func (s *McsUDPServer) ListenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
+
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
 		return err
 	}
+
 	s.conn = conn
-	s.conn.SetReadBuffer(16 * 1024 * 1024)
-	s.conn.SetWriteBuffer(16 * 1024 * 1024)
+
+	err = s.conn.SetReadBuffer(16 * 1024 * 1024)
+	if err != nil {
+		return err
+	}
+
+	err = s.conn.SetWriteBuffer(16 * 1024 * 1024)
+	if err != nil {
+		return err
+	}
+
 	return s.readLoop()
 }
 
@@ -80,7 +91,10 @@ func (s *McsUDPServer) readLoop() error {
 			if data, err := pb.Marshal(pkt); err != nil {
 				logger.Error("pb.Marshal", zap.Error(err))
 			} else {
-				s.conn.WriteToUDP(data, addr)
+				_, err := s.conn.WriteToUDP(data, addr)
+				if err != nil {
+					logger.Error("WriteToUDP", zap.Error(err))
+				}
 			}
 		case proto.MessageType_HelloServer:
 			sessionID := pkt.GetSessionId()
@@ -126,7 +140,10 @@ func (s *McsUDPServer) readLoop() error {
 			if data, err := pb.Marshal(pkt); err != nil {
 				logger.Error("pb.Marshal", zap.Error(err))
 			} else {
-				s.conn.WriteToUDP(data, addr)
+				_, err := s.conn.WriteToUDP(data, addr)
+				if err != nil {
+					logger.Error("WriteToUDP", zap.Error(err))
+				}
 			}
 		case proto.MessageType_Battle:
 			if found {
@@ -142,7 +159,7 @@ func (s *McsUDPServer) readLoop() error {
 					reason = pkt.GetFinData().GetDetail()
 				}
 				peer.SetCloseReason(reason)
-				peer.Close()
+				_ = peer.Close()
 			}
 		default:
 			logger.Warn("received unexpected pkt type packet ", zap.Any("pkt", pkt), zap.Any("key", key))
@@ -158,7 +175,10 @@ func (s *McsUDPServer) readLoop() error {
 			if data, err := pb.Marshal(pkt); err != nil {
 				logger.Error("pb.Marshal", zap.Error(err))
 			} else {
-				s.conn.WriteToUDP(data, addr)
+				_, err := s.conn.WriteToUDP(data, addr)
+				if err != nil {
+					logger.Error("WriteToUDP", zap.Error(err))
+				}
 			}
 		}
 	}
@@ -181,9 +201,8 @@ type McsUDPPeer struct {
 	reading    []*proto.BattleMessage
 	reading2   []*proto.BattleMessage
 
-	closeMtx    sync.Mutex
-	closeFunc   func()
-	closeReason string
+	closeMtx  sync.Mutex
+	closeFunc func()
 }
 
 func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
@@ -269,7 +288,12 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 				u.SetCloseReason("sv_marshal_error")
 				return
 			}
-			u.conn.WriteTo(pbuf.Bytes(), u.addr)
+			_, err = u.conn.WriteTo(pbuf.Bytes(), u.addr)
+			if err != nil {
+				u.logger.Error("WriteTo", zap.Error(err))
+				// Should be returned ?
+				// return
+			}
 		case <-u.chRecv:
 			lastRecv = time.Now()
 			u.readingMtx.Lock()

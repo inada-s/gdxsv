@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 	"net/http"
 	"time"
@@ -108,7 +109,10 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		err = json.NewEncoder(w).Encode(resp)
+		if err != nil {
+			logger.Error("JSON encode failed", zap.Error(err))
+		}
 	})
 
 	http.HandleFunc("/ops/reload", func(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +121,9 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		})
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("OK"))
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			logger.Error("Write response failed", zap.Error(err))
+		}
 	})
 }

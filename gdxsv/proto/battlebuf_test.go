@@ -95,7 +95,7 @@ func TestProtoRUDP(t *testing.T) {
 	t.Log("C send data before", b.begin, b.end)
 
 	assert(a.ack == 0)
-	senddata, seq, ack = a.GetSendData()
+	senddata, _, _ = a.GetSendData()
 	for _, msg := range senddata {
 		if bf.Filter(msg) {
 			buf = append(buf, msg.GetBody()...)
@@ -107,20 +107,20 @@ func TestProtoRUDP(t *testing.T) {
 	t.Log("D send data before", b.begin, b.end)
 
 	t.Log("add send data before", b.begin, b.end)
-	data := []*BattleMessage{}
+	var data []*BattleMessage
 
 	b.PushBattleMessage(bf.GenerateMessage(b.GetID(), []byte("hoge")))
-	senddata, seq, ack = b.GetSendData()
+	senddata, _, _ = b.GetSendData()
 	data = append(data, senddata...)
-	senddata, seq, ack = b.GetSendData()
+	senddata, _, _ = b.GetSendData()
 	data = append(data, senddata...)
-	senddata, seq, ack = b.GetSendData()
+	senddata, _, _ = b.GetSendData()
 	data = append(data, senddata...)
 
 	b.PushBattleMessage(bf.GenerateMessage(b.GetID(), []byte("piyo")))
-	senddata, seq, ack = b.GetSendData()
+	senddata, _, _ = b.GetSendData()
 	data = append(data, senddata...)
-	senddata, seq, ack = b.GetSendData()
+	senddata, _, _ = b.GetSendData()
 	data = append(data, senddata...)
 	senddata, seq, ack = b.GetSendData()
 	data = append(data, senddata...)

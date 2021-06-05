@@ -72,9 +72,9 @@ func (m *LbsMessage) String() string {
 		b.WriteString(" [C]")
 	}
 
-	fmt.Fprintf(b, " %v (ID:0x%X)", m.Command, uint16(m.Command))
-	fmt.Fprintf(b, " Seq:%v", m.Seq)
-	fmt.Fprintf(b, " Body(%d bytes): %v", len(m.Body), hex.EncodeToString(m.Body))
+	_, _ = fmt.Fprintf(b, " %v (ID:0x%X)", m.Command, uint16(m.Command))
+	_, _ = fmt.Fprintf(b, " Seq:%v", m.Seq)
+	_, _ = fmt.Fprintf(b, " Body(%d bytes): %v", len(m.Body), hex.EncodeToString(m.Body))
 	return b.String()
 }
 
@@ -87,13 +87,13 @@ func (m *LbsMessage) SetErr() *LbsMessage {
 func (m *LbsMessage) Serialize() []byte {
 	w := new(bytes.Buffer)
 	m.BodySize = uint16(len(m.Body))
-	binary.Write(w, binary.BigEndian, m.Direction)
-	binary.Write(w, binary.BigEndian, m.Category)
-	binary.Write(w, binary.BigEndian, m.Command)
-	binary.Write(w, binary.BigEndian, m.BodySize)
-	binary.Write(w, binary.BigEndian, m.Seq)
-	binary.Write(w, binary.BigEndian, m.Status)
-	binary.Write(w, binary.BigEndian, m.Body)
+	_ = binary.Write(w, binary.BigEndian, m.Direction)
+	_ = binary.Write(w, binary.BigEndian, m.Category)
+	_ = binary.Write(w, binary.BigEndian, m.Command)
+	_ = binary.Write(w, binary.BigEndian, m.BodySize)
+	_ = binary.Write(w, binary.BigEndian, m.Seq)
+	_ = binary.Write(w, binary.BigEndian, m.Status)
+	_ = binary.Write(w, binary.BigEndian, m.Body)
 	return w.Bytes()
 }
 
@@ -104,16 +104,17 @@ func Deserialize(data []byte) (int, *LbsMessage) {
 
 	m := LbsMessage{}
 	r := bytes.NewReader(data)
-	binary.Read(r, binary.BigEndian, &m.Direction)
-	binary.Read(r, binary.BigEndian, &m.Category)
-	binary.Read(r, binary.BigEndian, &m.Command)
-	binary.Read(r, binary.BigEndian, &m.BodySize)
-	binary.Read(r, binary.BigEndian, &m.Seq)
-	binary.Read(r, binary.BigEndian, &m.Status)
+	_ = binary.Read(r, binary.BigEndian, &m.Direction)
+	_ = binary.Read(r, binary.BigEndian, &m.Category)
+	_ = binary.Read(r, binary.BigEndian, &m.Command)
+	_ = binary.Read(r, binary.BigEndian, &m.BodySize)
+	_ = binary.Read(r, binary.BigEndian, &m.Seq)
+	_ = binary.Read(r, binary.BigEndian, &m.Status)
 
 	if len(data) < HeaderSize+int(m.BodySize) {
 		return 0, nil
 	}
+
 	m.Body = data[HeaderSize : HeaderSize+m.BodySize]
 
 	return int(HeaderSize + m.BodySize), &m
@@ -149,45 +150,15 @@ func NewServerNotice(command CmdID) *LbsMessage {
 	}
 }
 
-func NewClientQuestion(command CmdID) *LbsMessage {
-	return &LbsMessage{
-		Direction: ClientToServer,
-		Category:  CategoryQuestion,
-		Command:   command,
-		Status:    StatusSuccess,
-		Seq:       nextSeq(),
-	}
-}
-
-func NewClientAnswer(request *LbsMessage) *LbsMessage {
-	return &LbsMessage{
-		Direction: ClientToServer,
-		Category:  CategoryAnswer,
-		Command:   request.Command,
-		Status:    StatusSuccess,
-		Seq:       request.Seq,
-	}
-}
-
-func NewClientNotice(command CmdID) *LbsMessage {
-	return &LbsMessage{
-		Direction: ClientToServer,
-		Category:  CategoryNotice,
-		Command:   command,
-		Status:    StatusSuccess,
-		Seq:       nextSeq(),
-	}
-}
-
 type MessageBodyReader struct {
 	seq uint16
 	r   *bytes.Reader
 }
 
-func (msg *LbsMessage) Reader() *MessageBodyReader {
+func (m *LbsMessage) Reader() *MessageBodyReader {
 	return &MessageBodyReader{
-		seq: msg.Seq,
-		r:   bytes.NewReader(msg.Body),
+		seq: m.Seq,
+		r:   bytes.NewReader(m.Body),
 	}
 }
 
@@ -197,42 +168,42 @@ func (m *MessageBodyReader) Remaining() int {
 
 func (m *MessageBodyReader) Read8() byte {
 	var ret byte
-	binary.Read(m.r, binary.BigEndian, &ret)
+	_ = binary.Read(m.r, binary.BigEndian, &ret)
 	return ret
 }
 
 func (m *MessageBodyReader) Read16() uint16 {
 	var ret uint16
-	binary.Read(m.r, binary.BigEndian, &ret)
+	_ = binary.Read(m.r, binary.BigEndian, &ret)
 	return ret
 }
 
 func (m *MessageBodyReader) Read32() uint32 {
 	var ret uint32
-	binary.Read(m.r, binary.BigEndian, &ret)
+	_ = binary.Read(m.r, binary.BigEndian, &ret)
 	return ret
 }
 
-// Read length-prefixed byte data
+// ReadBytes reads length-prefixed byte data
 func (m *MessageBodyReader) ReadBytes() []byte {
 	if m.r.Len() == 0 {
 		return nil
 	}
 	size := m.Read16()
-	buf := make([]byte, size, size)
-	m.r.Read(buf)
+	buf := make([]byte, size)
+	_, _ = m.r.Read(buf)
 	return buf
 }
 
-// Read length-prefixed string
+// ReadString reads length-prefixed string
 func (m *MessageBodyReader) ReadString() string {
 	return string(bytes.Trim(m.ReadBytes(), "\x00"))
 }
 
 func (m *MessageBodyReader) ReadShiftJISString() string {
 	size := m.Read16()
-	buf := make([]byte, size, size)
-	m.r.Read(buf)
+	buf := make([]byte, size)
+	_, _ = m.r.Read(buf)
 	ret, err := ioutil.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
 	if err != nil {
 		logger.Error("failed to read sjis string", zap.Error(err), zap.Any("msg", m))
@@ -245,9 +216,9 @@ type MessageBodyWriter struct {
 	buf *bytes.Buffer
 }
 
-func (msg *LbsMessage) Writer() *MessageBodyWriter {
+func (m *LbsMessage) Writer() *MessageBodyWriter {
 	return &MessageBodyWriter{
-		msg: msg,
+		msg: m,
 		buf: new(bytes.Buffer),
 	}
 }
@@ -264,49 +235,49 @@ func (m *MessageBodyWriter) Write(v []byte) *MessageBodyWriter {
 }
 
 func (m *MessageBodyWriter) Write8(v byte) *MessageBodyWriter {
-	binary.Write(m.buf, binary.BigEndian, v)
+	_ = binary.Write(m.buf, binary.BigEndian, v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
 }
 
 func (m *MessageBodyWriter) Write8LE(v byte) *MessageBodyWriter {
-	binary.Write(m.buf, binary.LittleEndian, v)
+	_ = binary.Write(m.buf, binary.LittleEndian, v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
 }
 
 func (m *MessageBodyWriter) Write16(v uint16) *MessageBodyWriter {
-	binary.Write(m.buf, binary.BigEndian, v)
+	_ = binary.Write(m.buf, binary.BigEndian, v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
 }
 
 func (m *MessageBodyWriter) Write16LE(v uint16) *MessageBodyWriter {
-	binary.Write(m.buf, binary.LittleEndian, v)
+	_ = binary.Write(m.buf, binary.LittleEndian, v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
 }
 
 func (m *MessageBodyWriter) Write32(v uint32) *MessageBodyWriter {
-	binary.Write(m.buf, binary.BigEndian, v)
+	_ = binary.Write(m.buf, binary.BigEndian, v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
 }
 
 func (m *MessageBodyWriter) Write32LE(v uint32) *MessageBodyWriter {
-	binary.Write(m.buf, binary.LittleEndian, v)
+	_ = binary.Write(m.buf, binary.LittleEndian, v)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
 	return m
 }
 
 func (m *MessageBodyWriter) WriteBytes(bin []byte) *MessageBodyWriter {
-	binary.Write(m.buf, binary.BigEndian, uint16(len(bin)))
+	_ = binary.Write(m.buf, binary.BigEndian, uint16(len(bin)))
 	m.buf.Write(bin)
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))
@@ -319,7 +290,7 @@ func (m *MessageBodyWriter) WriteString(v string) *MessageBodyWriter {
 		logger.Error("failed to write string",
 			zap.Error(err), zap.String("value", v), zap.Any("cmd", m.msg.Command))
 	}
-	binary.Write(m.buf, binary.BigEndian, uint16(len(ret)))
+	_ = binary.Write(m.buf, binary.BigEndian, uint16(len(ret)))
 	m.buf.WriteString(string(ret))
 	m.msg.Body = m.buf.Bytes()
 	m.msg.BodySize = uint16(len(m.msg.Body))

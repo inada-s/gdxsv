@@ -12,6 +12,16 @@ test:
 	go test -v ./...
 
 
+.PHONY: lint
+lint:
+	golangci-lint run
+
+
+.PHONY: fmt
+fmt:
+	go fmt ./...
+
+
 .PHONY: race
 race:
 	mkdir -p bin
