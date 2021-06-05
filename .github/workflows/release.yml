@@ -10,24 +10,28 @@ jobs:
     name: Make
     runs-on: ubuntu-18.04
     steps:
-    - name: Set up Go 1.13
-      uses: actions/setup-go@v1
+    - name: Setup golang
+      uses: actions/setup-go@v2
       with:
-        go-version: 1.13
+        go-version: ^1.16
       id: go
-    - name: setup env
+
+    - name: Setup env
       run: |
         echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
-    - name: Get dependencies
-      run: go get -u -a golang.org/x/tools/cmd/stringer
+
+    - name: Install Tools
+      run: make install-tools
+
     - name: Build
       run: make release
+
     - name: Release
       uses: meeDamian/github-release@2.0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: bin/
-
