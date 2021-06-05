@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package proto;
-option go_package = "github.com/inada-s/gdxsv/gdxsv/proto";
+option go_package = "gdxsv/proto";
 
 
 message BattleLogUser {
