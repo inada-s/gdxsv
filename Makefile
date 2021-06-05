@@ -1,5 +1,11 @@
 all: build
 
+.PHONY: install-tools
+install-tools:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26.0
+	go install golang.org/x/tools/cmd/stringer@v0.1.2
+
+
 .PHONY: build
 build:
 	mkdir -p bin

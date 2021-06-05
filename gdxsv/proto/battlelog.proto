@@ -1,5 +1,8 @@
 syntax = "proto3";
+
 package proto;
+option go_package = "github.com/inada-s/gdxsv/gdxsv/proto";
+
 
 message BattleLogUser {
   string user_id = 1;

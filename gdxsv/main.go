@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"gdxsv/gdxsv/proto"
-	pb "github.com/golang/protobuf/proto"
+	pb "google.golang.org/protobuf/proto"
 	"google.golang.org/api/option"
 	"io/ioutil"
 	"log"
