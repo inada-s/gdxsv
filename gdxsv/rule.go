@@ -15,43 +15,6 @@ func init() {
 	DefaultRule = baseRule
 }
 
-// DC MSBitMask
-// I investigated with the DC2 version. Not verified elsewhere.
-const MSMaskAll uint = 0xffffffff
-
-const (
-	MSMaskDCGundam uint = 1 << iota
-	MSMaskDCGuncannon
-	MSMaskDCGM
-	MSMaskDCZaku1
-	MSMaskDCZaku2
-	MSMaskDCZaku2S
-	MSMaskDCGouf
-	MSMaskDCDom
-	MSMaskDCRickDom
-	MSMaskDCGelgoog
-	MSMaskDCGelgoogS
-	MSMaskDCGyan
-	MSMaskDCGogg
-	MSMaskDCAcguy
-	MSMaskDCZgok
-	MSMaskDCZgokS
-	MSMaskDCZock
-	MSMaskDCGuntank
-	MSMaskDCZeong
-	MSMaskDCLGundam
-	MSMaskDCLGM
-	MSMaskDCElmeth
-	MSMaskDCBall
-	MSMaskDCBrawBro
-	MSMaskDCDUMMY24
-	MSMaskDCZakrello
-	MSMaskDCBigro
-	MSMaskDCBigZam
-	MSMaskDCAdzam
-	MSMaskDCGFighter
-)
-
 var baseRule = Rule{
 	Difficulty:   3,   // Game Difficulty (zero-indexed)
 	DamageLevel:  2,   // Game DamageLevel (zero-indexed)
@@ -73,35 +36,35 @@ var baseRule = Rule{
 	NoRanking:    0,    // 1:no battle record
 	CPUFlag:      0xff, // unknown
 	SelectLook:   1,    // 1:can see opponent's MS choice
-	RenpoMaskDC:  MSMaskAll,
-	ZeonMaskDC:   MSMaskAll,
+	RenpoMaskDC:  0xffffffff,
+	ZeonMaskDC:   0xffffffff,
 	StageNo:      0, // unknown
 }
 
 func SerializeRule(r *Rule) []byte {
 	b := new(bytes.Buffer)
-	binary.Write(b, binary.LittleEndian, byte(r.Difficulty))
-	binary.Write(b, binary.LittleEndian, byte(r.DamageLevel))
-	binary.Write(b, binary.LittleEndian, byte(r.Timer))
-	binary.Write(b, binary.LittleEndian, byte(r.TeamFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.StageFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.MsFlag))
-	binary.Write(b, binary.LittleEndian, uint16(r.RenpoVital))
-	binary.Write(b, binary.LittleEndian, uint16(r.ZeonVital))
-	binary.Write(b, binary.LittleEndian, byte(r.MaFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.ReloadFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.BoostKeep))
-	binary.Write(b, binary.LittleEndian, byte(r.RedarFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.LockonFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.Onematch))
-	binary.Write(b, binary.LittleEndian, uint32(r.RenpoMaskPS2))
-	binary.Write(b, binary.LittleEndian, uint32(r.ZeonMaskPS2))
-	binary.Write(b, binary.LittleEndian, byte(r.AutoRebattle))
-	binary.Write(b, binary.LittleEndian, byte(r.NoRanking))
-	binary.Write(b, binary.LittleEndian, byte(r.CPUFlag))
-	binary.Write(b, binary.LittleEndian, byte(r.SelectLook))
-	binary.Write(b, binary.LittleEndian, uint32(r.RenpoMaskDC))
-	binary.Write(b, binary.LittleEndian, uint32(r.ZeonMaskDC))
-	binary.Write(b, binary.LittleEndian, byte(r.StageNo))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.Difficulty))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.DamageLevel))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.Timer))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.TeamFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.StageFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.MsFlag))
+	_ = binary.Write(b, binary.LittleEndian, uint16(r.RenpoVital))
+	_ = binary.Write(b, binary.LittleEndian, uint16(r.ZeonVital))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.MaFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.ReloadFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.BoostKeep))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.RedarFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.LockonFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.Onematch))
+	_ = binary.Write(b, binary.LittleEndian, uint32(r.RenpoMaskPS2))
+	_ = binary.Write(b, binary.LittleEndian, uint32(r.ZeonMaskPS2))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.AutoRebattle))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.NoRanking))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.CPUFlag))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.SelectLook))
+	_ = binary.Write(b, binary.LittleEndian, uint32(r.RenpoMaskDC))
+	_ = binary.Write(b, binary.LittleEndian, uint32(r.ZeonMaskDC))
+	_ = binary.Write(b, binary.LittleEndian, byte(r.StageNo))
 	return b.Bytes()
 }

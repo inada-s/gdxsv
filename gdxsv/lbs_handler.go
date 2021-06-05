@@ -1243,7 +1243,7 @@ var _ = register(lbsMatchingEntry, func(p *LbsPeer, m *LbsMessage) {
 		r.Ready(p, enable)
 	} else if enable == 0 {
 		for _, u := range r.Users {
-			if q := p.app.FindPeer(u.UserID); p != nil {
+			if q := p.app.FindPeer(u.UserID); q != nil {
 				q.SendMessage(NewServerNotice(lbsWaitJoin).Writer().Write16(1).Msg())
 				q.SendMessage(NewServerNotice(lbsRoomLeaver).Writer().
 					WriteString(p.UserID).

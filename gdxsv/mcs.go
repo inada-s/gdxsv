@@ -3,10 +3,10 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"net"
 	"sync"
 	"time"
@@ -160,7 +160,10 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 
 		buf := NewServerNotice(lbsExtSyncSharedData).Writer().WriteBytes(sendStatusBuf.Bytes()).Msg().Serialize()
 		for sum := 0; sum < len(buf); {
-			conn.SetWriteDeadline(time.Now().Add(time.Second))
+			err = conn.SetWriteDeadline(time.Now().Add(time.Second))
+			if err != nil {
+				logger.Warn("SetWriteDeadline failed", zap.Error(err))
+			}
 			n, err := conn.Write(buf[sum:])
 			if err != nil {
 				logger.Error("send status to lbs failed", zap.Error(err))

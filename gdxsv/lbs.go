@@ -429,7 +429,10 @@ func (lbs *Lbs) eventLoop() {
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
 					if lbs.reload {
-						lobby.LoadLobbySetting()
+						err := lobby.LoadLobbySetting()
+						if err != nil {
+							logger.Error("LoadLobbySetting failed", zap.Error(err))
+						}
 					}
 					lobby.Update()
 				}
@@ -688,7 +691,6 @@ type LbsPeer struct {
 
 	chWrite    chan bool
 	chDispatch chan bool
-	chQuit     chan interface{}
 
 	mOutbuf sync.Mutex
 	outbuf  []byte
@@ -774,16 +776,22 @@ func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 		default:
 		}
 
-		p.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+		err := p.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+		if err != nil {
+			logger.Warn("SetReadDeadline failed", zap.Error(err))
+		}
+
 		n, err := p.conn.Read(buf)
 		if err != nil {
 			logger.Info("tcp read error", zap.Error(err))
 			return
 		}
+
 		if n == 0 {
 			logger.Info("tcp read zero")
 			return
 		}
+
 		p.mInbuf.Lock()
 		p.inbuf = append(p.inbuf, buf[:n]...)
 		p.mInbuf.Unlock()
@@ -816,12 +824,17 @@ func (p *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 			sum := 0
 			size := len(buf)
 			for sum < size {
-				p.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+				err := p.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+				if err != nil {
+					logger.Warn("SetReadDeadline failed", zap.Error(err))
+				}
+
 				n, err := p.conn.Write(buf[sum:])
 				if err != nil {
 					p.logger.Info("tcp write error", zap.Error(err))
 					break
 				}
+
 				sum += n
 			}
 			buf = buf[:0]

@@ -325,10 +325,10 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 	l.EntryUsers = append(l.EntryUsers, p.UserID)
 	a, b := l.GetLobbyMatchEntryUserCount()
 	if p.Team == TeamRenpo {
-		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">連邦>自動選抜"))
+		l.sendLobbyChat(p.UserID, p.Name, ">連邦>自動選抜")
 		l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
 	} else if p.Team == TeamZeon {
-		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">ジオン>自動選抜"))
+		l.sendLobbyChat(p.UserID, p.Name, ">ジオン>自動選抜")
 		l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
 	}
 }
@@ -341,9 +341,9 @@ func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 		}
 	}
 	if p.Team == TeamRenpo {
-		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">連邦"))
+		l.sendLobbyChat(p.UserID, p.Name, ">連邦")
 	} else if p.Team == TeamZeon {
-		l.sendLobbyChat(p.UserID, p.Name, fmt.Sprintf(">ジオン"))
+		l.sendLobbyChat(p.UserID, p.Name, ">ジオン")
 	}
 
 	a, b := l.GetLobbyMatchEntryUserCount()

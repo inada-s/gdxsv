@@ -21,7 +21,7 @@ func NewBattleBuffer(id string) *BattleBuffer {
 		ack:   0,
 		begin: 1,
 		end:   1,
-		rbuf:  make([]*BattleMessage, ringSize, ringSize),
+		rbuf:  make([]*BattleMessage, ringSize),
 	}
 }
 

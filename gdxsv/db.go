@@ -108,12 +108,6 @@ type RankingRecord struct {
 	DBUser
 }
 
-type UserBan struct {
-	Key     string    `db:"key" json:"key,omitempty"`
-	Until   time.Time `db:"until" json:"until,omitempty"`
-	Created time.Time `db:"created" json:"created,omitempty"`
-}
-
 type MLobbySetting struct {
 	Platform         string `db:"platform" json:"platform"`
 	Disk             string `db:"disk" json:"disk"`

@@ -188,7 +188,7 @@ func (db SQLiteDB) Migrate() error {
 	// create table if not exists
 	_, err = tx.Exec(schema)
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return errors.Wrap(err, "Begin failed")
 	}
 
@@ -197,7 +197,7 @@ func (db SQLiteDB) Migrate() error {
 		tmp := table + "_tmp"
 		_, err = tx.Exec(`ALTER TABLE ` + table + ` RENAME TO ` + tmp)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return errors.Wrap(err, "ALTER TABLE failed")
 		}
 	}
@@ -205,7 +205,7 @@ func (db SQLiteDB) Migrate() error {
 	// create new table
 	_, err = tx.Exec(schema + indexes)
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return errors.Wrap(err, "failed to create new tables")
 	}
 
@@ -215,16 +215,16 @@ func (db SQLiteDB) Migrate() error {
 		tmp := table + "_tmp"
 		rows, err := tx.Query(`SELECT * FROM ` + tmp + ` LIMIT 1`)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return errors.Wrap(err, "SELECT failed")
 		}
 
 		columns, err := rows.Columns()
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return errors.Wrap(err, "Columns() failed")
 		}
-		rows.Close()
+		_ = rows.Close()
 
 		_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
 		if err != nil {
@@ -237,7 +237,7 @@ func (db SQLiteDB) Migrate() error {
 				}
 				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
 				if err != nil {
-					tx.Rollback()
+					_ = tx.Rollback()
 					return errors.Wrap(err, "2021-02 INSERT failed")
 				}
 			} else if err.Error() == "table account has no column named last_login_cpuid" {
@@ -249,18 +249,18 @@ func (db SQLiteDB) Migrate() error {
 				}
 				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
 				if err != nil {
-					tx.Rollback()
+					_ = tx.Rollback()
 					return errors.Wrap(err, "2021-06 INSERT failed")
 				}
 			} else {
-				tx.Rollback()
+				_ = tx.Rollback()
 				return errors.Wrap(err, "INSERT failed")
 			}
 		}
 
 		_, err = tx.Exec(`DROP TABLE ` + tmp)
 		if err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return errors.Wrap(err, "DROP TABLE failed")
 		}
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go.uber.org/zap"
 	"io/ioutil"
@@ -8,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
@@ -62,7 +62,7 @@ func getMcsFuncClient() (*http.Client, error) {
 		"target_audience": conf.McsFuncURL,
 	}
 	jwtConf.UseIDToken = true
-	mcsFuncClientCache = jwtConf.Client(oauth2.NoContext)
+	mcsFuncClientCache = jwtConf.Client(context.Background())
 	mcsFuncClientCreated = time.Now()
 	return mcsFuncClientCache, nil
 }
