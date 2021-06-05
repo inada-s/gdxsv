@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"gdxsv/gdxsv/proto"
-	pb "google.golang.org/protobuf/proto"
 	"google.golang.org/api/option"
+	pb "google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -307,8 +307,8 @@ func main() {
 		if err != nil {
 			logger.Fatal("Failed to open log file", zap.Error(err))
 		}
-		logfile := proto.BattleLogFile{}
-		err = pb.Unmarshal(b, &logfile)
+		logfile := new(proto.BattleLogFile)
+		err = pb.Unmarshal(b, logfile)
 		if err != nil {
 			logger.Fatal("Failed to Unmarshal", zap.Error(err))
 		}
