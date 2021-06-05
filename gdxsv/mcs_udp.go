@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"gdxsv/gdxsv/proto"
-	pb "github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"net"
 	"sync"
 	"time"
@@ -55,7 +55,6 @@ func (s *McsUDPServer) readLoop() error {
 	logger.Info("start udp server read loop")
 	pkt := proto.GetPacket()
 	buf := make([]byte, 4096)
-	pbuf := pb.NewBuffer(nil)
 
 	for {
 		n, addr, err := s.conn.ReadFromUDP(buf)
@@ -68,9 +67,8 @@ func (s *McsUDPServer) readLoop() error {
 		}
 
 		pkt.Reset()
-		pbuf.SetBuf(buf[:n])
-		if err := pbuf.Unmarshal(pkt); err != nil {
-			logger.Error("pbuf.Unmarshal", zap.Error(err))
+		if err := pb.Unmarshal(buf[:n], pkt); err != nil {
+			logger.Error("pb.Unmarshal", zap.Error(err))
 			continue
 		}
 
@@ -250,11 +248,13 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	u.closeMtx.Unlock()
 
 	defer cancel()
-	pbuf := pb.NewBuffer(nil)
 	ticker := time.NewTicker(16 * time.Millisecond)
 	defer ticker.Stop()
 	lastRecv := time.Now()
 	lastSend := time.Now()
+
+	pbBuf := make([]byte, 0)
+	pbm := pb.MarshalOptions{Deterministic: true}
 
 	for {
 		select {
@@ -280,15 +280,15 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 			pkt.BattleData = data
 			pkt.Ack = ack
 			pkt.Seq = seq
-			pbuf.Reset()
-			err := pbuf.Marshal(pkt)
+			var err error
+			pbBuf, err = pbm.MarshalAppend(pbBuf[:0], pkt)
 			proto.PutPacket(pkt)
 			if err != nil {
 				u.logger.Error("Marshal error", zap.Error(err))
 				u.SetCloseReason("sv_marshal_error")
 				return
 			}
-			_, err = u.conn.WriteTo(pbuf.Bytes(), u.addr)
+			_, err = u.conn.WriteTo(pbBuf, u.addr)
 			if err != nil {
 				u.logger.Error("WriteTo", zap.Error(err))
 				// Should be returned ?

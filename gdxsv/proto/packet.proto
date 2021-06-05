@@ -1,5 +1,7 @@
 syntax = "proto3";
+
 package proto;
+option go_package = "gdxsv/proto";
 
 enum MessageType {
   None = 0;

@@ -20,10 +20,10 @@ This game has online mode, but the service ended in 2004. This project aims to k
 
 
 ### Requirements to build
-- Go 1.9 or newer with CGO
-- stringer. `go get golang.org/x/tools/cmd/stringer`
--	protoc-gen-go v1.25.0 (if modify .proto files)
--	protoc v3.6.1 (if modify .proto files)
+- Go 1.16 or newer with CGO
+- stringer. (Run `make install-tools` to install)
+- protoc-gen-go (Run `make install-tools` to install)
+- protoc v3.6.1 (if modify .proto files)
 
 
 ### Build and Run gdxsv
@@ -86,8 +86,6 @@ Flags:
         0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile
   -cpu int
         setting GOMAXPROCS (default 2)
-  -dump
-        enable var dump to dump.txt
   -mcsdelay duration
         mcs room delay for network lag emulation
   -noban

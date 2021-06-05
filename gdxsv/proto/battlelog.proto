@@ -1,5 +1,8 @@
 syntax = "proto3";
+
 package proto;
+option go_package = "gdxsv/proto";
+
 
 message BattleLogUser {
   string user_id = 1;
