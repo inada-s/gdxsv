@@ -7,7 +7,6 @@ on:
     branches: [ master ]
 
 jobs:
-
   build:
     name: Build
     runs-on: ubuntu-18.04
@@ -31,3 +30,6 @@ jobs:
 
     - name: Build
       run: make ci
+
+    - name: Upload coverage to Codecov
+      run: bash <(curl -s https://codecov.io/bash)
