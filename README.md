@@ -1,5 +1,6 @@
 gdxsv
 =====
+[![codecov](https://codecov.io/gh/inada-s/gdxsv/branch/master/graph/badge.svg?token=WD6DL2ZT5G)](https://codecov.io/gh/inada-s/gdxsv)
 
 Mobile Suit Gundam: Federation vs. Zeon & DX private game server.
 
