@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	pb "google.golang.org/protobuf/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"os"
 	"path"
 	"sync"
