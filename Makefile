@@ -39,7 +39,8 @@ ci:
 	mkdir -p bin
 	go generate ./gdxsv
 	go build -ldflags "-X main.gdxsvVersion=$(shell git describe --tags --abbrev=0) -X main.gdxsvRevision=$(shell git rev-parse --short HEAD)" -o bin/gdxsv ./gdxsv
-	go test -race -v ./...
+	go test -race -v -coverprofile=coverage.txt -covermode=atomic ./... 
+
 
 .PHONY: release
 release:
