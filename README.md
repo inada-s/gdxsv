@@ -2,7 +2,7 @@ gdxsv
 =====
 [![LICENSE](https://img.shields.io/github/license/inada-s/gdxsv)](LICENSE)
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/inada-s/gdxsv)](https://github.com/inada-s/gdxsv)
-[![GoReportCard example](https://goreportcard.com/badge/github.com/inada-s/gdxsv)](https://goreportcard.com/report/github.com/nanomsg/mangos)
+[![GoReportCard example](https://goreportcard.com/badge/github.com/inada-s/gdxsv)](https://goreportcard.com/report/github.com/inada-s/gdxsv)
 [![codecov](https://codecov.io/gh/inada-s/gdxsv/branch/master/graph/badge.svg?token=WD6DL2ZT5G)](https://codecov.io/gh/inada-s/gdxsv)
 
 
