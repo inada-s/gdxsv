@@ -10,11 +10,18 @@ import (
 	"time"
 )
 
-const (
-	PingLimitTh = 64
-)
-
 type LobbySetting MLobbySetting
+
+// PingTestRegion returns region string, which is used to check ping between the region and a peer.
+func (m LobbySetting) PingTestRegion() string {
+	if m.PingRegion != "" {
+		return m.PingRegion
+	}
+	if m.McsRegion != "" && m.McsRegion != "best" {
+		return m.McsRegion
+	}
+	return ""
+}
 
 type LbsLobby struct {
 	app                  *Lbs
@@ -132,11 +139,14 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	var msgs []*LbsMessage
 	msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "LobbyID", l.ID)))
 
-	if l.LobbySetting.PingLimit {
-		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "PingLimit", boolToYesNo(l.LobbySetting.PingLimit))))
+	if 0 < l.LobbySetting.PingLimit {
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %vms", "PingLimit", l.LobbySetting.PingLimit)))
 	}
 	if l.LobbySetting.McsRegion != "" {
 		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "McsRegion", l.LobbySetting.McsRegion)))
+	}
+	if l.LobbySetting.PingRegion != "" {
+		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "PingRegion", l.LobbySetting.PingRegion)))
 	}
 
 	msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v/%v", "Dmage/Diff", l.Rule.DamageLevel+1, l.Rule.Difficulty+1)))
@@ -161,7 +171,11 @@ func (l *LbsLobby) buildDescription(ping string) string {
 	}
 	if l.LobbySetting.McsRegion == "best" {
 		locName = "Best Server [Auto Detection]"
+		if 0 < l.LobbySetting.PingLimit && l.LobbySetting.PingTestRegion() != "" {
+			locName = "Best Server [Ping Limit]"
+		}
 	}
+
 	if ping == "" {
 		return fmt.Sprintf("<B>%s<B><BR><B>%s<END>", locName, l.LobbySetting.Comment)
 	} else {

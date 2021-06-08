@@ -118,7 +118,8 @@ type MLobbySetting struct {
 	RuleID           string `db:"rule_id" json:"rule_id"`
 	EnableForceStart bool   `db:"enable_force_start" json:"enable_force_start"`
 	TeamShuffle      bool   `db:"team_shuffle" json:"team_shuffle"`
-	PingLimit        bool   `db:"ping_limit" json:"ping_limit"`
+	PingLimit        int    `db:"ping_limit" json:"ping_limit"`
+	PingRegion       string `db:"ping_region" json:"ping_region"`
 }
 
 type MRule struct {
