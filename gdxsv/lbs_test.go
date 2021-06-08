@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/hex"
-	"github.com/jmoiron/sqlx"
 	"io"
-	"log"
 	"net"
 	"testing"
 	"time"
@@ -103,22 +101,6 @@ func (c *PipeNetwork) Close() error {
 	return nil
 }
 
-func prepareTestDB() {
-	conn, err := sqlx.Open("sqlite3", "file::memory:")
-	if err != nil {
-		log.Fatalln("Cannot open test db. err:", err)
-	}
-	testDB = SQLiteDB{
-		DB:          conn,
-		SQLiteCache: NewSQLiteCache(),
-	}
-	err = testDB.Init()
-	if err != nil {
-		log.Fatalln("Failed to Init db", err)
-	}
-	defaultdb = testDB
-}
-
 func hexbytes(s string) []byte {
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -128,9 +110,6 @@ func hexbytes(s string) []byte {
 }
 
 func Test100_LoginFlowNewUser(t *testing.T) {
-	prepareLogger()
-	prepareTestDB()
-
 	nw := NewPipeNetwork()
 	defer nw.Close()
 

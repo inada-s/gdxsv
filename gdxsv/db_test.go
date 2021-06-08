@@ -351,9 +351,28 @@ func Test300Ranking(t *testing.T) {
 	assertEq(t, 3, titansRanking[2].Rank)
 }
 
+func prepareTestDB() {
+	conn, err := sqlx.Open("sqlite3", "file::memory:")
+	if err != nil {
+		log.Fatalln("Cannot open test db. err:", err)
+	}
+	testDB = SQLiteDB{
+		DB:          conn,
+		SQLiteCache: NewSQLiteCache(),
+	}
+	err = testDB.Init()
+	if err != nil {
+		log.Fatalln("Failed to Init db", err)
+	}
+	defaultdb = testDB
+}
+
 func TestMain(m *testing.M) {
 	_ = flag.Set("logtostderr", "true")
 	flag.Parse()
+
+	prepareLogger()
+	prepareTestDB()
 
 	conn, err := sqlx.Open("sqlite3", "file::memory:")
 	if err != nil {
