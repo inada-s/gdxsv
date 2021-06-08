@@ -810,12 +810,15 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	status := 3 // available
-	if lobby.LobbySetting.PingLimit && lobby.LobbySetting.McsRegion != "" {
-		rtt, err := strconv.Atoi(p.PlatformInfo[lobby.LobbySetting.McsRegion])
+
+	// Check ping from the configured region and prevents the player from entering the lobby if the ping limit is exceeded.
+	if 0 < lobby.LobbySetting.PingLimit && lobby.LobbySetting.PingTestRegion() != "" {
+		rtt, err := strconv.Atoi(p.PlatformInfo[lobby.LobbySetting.PingTestRegion()])
 		if err != nil {
 			rtt = 999
 		}
-		if rtt <= 0 || PingLimitTh <= rtt {
+
+		if rtt <= 0 || lobby.LobbySetting.PingLimit < rtt {
 			status = 1 // not available
 		}
 	}
@@ -833,7 +836,7 @@ var _ = register(lbsPlazaExplain, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	rtt := p.PlatformInfo[lobby.LobbySetting.McsRegion]
+	rtt := p.PlatformInfo[lobby.LobbySetting.PingTestRegion()]
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
 		WriteString(lobby.buildDescription(rtt)).
