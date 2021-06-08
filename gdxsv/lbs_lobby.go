@@ -172,7 +172,7 @@ func (l *LbsLobby) buildDescription(ping string) string {
 	if l.LobbySetting.McsRegion == "best" {
 		locName = "Best Server [Auto Detection]"
 		if 0 < l.LobbySetting.PingLimit && l.LobbySetting.PingTestRegion() != "" {
-			locName = "Best Server [Ping Limited]"
+			locName = "Best Server [Ping Limit]"
 		}
 	}
 
