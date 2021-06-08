@@ -199,7 +199,7 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 	}
 }
 
-func (lbs *Lbs) NewPeer(conn *net.TCPConn) *LbsPeer {
+func (lbs *Lbs) NewPeer(conn net.Conn) *LbsPeer {
 	return &LbsPeer{
 		app:  lbs,
 		conn: conn,
@@ -673,7 +673,7 @@ type LbsPeer struct {
 	DBUser
 	logger *zap.Logger
 
-	conn   *net.TCPConn
+	conn   net.Conn
 	app    *Lbs
 	Room   *LbsRoom
 	Lobby  *LbsLobby
@@ -790,8 +790,11 @@ func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 		}
 
 		if n == 0 {
-			logger.Info("tcp read zero")
-			return
+			if _, ok := p.conn.(*net.TCPConn); ok {
+				logger.Info("tcp read zero")
+				return
+			}
+			// FIXME: Pipe sock may read zero byte
 		}
 
 		p.mInbuf.Lock()
