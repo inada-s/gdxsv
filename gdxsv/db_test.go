@@ -497,7 +497,7 @@ INSERT INTO m_string (
 	}
 }
 
-func mustInsertMBan(key string, until, created *time.Time) {
+func mustInsertMBan(key string, until, created time.Time) {
 	db := getDB().(SQLiteDB)
 	_, err := db.Exec(`
 INSERT INTO m_ban (
