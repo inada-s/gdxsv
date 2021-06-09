@@ -243,6 +243,68 @@ func TestLobbyChatSameLobby(t *testing.T) {
 	}, msg)
 }
 
+func TestLbs_RegisterBattleResult(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{
+		UserID: "TEST01",
+		Name:   "NAME01",
+	})
+	defer cancel1()
+	forceEnterLobby(t, lbs, user1, 1, TeamRenpo)
+
+	mustInsertBattleRecord(BattleRecord{
+		BattleCode: "TestLbs_RegisterBattleResult",
+		UserID:     "TEST01",
+		UserName:   "NAME01",
+		PilotName:  "NAME01",
+		LobbyID:    1,
+		Players:    4,
+		Aggregate:  1,
+		Pos:        1,
+		Team:       TeamRenpo,
+		Created:    time.Now(),
+		Updated:    time.Now(),
+		System:     0,
+	})
+
+	lbs.Locked(func(*Lbs) {
+		p := lbs.FindPeer("TEST01")
+		if p == nil {
+			t.Fatal("peer not found")
+		}
+
+		lbs.RegisterBattleResult(p, &BattleResult{
+			BattleCode:  "TestLbs_RegisterBattleResult",
+			BattleCount: 10,
+			WinCount:    9,
+			LoseCount:   1,
+			KillCount:   30,
+		})
+
+		assertEq(t, 10, p.BattleCount)
+		assertEq(t, 9, p.WinCount)
+		assertEq(t, 1, p.LoseCount)
+		assertEq(t, 30, p.KillCount)
+
+		assertEq(t, 10, p.RenpoBattleCount)
+		assertEq(t, 9, p.RenpoWinCount)
+		assertEq(t, 1, p.RenpoLoseCount)
+		assertEq(t, 30, p.RenpoKillCount)
+
+		assertEq(t, 0, p.ZeonBattleCount)
+		assertEq(t, 0, p.ZeonWinCount)
+		assertEq(t, 0, p.ZeonLoseCount)
+		assertEq(t, 0, p.ZeonKillCount)
+
+		assertEq(t, 10, p.DailyBattleCount)
+		assertEq(t, 9, p.DailyWinCount)
+		assertEq(t, 1, p.DailyLoseCount)
+	})
+}
+
 func Test100_LoginFlowNewUser(t *testing.T) {
 	nw := NewPipeNetwork()
 	defer nw.Close()
