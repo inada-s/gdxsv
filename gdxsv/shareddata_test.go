@@ -7,7 +7,6 @@ import (
 )
 
 func TestSharedData_Sync(t *testing.T) {
-	prepareLogger()
 	battleCode := "012345"
 	sessionID := "SESSION012"
 	mcsAddr := "127.0.0.1:1234"

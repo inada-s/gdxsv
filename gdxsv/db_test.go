@@ -1,39 +1,33 @@
 package main
 
 import (
-	"flag"
-	"log"
-	"os"
-	"reflect"
-	"runtime"
-	"testing"
-
 	"github.com/jmoiron/sqlx"
+	"log"
+	"testing"
+	"time"
 )
 
-var testDB DB
 var testLoginKey string
 var testUserID string
 
-func must(tb testing.TB, err error) {
+func prepareTestDB() {
+	conn, err := sqlx.Open("sqlite3", "file::memory:")
 	if err != nil {
-		pc, file, line, _ := runtime.Caller(1)
-		name := runtime.FuncForPC(pc).Name()
-		tb.Fatalf("In %s:%d %s\nerr:%vn", file, line, name, err)
+		log.Fatalln("Cannot open test db. err:", err)
 	}
-}
-
-func assertEq(tb testing.TB, expected, actual interface{}) {
-	ok := reflect.DeepEqual(expected, actual)
-	if !ok {
-		pc, file, line, _ := runtime.Caller(1)
-		name := runtime.FuncForPC(pc).Name()
-		tb.Fatalf("In %s:%d %s\nexpected: %#v \nactual: %#v\n", file, line, name, expected, actual)
+	db := SQLiteDB{
+		DB:          conn,
+		SQLiteCache: NewSQLiteCache(),
 	}
+	err = db.Init()
+	if err != nil {
+		log.Fatalln("Failed to Init db", err)
+	}
+	defaultdb = db
 }
 
 func Test001RegisterAccount(t *testing.T) {
-	a, err := testDB.RegisterAccount("1.2.3.4")
+	a, err := getDB().RegisterAccount("1.2.3.4")
 	must(t, err)
 	assertEq(t, "1.2.3.4", a.CreatedIP)
 	assertEq(t, 10, len(a.LoginKey))
@@ -41,13 +35,13 @@ func Test001RegisterAccount(t *testing.T) {
 }
 
 func Test002GetAccount(t *testing.T) {
-	a, err := testDB.GetAccountByLoginKey(testLoginKey)
+	a, err := getDB().GetAccountByLoginKey(testLoginKey)
 	must(t, err)
 	assertEq(t, testLoginKey, a.LoginKey)
 }
 
 func Test002GetInvalidAccount(t *testing.T) {
-	a, err := testDB.GetAccountByLoginKey("hogehoge01")
+	a, err := getDB().GetAccountByLoginKey("hogehoge01")
 	if err == nil {
 		t.FailNow()
 	}
@@ -57,7 +51,7 @@ func Test002GetInvalidAccount(t *testing.T) {
 }
 
 func Test101RegisterUser(t *testing.T) {
-	u, err := testDB.RegisterUser(testLoginKey)
+	u, err := getDB().RegisterUser(testLoginKey)
 	must(t, err)
 	if u == nil {
 		t.FailNow()
@@ -74,7 +68,7 @@ func Test101RegisterUser(t *testing.T) {
 }
 
 func Test102GetUser(t *testing.T) {
-	u, err := testDB.GetUser(testUserID)
+	u, err := getDB().GetUser(testUserID)
 	must(t, err)
 	assertEq(t, testUserID, u.UserID)
 	assertEq(t, 0, u.BattleCount)
@@ -86,14 +80,14 @@ func Test102GetUser(t *testing.T) {
 }
 
 func Test103GetInvalidUser(t *testing.T) {
-	_, err := testDB.GetUser("HOGE01")
+	_, err := getDB().GetUser("HOGE01")
 	if err == nil {
 		t.FailNow()
 	}
 }
 
 func Test104UpdateUser(t *testing.T) {
-	u, err := testDB.GetUser(testUserID)
+	u, err := getDB().GetUser(testUserID)
 	must(t, err)
 	u.Name = "テストユーザ"
 	u.Team = "テストチーム"
@@ -103,21 +97,21 @@ func Test104UpdateUser(t *testing.T) {
 	u.DailyBattleCount = 10
 	u.DailyWinCount = 9
 	u.DailyLoseCount = 1
-	err = testDB.UpdateUser(u)
+	err = getDB().UpdateUser(u)
 	must(t, err)
-	v, err := testDB.GetUser(testUserID)
+	v, err := getDB().GetUser(testUserID)
 	must(t, err)
 	assertEq(t, u, v)
 }
 
 func Test105GetUserList(t *testing.T) {
-	users, err := testDB.GetUserList(testLoginKey)
+	users, err := getDB().GetUserList(testLoginKey)
 	must(t, err)
 	assertEq(t, 1, len(users))
 }
 
 func Test106GetUserListNone(t *testing.T) {
-	users, err := testDB.GetUserList("hogehoge01")
+	users, err := getDB().GetUserList("hogehoge01")
 	must(t, err)
 	assertEq(t, 0, len(users))
 }
@@ -131,10 +125,10 @@ func Test200AddBattleRecord(t *testing.T) {
 		Team:       2,
 		System:     123,
 	}
-	err := testDB.AddBattleRecord(br)
+	err := getDB().AddBattleRecord(br)
 	must(t, err)
 
-	actual, err := testDB.GetBattleRecordUser(br.BattleCode, "123456")
+	actual, err := getDB().GetBattleRecordUser(br.BattleCode, "123456")
 	must(t, err)
 
 	// These values are automatically set.
@@ -160,12 +154,12 @@ func Test201AddUpdateBattleRecord(t *testing.T) {
 		Team:       2,
 		System:     123,
 	}
-	err := testDB.AddBattleRecord(br)
+	err := getDB().AddBattleRecord(br)
 	must(t, err)
-	err = testDB.UpdateBattleRecord(br)
+	err = getDB().UpdateBattleRecord(br)
 	must(t, err)
 
-	actual, err := testDB.GetBattleRecordUser(br.BattleCode, "23456")
+	actual, err := getDB().GetBattleRecordUser(br.BattleCode, "23456")
 	must(t, err)
 
 	// These values are automatically set.
@@ -192,12 +186,12 @@ func Test203CalculateUserBattleCount(t *testing.T) {
 		System:     123,
 	}
 
-	err := testDB.AddBattleRecord(br)
+	err := getDB().AddBattleRecord(br)
 	must(t, err)
-	err = testDB.UpdateBattleRecord(br)
+	err = getDB().UpdateBattleRecord(br)
 	must(t, err)
 
-	rec, err := testDB.CalculateUserTotalBattleCount("11111", 0)
+	rec, err := getDB().CalculateUserTotalBattleCount("11111", 0)
 	must(t, err)
 
 	assertEq(t, br.Round, rec.Battle)
@@ -206,7 +200,7 @@ func Test203CalculateUserBattleCount(t *testing.T) {
 	assertEq(t, br.Kill, rec.Kill)
 	assertEq(t, br.Death, rec.Death)
 
-	rec, err = testDB.CalculateUserDailyBattleCount("11111")
+	rec, err = getDB().CalculateUserDailyBattleCount("11111")
 	must(t, err)
 
 	assertEq(t, br.Round, rec.Battle)
@@ -219,14 +213,14 @@ func Test203CalculateUserBattleCount(t *testing.T) {
 
 func Test300Ranking(t *testing.T) {
 	// ugly...
-	_, err := testDB.(SQLiteDB).Exec("DELETE FROM user")
+	_, err := getDB().(SQLiteDB).Exec("DELETE FROM user")
 	must(t, err)
 
 	var users []*DBUser
 	for i := 0; i < 3; i++ {
-		ac, err := testDB.RegisterAccount("12.34.56.78")
+		ac, err := getDB().RegisterAccount("12.34.56.78")
 		must(t, err)
-		u, err := testDB.RegisterUser(ac.LoginKey)
+		u, err := getDB().RegisterUser(ac.LoginKey)
 		must(t, err)
 		users = append(users, u)
 	}
@@ -281,14 +275,14 @@ func Test300Ranking(t *testing.T) {
 			System:     123,
 		},
 	} {
-		err := testDB.AddBattleRecord(br)
+		err := getDB().AddBattleRecord(br)
 		must(t, err)
-		err = testDB.UpdateBattleRecord(br)
+		err = getDB().UpdateBattleRecord(br)
 		must(t, err)
 	}
 
 	for _, u := range users {
-		rec, err := testDB.CalculateUserTotalBattleCount(u.UserID, 0)
+		rec, err := getDB().CalculateUserTotalBattleCount(u.UserID, 0)
 		must(t, err)
 		u.BattleCount = rec.Battle
 		u.WinCount = rec.Win
@@ -296,7 +290,7 @@ func Test300Ranking(t *testing.T) {
 		u.KillCount = rec.Kill
 		u.DeathCount = rec.Death
 
-		rec, err = testDB.CalculateUserTotalBattleCount(u.UserID, 1)
+		rec, err = getDB().CalculateUserTotalBattleCount(u.UserID, 1)
 		must(t, err)
 		u.RenpoBattleCount = rec.Battle
 		u.RenpoWinCount = rec.Win
@@ -304,7 +298,7 @@ func Test300Ranking(t *testing.T) {
 		u.RenpoKillCount = rec.Kill
 		u.RenpoDeathCount = rec.Death
 
-		rec, err = testDB.CalculateUserTotalBattleCount(u.UserID, 2)
+		rec, err = getDB().CalculateUserTotalBattleCount(u.UserID, 2)
 		must(t, err)
 		u.ZeonBattleCount = rec.Battle
 		u.ZeonWinCount = rec.Win
@@ -312,12 +306,12 @@ func Test300Ranking(t *testing.T) {
 		u.ZeonKillCount = rec.Kill
 		u.ZeonDeathCount = rec.Death
 
-		err = testDB.UpdateUser(u)
+		err = getDB().UpdateUser(u)
 		t.Log(*u)
 		must(t, err)
 	}
 
-	totalRanking, err := testDB.GetWinCountRanking(0)
+	totalRanking, err := getDB().GetWinCountRanking(0)
 	must(t, err)
 
 	assertEq(t, 1000, totalRanking[0].WinCount)
@@ -326,7 +320,7 @@ func Test300Ranking(t *testing.T) {
 	assertEq(t, 1, totalRanking[1].Rank)
 	assertEq(t, 3, totalRanking[2].Rank)
 
-	aeugRanking, err := testDB.GetWinCountRanking(1)
+	aeugRanking, err := getDB().GetWinCountRanking(1)
 	must(t, err)
 
 	assertEq(t, 1000, aeugRanking[0].RenpoWinCount)
@@ -339,7 +333,7 @@ func Test300Ranking(t *testing.T) {
 
 	assertEq(t, 1000, aeugRanking[0].WinCount)
 
-	titansRanking, err := testDB.GetWinCountRanking(2)
+	titansRanking, err := getDB().GetWinCountRanking(2)
 	must(t, err)
 
 	assertEq(t, 1000, titansRanking[0].ZeonWinCount)
@@ -351,22 +345,259 @@ func Test300Ranking(t *testing.T) {
 	assertEq(t, 3, titansRanking[2].Rank)
 }
 
-func TestMain(m *testing.M) {
-	_ = flag.Set("logtostderr", "true")
-	flag.Parse()
-
-	conn, err := sqlx.Open("sqlite3", "file::memory:")
+func mustInsertDBAccount(a DBAccount) {
+	db := getDB().(SQLiteDB)
+	_, err := db.NamedExec(`
+INSERT INTO account (
+    login_key     ,
+    session_id    ,
+    last_user_id  ,
+    created_ip    ,
+    last_login_ip ,
+    last_login_machine_id ,
+    created       ,
+    last_login    ,
+    system
+) VALUES (
+    :login_key     ,
+    :session_id    ,
+    :last_user_id  ,
+    :created_ip    ,
+    :last_login_ip ,
+    :last_login_machine_id ,
+    :created       ,
+    :last_login    ,
+    :system
+)`, a)
 	if err != nil {
-		log.Fatalln("Cannot open test db. err:", err)
+		panic(err)
 	}
+}
 
-	testDB = SQLiteDB{
-		DB:          conn,
-		SQLiteCache: NewSQLiteCache(),
-	}
-	err = testDB.Init()
+func mustInsertDBUser(u DBUser) {
+	db := getDB().(SQLiteDB)
+	_, err := db.NamedExec(`
+INSERT INTO user (
+    user_id            ,
+    login_key          ,
+    session_id         ,
+    name               ,
+    team               ,
+    battle_count       ,
+    win_count          ,
+    lose_count         ,
+    kill_count         ,
+    death_count        ,
+    renpo_battle_count ,
+    renpo_win_count    ,
+    renpo_lose_count   ,
+    renpo_kill_count   ,
+    renpo_death_count  ,
+    zeon_battle_count  ,
+    zeon_win_count     ,
+    zeon_lose_count    ,
+    zeon_kill_count    ,
+    zeon_death_count   ,
+    daily_battle_count ,
+    daily_win_count    ,
+    daily_lose_count   ,
+    created            ,
+    system
+) VALUES (
+    :user_id            ,
+    :login_key          ,
+    :session_id         ,
+    :name               ,
+    :team               ,
+    :battle_count       ,
+    :win_count          ,
+    :lose_count         ,
+    :kill_count         ,
+    :death_count        ,
+    :renpo_battle_count ,
+    :renpo_win_count    ,
+    :renpo_lose_count   ,
+    :renpo_kill_count   ,
+    :renpo_death_count  ,
+    :zeon_battle_count  ,
+    :zeon_win_count     ,
+    :zeon_lose_count    ,
+    :zeon_kill_count    ,
+    :zeon_death_count   ,
+    :daily_battle_count ,
+    :daily_win_count    ,
+    :daily_lose_count   ,
+    :created            ,
+    :system
+)`, u)
 	if err != nil {
-		log.Fatalln("Failed to prepare DB. err:", err)
+		panic(err)
 	}
-	os.Exit(m.Run())
+}
+
+func mustInsertBattleRecord(record BattleRecord) {
+	db := getDB().(SQLiteDB)
+	_, err := db.NamedExec(`
+INSERT INTO battle_record (
+    battle_code ,
+    user_id     ,
+    user_name   ,
+    pilot_name  ,
+    lobby_id    ,
+    players     ,
+    aggregate   ,
+    pos         ,
+    team        ,
+    round       ,
+    win         ,
+    lose        ,
+    kill        ,
+    death       ,
+    frame       ,
+    result      ,
+    created     ,
+    updated     ,
+    system      
+) VALUES (
+    :battle_code ,
+    :user_id     ,
+    :user_name   ,
+    :pilot_name  ,
+    :lobby_id    ,
+    :players     ,
+    :aggregate   ,
+    :pos         ,
+    :team        ,
+    :round       ,
+    :win         ,
+    :lose        ,
+    :kill        ,
+    :death       ,
+    :frame       ,
+    :result      ,
+    :created     ,
+    :updated     ,
+    :system      
+)`, record)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func mustInsertMString(key, value string) {
+	db := getDB().(SQLiteDB)
+	_, err := db.Exec(`
+INSERT INTO m_string (
+  key, value
+) VALUES (
+  ?, ?
+)`, key, value)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func mustInsertMBan(key string, until, created time.Time) {
+	db := getDB().(SQLiteDB)
+	_, err := db.Exec(`
+INSERT INTO m_ban (
+  key, until, created
+) VALUES (
+  ?, ?, ?
+)`, key, until, created)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func mustInsertMLobbySetting(setting MLobbySetting) {
+	db := getDB().(SQLiteDB)
+	_, err := db.NamedExec(`
+INSERT INTO m_lobby_setting (
+    platform           ,
+    disk               ,
+    no                 ,
+    name               ,
+    mcs_region         ,
+    comment            ,
+    rule_id            ,
+    enable_force_start ,
+    team_shuffle       ,
+    ping_limit         ,
+    ping_region        
+) VALUES (
+    :platform           ,
+    :disk               ,
+    :no                 ,
+    :name               ,
+    :mcs_region         ,
+    :comment            ,
+    :rule_id            ,
+    :enable_force_start ,
+    :team_shuffle       ,
+    :ping_limit         ,
+    :ping_region        
+)`, setting)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func mustInsertMRule(rule MRule) {
+	db := getDB().(SQLiteDB)
+	_, err := db.NamedExec(`
+INSERT INTO m_rule (
+    id             ,
+    difficulty     ,
+    damage_level   ,
+    timer          ,
+    team_flag      ,
+    stage_flag     ,
+    ms_flag        ,
+    renpo_vital    ,
+    zeon_vital     ,
+    ma_flag        ,
+    reload_flag    ,
+    boost_keep     ,
+    redar_flag     ,
+    lockon_flag    ,
+    onematch       ,
+    renpo_mask_ps2 ,
+    zeon_mask_ps2  ,
+    auto_rebattle  ,
+    no_ranking     ,
+    cpu_flag       ,
+    select_look    ,
+    renpo_mask_dc  ,
+    zeon_mask_dc   ,
+    stage_no       
+) VALUES (
+    :id             ,
+    :difficulty     ,
+    :damage_level   ,
+    :timer          ,
+    :team_flag      ,
+    :stage_flag     ,
+    :ms_flag        ,
+    :renpo_vital    ,
+    :zeon_vital     ,
+    :ma_flag        ,
+    :reload_flag    ,
+    :boost_keep     ,
+    :redar_flag     ,
+    :lockon_flag    ,
+    :onematch       ,
+    :renpo_mask_ps2 ,
+    :zeon_mask_ps2  ,
+    :auto_rebattle  ,
+    :no_ranking     ,
+    :cpu_flag       ,
+    :select_look    ,
+    :renpo_mask_dc  ,
+    :zeon_mask_dc   ,
+    :stage_no       
+)`, rule)
+	if err != nil {
+		panic(err)
+	}
 }

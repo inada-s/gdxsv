@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
 	"strings"
 	"sync/atomic"
@@ -120,6 +121,85 @@ func Deserialize(data []byte) (int, *LbsMessage) {
 	return int(HeaderSize + m.BodySize), &m
 }
 
+func WriteLbsMessage(w io.Writer, m *LbsMessage) error {
+	m.BodySize = uint16(len(m.Body))
+
+	var err error
+	err = binary.Write(w, binary.BigEndian, m.Direction)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, m.Category)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, m.Command)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, m.BodySize)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, m.Seq)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, m.Status)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, m.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ReadLbsMessage(r io.Reader, m *LbsMessage) error {
+	var err error
+	err = binary.Read(r, binary.BigEndian, &m.Direction)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(r, binary.BigEndian, &m.Category)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(r, binary.BigEndian, &m.Command)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(r, binary.BigEndian, &m.BodySize)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(r, binary.BigEndian, &m.Seq)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(r, binary.BigEndian, &m.Status)
+	if err != nil {
+		return err
+	}
+
+	if m.BodySize == 0 {
+		return nil
+	}
+
+	m.Body = make([]byte, m.BodySize)
+	n, err := r.Read(m.Body)
+	if err != nil {
+		return err
+	}
+
+	if n != len(m.Body) {
+		return fmt.Errorf("invalid message body size")
+	}
+
+	return nil
+}
+
 func NewServerQuestion(command CmdID) *LbsMessage {
 	return &LbsMessage{
 		Direction: ServerToClient,
@@ -147,6 +227,46 @@ func NewServerNotice(command CmdID) *LbsMessage {
 		Command:   command,
 		Status:    StatusSuccess,
 		Seq:       nextSeq(),
+	}
+}
+
+func NewClientQuestion(command CmdID) *LbsMessage {
+	return &LbsMessage{
+		Direction: ClientToServer,
+		Category:  CategoryQuestion,
+		Command:   command,
+		Status:    StatusSuccess,
+		Seq:       0,
+	}
+}
+
+func NewClientAnswer(request *LbsMessage) *LbsMessage {
+	return &LbsMessage{
+		Direction: ClientToServer,
+		Category:  CategoryCustom,
+		Command:   request.Command,
+		Status:    StatusSuccess,
+		Seq:       0,
+	}
+}
+
+func NewClientNotice(command CmdID) *LbsMessage {
+	return &LbsMessage{
+		Direction: ClientToServer,
+		Category:  CategoryNotice,
+		Command:   command,
+		Status:    StatusSuccess,
+		Seq:       0,
+	}
+}
+
+func NewClientCustom(command CmdID) *LbsMessage {
+	return &LbsMessage{
+		Direction: ClientToServer,
+		Category:  CategoryCustom,
+		Command:   command,
+		Status:    StatusSuccess,
+		Seq:       0,
 	}
 }
 
