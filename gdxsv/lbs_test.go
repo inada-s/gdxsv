@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"go.uber.org/zap"
 	"io"
 	"net"
 	"testing"
@@ -58,15 +59,15 @@ func (p PipeConn) RemoteAddr() net.Addr {
 	}
 }
 
-func (p PipeConn) SetDeadline(t time.Time) error {
+func (p PipeConn) SetDeadline(_ time.Time) error {
 	return nil
 }
 
-func (p PipeConn) SetReadDeadline(t time.Time) error {
+func (p PipeConn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 
-func (p PipeConn) SetWriteDeadline(t time.Time) error {
+func (p PipeConn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
 
@@ -102,6 +103,7 @@ func (c *PipeNetwork) Close() error {
 }
 
 type TestLbsClient struct {
+	DBUser
 	t    *testing.T
 	conn *PipeConn
 }
@@ -157,13 +159,88 @@ func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
 		}
 	}
 }
-
 func hexbytes(s string) []byte {
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic(err)
 	}
 	return b
+}
+
+func prepareLoggedInUser(t *testing.T, lbs *Lbs, user DBUser) (*TestLbsClient, func()) {
+	nw := NewPipeNetwork()
+	p := lbs.NewPeer(nw.Server)
+	go p.serve()
+
+	cli := &TestLbsClient{t: t, DBUser: user, conn: nw.Client}
+	// ignore first message
+	msg := cli.MustReadMessage()
+	AssertMsg(t, &LbsMessage{Command: lbsAskConnectionID}, msg)
+
+	p.app.Locked(func(_ *Lbs) {
+		p.GameDisk = GameDiskDC2
+		p.DBUser = user
+		p.app.userPeers[p.UserID] = p
+		p.logger = p.logger.With(
+			zap.String("user_id", p.UserID),
+			zap.String("handle_name", p.Name),
+		)
+	})
+
+	return cli, func() {
+		_ = nw.Close()
+	}
+}
+
+func forceEnterLobby(t *testing.T, lbs *Lbs, cli *TestLbsClient, lobbyID uint16, team uint16) {
+	lbs.Locked(func(*Lbs) {
+		p := lbs.FindPeer(cli.UserID)
+		if p == nil {
+			t.Fatal("user not found", cli.DBUser)
+		}
+
+		lobby := lbs.GetLobby(p.Platform, p.GameDisk, lobbyID)
+		if lobby == nil {
+			t.Fatal("lobby not found")
+		}
+
+		p.Team = team
+		p.Lobby = lobby
+		lobby.Users[p.UserID] = &p.DBUser
+	})
+}
+
+func TestLobbyChatSameLobby(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+	defer cancel1()
+	forceEnterLobby(t, lbs, user1, 1, TeamRenpo)
+
+	user2, cancel2 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST02", Name: "NAME02"})
+	defer cancel2()
+	forceEnterLobby(t, lbs, user2, 1, TeamRenpo)
+
+	text := "HELLO WORLD"
+	user1.MustWriteMessage(NewClientNotice(lbsPostChatMessage).Writer().WriteString(text).Msg())
+
+	msg := user1.MustReadMessage()
+	AssertMsg(t, &LbsMessage{
+		Category:  CategoryNotice,
+		Direction: ServerToClient,
+		Command:   lbsChatMessage,
+		Body:      hexbytes("000654455354303100064e414d453031000b48454c4c4f20574f524c4400000000"),
+	}, msg)
+
+	msg = user2.MustReadMessage()
+	AssertMsg(t, &LbsMessage{
+		Category:  CategoryNotice,
+		Direction: ServerToClient,
+		Command:   lbsChatMessage,
+		Body:      hexbytes("000654455354303100064e414d453031000b48454c4c4f20574f524c4400000000"),
+	}, msg)
 }
 
 func Test100_LoginFlowNewUser(t *testing.T) {
