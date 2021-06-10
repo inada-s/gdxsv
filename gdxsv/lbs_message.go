@@ -15,19 +15,22 @@ import (
 	"golang.org/x/text/transform"
 )
 
-//go:generate stringer -type=CmdID
+//go:generate stringer -type=CmdID,CmdDirection,CmdCategory,CmdStatus
 type CmdID uint16
+type CmdDirection byte
+type CmdCategory byte
+type CmdStatus uint32
 
 const (
-	HeaderSize       = 12
-	ServerToClient   = 0x18
-	ClientToServer   = 0x81
-	CategoryQuestion = 0x01
-	CategoryAnswer   = 0x02
-	CategoryNotice   = 0x10
-	CategoryCustom   = 0xFF
-	StatusError      = 0xFFFFFFFF
-	StatusSuccess    = 0x00FFFFFF
+	HeaderSize                    = 12
+	ServerToClient   CmdDirection = 0x18
+	ClientToServer   CmdDirection = 0x81
+	CategoryQuestion CmdCategory  = 0x01
+	CategoryAnswer   CmdCategory  = 0x02
+	CategoryNotice   CmdCategory  = 0x10
+	CategoryCustom   CmdCategory  = 0xFF
+	StatusError      CmdStatus    = 0xFFFFFFFF
+	StatusSuccess    CmdStatus    = 0x00FFFFFF
 )
 
 func sequenceGenerator() func() uint16 {
@@ -44,39 +47,27 @@ func init() {
 }
 
 type LbsMessage struct {
-	Direction byte
-	Category  byte
+	Direction CmdDirection
+	Category  CmdCategory
 	Command   CmdID
 	BodySize  uint16
 	Seq       uint16
-	Status    uint32
+	Status    CmdStatus
 	Body      []byte
 }
 
 func (m *LbsMessage) String() string {
-	b := new(bytes.Buffer)
-	switch m.Direction {
-	case ClientToServer:
-		b.WriteString("C->S")
-	case ServerToClient:
-		b.WriteString("C<-S")
+	cmd := m.Command.String()
+	if strings.HasPrefix(cmd, "CmdID(") {
+		cmd = fmt.Sprintf("CmdID(0x%04x)", uint32(m.Command))
 	}
-
-	switch m.Category {
-	case CategoryQuestion:
-		b.WriteString(" [Q]")
-	case CategoryAnswer:
-		b.WriteString(" [A]")
-	case CategoryNotice:
-		b.WriteString(" [N]")
-	case CategoryCustom:
-		b.WriteString(" [C]")
+	if 0 < len(m.Body) {
+		return fmt.Sprintf(`LbsMessage{Command: %v, Direction: %v, Category: %v, Seq: %v, Status: %v, BodySize: %v, Body: hexbytes(%q)}`,
+			cmd, m.Direction, m.Category, m.Seq, m.Status, m.BodySize, hex.EncodeToString(m.Body))
+	} else {
+		return fmt.Sprintf(`LbsMessage{Command: %v, Direction: %v, Category: %v, Seq: %v, Status: %v}`,
+			cmd, m.Direction, m.Category, m.Seq, m.Status)
 	}
-
-	_, _ = fmt.Fprintf(b, " %v (ID:0x%X)", m.Command, uint16(m.Command))
-	_, _ = fmt.Fprintf(b, " Seq:%v", m.Seq)
-	_, _ = fmt.Fprintf(b, " Body(%d bytes): %v", len(m.Body), hex.EncodeToString(m.Body))
-	return b.String()
 }
 
 func (m *LbsMessage) SetErr() *LbsMessage {
