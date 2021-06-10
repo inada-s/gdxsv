@@ -1,3 +1,4 @@
 ignore:
   - "gdxsv/main.go"
+  - "**/*.string.go"
   - "**/*.pb.go"

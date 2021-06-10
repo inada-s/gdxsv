@@ -15,7 +15,7 @@ import (
 	"golang.org/x/text/transform"
 )
 
-//go:generate stringer -type=CmdID,CmdDirection,CmdCategory,CmdStatus
+//go:generate stringer -type=CmdID,CmdDirection,CmdCategory,CmdStatus -output=lbs_message.string.go
 type CmdID uint16
 type CmdDirection byte
 type CmdCategory byte
