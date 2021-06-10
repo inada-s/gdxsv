@@ -115,6 +115,7 @@ type MLobbySetting struct {
 	Name             string `db:"name" json:"name"`
 	McsRegion        string `db:"mcs_region" json:"mcs_region"`
 	Comment          string `db:"comment" json:"comment"`
+	Reminder         string `db:"reminder" json:"reminder"`
 	RuleID           string `db:"rule_id" json:"rule_id"`
 	EnableForceStart bool   `db:"enable_force_start" json:"enable_force_start"`
 	TeamShuffle      bool   `db:"team_shuffle" json:"team_shuffle"`

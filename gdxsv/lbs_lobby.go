@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -24,19 +25,20 @@ func (m LobbySetting) PingTestRegion() string {
 }
 
 type LbsLobby struct {
-	app                  *Lbs
-	Platform             string
-	GameDisk             string
-	ID                   uint16
-	Users                map[string]*DBUser
-	RenpoRooms           map[uint16]*LbsRoom
-	ZeonRooms            map[uint16]*LbsRoom
-	EntryUsers           []string
-	Description          string
-	LobbySetting         LobbySetting
-	Rule                 Rule
-	lobbySettingMessages []*LbsMessage
-	forceStartCountDown  int
+	app                   *Lbs
+	Platform              string
+	GameDisk              string
+	ID                    uint16
+	Users                 map[string]*DBUser
+	RenpoRooms            map[uint16]*LbsRoom
+	ZeonRooms             map[uint16]*LbsRoom
+	EntryUsers            []string
+	Description           string
+	LobbySetting          LobbySetting
+	Rule                  Rule
+	lobbySettingMessages  []*LbsMessage
+	lobbyReminderMessages []*LbsMessage
+	forceStartCountDown   int
 }
 
 func NewLobby(app *Lbs, platform, disk string, lobbyID uint16) *LbsLobby {
@@ -102,6 +104,7 @@ func (l *LbsLobby) LoadLobbySetting() error {
 	}
 
 	l.lobbySettingMessages = l.buildLobbySettingMessages()
+	l.lobbyReminderMessages = l.buildLobbyReminderMessages()
 
 	return err
 }
@@ -126,6 +129,25 @@ func (l *LbsLobby) sendLobbyChat(userID, name, text string) {
 		}
 		peer.SendMessage(msg)
 	}
+}
+
+func (l *LbsLobby) buildLobbyReminderMessages() []*LbsMessage {
+	if l.LobbySetting.Reminder == "" {
+		return nil
+	}
+
+	text, err := getDB().GetString(l.LobbySetting.Reminder)
+	if err != nil {
+		logger.Error("failed to get reminder text", zap.Error(err))
+		return nil
+	}
+
+	var msgs []*LbsMessage
+	for _, line := range strings.Split(strings.Trim(text, "\n"), "\n") {
+		msgs = append(msgs, chatMsg("", "", line))
+	}
+
+	return msgs
 }
 
 func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
@@ -248,11 +270,13 @@ func (l *LbsLobby) SwitchTeam(p *LbsPeer) {
 		l.sendLobbyChat(p.UserID, p.Name, "<退")
 	case TeamRenpo:
 		l.printLobbySetting(p)
+		l.printLobbyReminder(p)
 		l.printSameLobbyUsers(p)
 		l.sendLobbyChat(p.UserID, p.Name, ">連邦")
 		l.printLobbyMatchEntryCount(p)
 	case TeamZeon:
 		l.printLobbySetting(p)
+		l.printLobbyReminder(p)
 		l.printSameLobbyUsers(p)
 		l.sendLobbyChat(p.UserID, p.Name, ">ジオン")
 		l.printLobbyMatchEntryCount(p)
@@ -313,6 +337,12 @@ func (l *LbsLobby) FindRoom(team, roomID uint16) *LbsRoom {
 
 func (l *LbsLobby) printLobbySetting(p *LbsPeer) {
 	for _, msg := range l.lobbySettingMessages {
+		p.SendMessage(msg)
+	}
+}
+
+func (l *LbsLobby) printLobbyReminder(p *LbsPeer) {
+	for _, msg := range l.lobbyReminderMessages {
 		p.SendMessage(msg)
 	}
 }
