@@ -94,54 +94,42 @@ func Test_teamShuffle(t *testing.T) {
 }
 
 func TestLbsLobby_buildLobbyReminderMessages(t *testing.T) {
-	type fields struct {
-		reminder string
-		mstring  string
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		want   []string
-		insert bool
+		name    string
+		mstring string
+		want    []string
+		insert  bool
 	}{
 		{
-			name: "3 lines",
-			fields: fields{
-				mstring: "aaa\nbbb\nccc",
-			},
-			want:   []string{"aaa", "bbb", "ccc"},
-			insert: true,
+			name:    "3 lines",
+			mstring: "aaa\nbbb\nccc",
+			want:    []string{"aaa", "bbb", "ccc"},
+			insert:  true,
 		},
 		{
-			name: "trim line break",
-			fields: fields{
-				mstring: "\naaa\nbbb\nccc\n",
-			},
-			want:   []string{"aaa", "bbb", "ccc"},
-			insert: true,
+			name:    "trim line break",
+			mstring: "\naaa\nbbb\nccc\n",
+			want:    []string{"aaa", "bbb", "ccc"},
+			insert:  true,
 		},
 		{
-			name: "allow padding space",
-			fields: fields{
-				mstring: "\n  aaa  \nbbb  \n  ccc\n",
-			},
-			want:   []string{"  aaa  ", "bbb  ", "  ccc"},
-			insert: true,
+			name:    "allow padding space",
+			mstring: "\n  aaa  \nbbb  \n  ccc\n",
+			want:    []string{"  aaa  ", "bbb  ", "  ccc"},
+			insert:  true,
 		},
 		{
-			name: "no reminder text set",
-			fields: fields{
-				mstring: "aaa",
-			},
-			want:   nil,
-			insert: false,
+			name:    "no reminder text set",
+			mstring: "aaa",
+			want:    nil,
+			insert:  false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reminder := tt.name
 			if tt.insert {
-				mustInsertMString(reminder, tt.fields.mstring)
+				mustInsertMString(reminder, tt.mstring)
 			}
 			l := &LbsLobby{
 				LobbySetting: LobbySetting{
