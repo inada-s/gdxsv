@@ -348,12 +348,17 @@ disk=2
 maxlag=8
 `).Msg())
 
+	time.Sleep(time.Millisecond) // FIXME
+
+	called := false
 	lbs.Locked(func(*Lbs) {
 		p := lbs.FindPeer(user1.UserID)
-		assertEq(t, p.GameDisk, GameDiskDC2)
-		assertEq(t, p.Platform, PlatformEmuX8664)
-		assertEq(t, p.bestRegion, "asia-northeast1")
+		assertEq(t, GameDiskDC2, p.GameDisk)
+		assertEq(t, PlatformEmuX8664, p.Platform)
+		assertEq(t, "asia-northeast1", p.bestRegion)
+		called = true
 	})
+	assertEq(t, true, called)
 }
 
 func Test100_LoginFlowNewUser(t *testing.T) {
