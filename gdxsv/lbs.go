@@ -247,10 +247,7 @@ func (lbs *Lbs) FindMcsPeer(mcsAddr string) *LbsPeer {
 
 func (lbs *Lbs) Locked(f func(*Lbs)) {
 	c := make(chan interface{})
-	lbs.chEvent <- eventFunc{
-		f: f,
-		c: c,
-	}
+	lbs.chEvent <- eventFunc{f: f, c: c}
 	<-c
 }
 
@@ -366,8 +363,12 @@ func (lbs *Lbs) eventLoop() {
 				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
 			case eventFunc:
-				args.f(lbs)
-				args.c <- struct{}{}
+				func() {
+					defer func() {
+						args.c <- nil
+					}()
+					args.f(lbs)
+				}()
 			}
 		case <-tick:
 			for _, p := range peers {
@@ -687,6 +688,7 @@ type LbsPeer struct {
 	PilotName    string
 	Rank         int
 
+	bestRegion    string
 	lastSessionID string
 	lastRecvTime  time.Time
 	left          bool

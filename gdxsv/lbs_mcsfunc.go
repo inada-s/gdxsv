@@ -44,6 +44,31 @@ var gcpLocationName = map[string]string{
 	"us-west3":                "Salt Lake City, Utah, USA",
 }
 
+var gcpRegionGroup = map[string]string{
+	"asia-east1":              "asia-east",
+	"asia-east2":              "asia-east",
+	"asia-northeast1":         "asia-northeast",
+	"asia-northeast2":         "asia-northeast",
+	"asia-northeast3":         "asia-northeast",
+	"asia-south1":             "asia-south",
+	"asia-southeast1":         "asia-southeast",
+	"australia-southeast1":    "australia-southeast",
+	"europe-north1":           "europe-north",
+	"europe-west1":            "europe-west",
+	"europe-west2":            "europe-west",
+	"europe-west3":            "europe-west",
+	"europe-west4":            "europe-west",
+	"europe-west6":            "europe-west",
+	"northamerica-northeast1": "northamerica-northeast",
+	"southamerica-east1":      "southamerica-east",
+	"us-central1":             "us-central",
+	"us-east1":                "us-east",
+	"us-east4":                "us-east",
+	"us-west1":                "us-west",
+	"us-west2":                "us-west",
+	"us-west3":                "us-west",
+}
+
 func getMcsFuncClient() (*http.Client, error) {
 	if mcsFuncClientCache != nil && time.Since(mcsFuncClientCreated).Minutes() <= 30.0 {
 		return mcsFuncClientCache, nil

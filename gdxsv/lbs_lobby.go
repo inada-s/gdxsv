@@ -480,21 +480,55 @@ func (l *LbsLobby) getNextLobbyBattleParticipants() []*LbsPeer {
 	return peers
 }
 
+func teamShuffle(seed int64, peers []*LbsPeer) []uint16 {
+	if 4 < len(peers) {
+		return nil
+	}
+
+	r := rand.New(rand.NewSource(seed))
+	// Shuffle team randomly
+	var teams = []uint16{TeamRenpo, TeamRenpo, TeamZeon, TeamZeon}
+	r.Shuffle(len(teams), func(i, j int) {
+		teams[i], teams[j] = teams[j], teams[i]
+	})
+
+	// Special case - Region friendly team
+	// Pair with player in the same region group when the peer regions are like [A, A, B, B].
+	var groups []string
+	for _, p := range peers {
+		if group, ok := gcpRegionGroup[p.bestRegion]; ok {
+			groups = append(groups, group)
+		}
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		return groups[i] < groups[j]
+	})
+	// [A, A, B, B]
+	if len(groups) == 4 && groups[0] == groups[1] && groups[2] == groups[3] && groups[1] != groups[2] {
+		teamA, teamB := TeamRenpo, TeamZeon
+		if r.Intn(2) == 0 {
+			teamA, teamB = teamB, teamA
+		}
+		for i := 0; i < len(peers); i++ {
+			if gcpRegionGroup[peers[i].bestRegion] == groups[0] {
+				teams[i] = uint16(teamA)
+			} else {
+				teams[i] = uint16(teamB)
+			}
+		}
+	}
+
+	return teams[:len(peers)]
+}
+
 func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	peers := l.getNextLobbyBattleParticipants()
 
 	if l.LobbySetting.TeamShuffle {
-		var teams = []uint16{1, 1, 2, 2}
-
-		rand.Shuffle(len(teams), func(i, j int) {
-			teams[i], teams[j] = teams[j], teams[i]
-		})
-
-		for i := 0; i < len(peers); i++ {
+		teams := teamShuffle(rand.Int63(), peers)
+		for i := 0; i < len(teams); i++ {
 			peers[i].Team = teams[i]
 		}
-
-		logger.Info("shuffle team", zap.Any("teams", teams))
 	}
 
 	sort.SliceStable(peers, func(i, j int) bool {
