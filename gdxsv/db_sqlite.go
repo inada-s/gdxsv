@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS m_lobby_setting
     name               text,
     mcs_region         text default '',
     comment            text default '',
+    reminder           text default '',
     rule_id            text default '',
     enable_force_start integer not null,
     team_shuffle       integer not null,

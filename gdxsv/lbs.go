@@ -429,9 +429,11 @@ func (lbs *Lbs) eventLoop() {
 
 			sharedData.RemoveStaleData()
 
+			reload := lbs.reload
+			lbs.reload = false
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
-					if lbs.reload {
+					if reload {
 						err := lobby.LoadLobbySetting()
 						if err != nil {
 							logger.Error("LoadLobbySetting failed", zap.Error(err))
