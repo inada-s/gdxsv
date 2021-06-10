@@ -305,6 +305,57 @@ func TestLbs_RegisterBattleResult(t *testing.T) {
 	})
 }
 
+func TestLbs_PlatformInfo(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{
+		UserID: "TEST01",
+		Name:   "NAME01",
+	})
+	defer cancel1()
+	user1.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteString(`\
+asia-east1=36
+asia-east2=61
+asia-northeast1=2
+asia-northeast2=13
+asia-northeast3=37
+asia-southeast1=69
+australia-southeast1=122
+europe-north1=278
+europe-west1=233
+europe-west2=232
+europe-west3=240
+europe-west4=238
+europe-west6=246
+northamerica-northeast1=166
+southamerica-east1=257
+us-central1=132
+us-east1=156
+us-east4=161
+us-west1=94
+us-west2=100
+us-west3=112
+flycast=v0.7.5
+build_date=2021-05-30T17:23:27Z
+git_hash=2953907d
+cpu=x86/64
+cpuid=aaaaaaaaaaaaaaaaaaa
+os=Windows
+patch_id=8152517
+disk=2
+maxlag=8
+`).Msg())
+
+	lbs.Locked(func(*Lbs) {
+		p := lbs.FindPeer(user1.UserID)
+		assertEq(t, p.GameDisk, GameDiskDC2)
+		assertEq(t, p.Platform, PlatformEmuX8664)
+		assertEq(t, p.bestRegion, "asia-northeast1")
+	})
+}
+
 func Test100_LoginFlowNewUser(t *testing.T) {
 	nw := NewPipeNetwork()
 	defer nw.Close()

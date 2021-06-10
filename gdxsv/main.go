@@ -282,7 +282,6 @@ func main() {
 
 	switch command {
 	case "lbs":
-		rand.Seed(time.Now().UnixNano())
 		prepareDB()
 		mainLbs()
 	case "mcs":

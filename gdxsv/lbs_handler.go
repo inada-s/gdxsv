@@ -1562,14 +1562,28 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 			p.PlatformInfo[kv[0]] = kv[1]
 		}
 	}
+
 	logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
 	p.logger = p.logger.With(
 		zap.String("flycast", p.PlatformInfo["flycast"]),
 		zap.String("os", p.PlatformInfo["os"]),
 		zap.String("cpu", p.PlatformInfo["cpu"]),
 	)
+
 	if p.PlatformInfo["cpu"] == "x86/64" {
 		p.Platform = PlatformEmuX8664
+	}
+
+	minRtt := 999
+	for region := range gcpLocationName {
+		rtt, err := strconv.Atoi(p.PlatformInfo[region])
+		if err != nil {
+			continue
+		}
+		if 0 < rtt && rtt < minRtt {
+			minRtt = rtt
+			p.bestRegion = region
+		}
 	}
 
 	// pre-sent loginkey

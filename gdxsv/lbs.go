@@ -687,6 +687,7 @@ type LbsPeer struct {
 	PilotName    string
 	Rank         int
 
+	bestRegion    string
 	lastSessionID string
 	lastRecvTime  time.Time
 	left          bool
