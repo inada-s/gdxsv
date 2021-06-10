@@ -35,3 +35,4 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: bin/
+        allow_override: true

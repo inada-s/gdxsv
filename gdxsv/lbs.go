@@ -247,10 +247,7 @@ func (lbs *Lbs) FindMcsPeer(mcsAddr string) *LbsPeer {
 
 func (lbs *Lbs) Locked(f func(*Lbs)) {
 	c := make(chan interface{})
-	lbs.chEvent <- eventFunc{
-		f: f,
-		c: c,
-	}
+	lbs.chEvent <- eventFunc{f: f, c: c}
 	<-c
 }
 
@@ -341,7 +338,9 @@ func (lbs *Lbs) eventLoop() {
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
 			case eventPeerMessage:
-				args.peer.logger.Info("eventPeerMessage", zap.Any("msg", args.msg))
+				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
+					fmt.Println(args.msg)
+				}
 				if args.peer.left {
 					args.peer.logger.Warn("got message after left", zap.Any("msg", args.msg))
 					continue
@@ -354,7 +353,7 @@ func (lbs *Lbs) eventLoop() {
 					logger.Warn("handler not found",
 						zap.String("cmd", args.msg.Command.String()),
 						zap.String("cmd_id", fmt.Sprintf("0x%04x", uint16(args.msg.Command))),
-						zap.String("msg", args.msg.String()),
+						zap.String("msg", fmt.Sprint(args.msg)),
 						zap.Binary("body", args.msg.Body),
 					)
 					if args.msg.Category == CategoryQuestion {
@@ -366,8 +365,12 @@ func (lbs *Lbs) eventLoop() {
 				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
 			case eventFunc:
-				args.f(lbs)
-				args.c <- struct{}{}
+				func() {
+					defer func() {
+						args.c <- nil
+					}()
+					args.f(lbs)
+				}()
 			}
 		case <-tick:
 			for _, p := range peers {
@@ -428,9 +431,11 @@ func (lbs *Lbs) eventLoop() {
 
 			sharedData.RemoveStaleData()
 
+			reload := lbs.reload
+			lbs.reload = false
 			for _, pfLobbies := range lbs.lobbies {
 				for _, lobby := range pfLobbies {
-					if lbs.reload {
+					if reload {
 						err := lobby.LoadLobbySetting()
 						if err != nil {
 							logger.Error("LoadLobbySetting failed", zap.Error(err))
@@ -687,6 +692,7 @@ type LbsPeer struct {
 	PilotName    string
 	Rank         int
 
+	bestRegion    string
 	lastSessionID string
 	lastRecvTime  time.Time
 	left          bool
@@ -741,10 +747,9 @@ func (p *LbsPeer) serve() {
 }
 
 func (p *LbsPeer) SendMessage(msg *LbsMessage) {
-	logger.Debug("lobby -> client",
-		zap.String("addr", p.Address()),
-		zap.Any("msg", msg),
-	)
+	if ce := p.logger.Check(zap.DebugLevel, ""); ce != nil {
+		fmt.Println(msg)
+	}
 
 	p.mOutbuf.Lock()
 	p.outbuf = append(p.outbuf, msg.Serialize()...)

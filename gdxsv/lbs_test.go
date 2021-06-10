@@ -305,6 +305,62 @@ func TestLbs_RegisterBattleResult(t *testing.T) {
 	})
 }
 
+func TestLbs_PlatformInfo(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{
+		UserID: "TEST01",
+		Name:   "NAME01",
+	})
+	defer cancel1()
+	user1.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteString(`\
+asia-east1=36
+asia-east2=61
+asia-northeast1=2
+asia-northeast2=13
+asia-northeast3=37
+asia-southeast1=69
+australia-southeast1=122
+europe-north1=278
+europe-west1=233
+europe-west2=232
+europe-west3=240
+europe-west4=238
+europe-west6=246
+northamerica-northeast1=166
+southamerica-east1=257
+us-central1=132
+us-east1=156
+us-east4=161
+us-west1=94
+us-west2=100
+us-west3=112
+flycast=v0.7.5
+build_date=2021-05-30T17:23:27Z
+git_hash=2953907d
+cpu=x86/64
+cpuid=aaaaaaaaaaaaaaaaaaa
+os=Windows
+patch_id=8152517
+disk=2
+maxlag=8
+`).Msg())
+
+	time.Sleep(time.Millisecond) // FIXME
+
+	called := false
+	lbs.Locked(func(*Lbs) {
+		p := lbs.FindPeer(user1.UserID)
+		assertEq(t, GameDiskDC2, p.GameDisk)
+		assertEq(t, PlatformEmuX8664, p.Platform)
+		assertEq(t, "asia-northeast1", p.bestRegion)
+		called = true
+	})
+	assertEq(t, true, called)
+}
+
 func Test100_LoginFlowNewUser(t *testing.T) {
 	nw := NewPipeNetwork()
 	defer nw.Close()
@@ -557,5 +613,116 @@ func Test100_LoginFlowNewUser(t *testing.T) {
 			Command: lbsServerMoney,
 			Body:    []byte{0, 0, 0, 0, 0, 0, 0, 0},
 		}, msg)
+	}
+}
+
+func TestLbs_LobbyList(t *testing.T) {
+	lobbyDC1 := []uint16{2, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 22}
+	lobbyDC2 := []uint16{2, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22}
+	lobbyPS2 := []uint16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
+
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "console dc1",
+			platform: PlatformConsole,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "console dc2",
+			platform: PlatformConsole,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "console ps2",
+			platform: PlatformConsole,
+			disk:     GameDiskPS2,
+		},
+		{
+			name:     "emu dc1",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "emu ps2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskPS2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			cli, cancel := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel()
+
+			lbs.Locked(func(*Lbs) {
+				p := lbs.FindPeer(cli.UserID)
+				p.Platform = tt.platform
+				p.GameDisk = tt.disk
+			})
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsStartLobby, Direction: ClientToServer, Category: CategoryNotice, Seq: 0, Status: StatusSuccess})
+
+			AssertMsg(t,
+				&LbsMessage{Command: lbsStartLobby, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessage())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsPlazaMax, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+
+			AssertMsg(t,
+				&LbsMessage{Command: lbsPlazaMax, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0016")},
+				cli.MustReadMessage())
+
+			var lobbyList []uint16
+			if tt.disk == GameDiskDC1 {
+				lobbyList = lobbyDC1
+			}
+			if tt.disk == GameDiskDC2 {
+				lobbyList = lobbyDC2
+			}
+			if tt.disk == GameDiskPS2 {
+				lobbyList = lobbyPS2
+			}
+
+			for _, lobbyID := range lobbyList {
+				cli.MustWriteMessage(
+					(&LbsMessage{Command: lbsPlazaJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess}).Writer().Write16(uint16(lobbyID)).Msg())
+
+				msg := cli.MustReadMessage()
+				if tt.disk == GameDiskPS2 {
+					AssertMsg(t, &LbsMessage{Command: lbsPlazaJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4}, msg)
+				}
+				if tt.disk == GameDiskDC1 || tt.disk == GameDiskDC2 {
+					AssertMsg(t, &LbsMessage{Command: lbsPlazaJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6}, msg)
+				}
+				assertEq(t, lobbyID, msg.Reader().Read16())
+
+				cli.MustWriteMessage(
+					(&LbsMessage{Command: lbsPlazaStatus, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess}).Writer().Write16(uint16(lobbyID)).Msg())
+
+				msg = cli.MustReadMessage()
+				AssertMsg(t, &LbsMessage{Command: lbsPlazaStatus, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 3}, msg)
+				assertEq(t, lobbyID, msg.Reader().Read16())
+
+				cli.MustWriteMessage(
+					(&LbsMessage{Command: lbsPlazaExplain, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess}).Writer().Write16(uint16(lobbyID)).Msg())
+				msg = cli.MustReadMessage()
+				AssertMsg(t, &LbsMessage{Command: lbsPlazaExplain, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess}, msg)
+			}
+		})
 	}
 }

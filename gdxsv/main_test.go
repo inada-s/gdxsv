@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"runtime/debug"
 	"testing"
 	"time"
 )
@@ -13,7 +14,7 @@ func must(tb testing.TB, err error) {
 	if err != nil {
 		pc, file, line, _ := runtime.Caller(1)
 		name := runtime.FuncForPC(pc).Name()
-		tb.Fatalf("In %s:%d %s\nerr:%vn", file, line, name, err)
+		tb.Errorf("In %s:%d %s\nerr:%vn", file, line, name, err)
 	}
 }
 
@@ -22,13 +23,16 @@ func assertEq(tb testing.TB, expected, actual interface{}) {
 	if !ok {
 		pc, file, line, _ := runtime.Caller(1)
 		name := runtime.FuncForPC(pc).Name()
-		tb.Fatalf("In %s:%d %s\nexpected: %#v \nactual: %#v\n", file, line, name, expected, actual)
+		tb.Errorf("In %s:%d %s\nexpected: %#v \nactual: %#v\n", file, line, name, expected, actual)
+		debug.PrintStack()
 	}
 }
 
 func TestMain(m *testing.M) {
 	_ = flag.Set("logtostderr", "true")
 	flag.Parse()
+
+	*loglevel = 2
 
 	prepareLogger()
 	prepareTestDB()
