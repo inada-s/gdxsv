@@ -338,7 +338,9 @@ func (lbs *Lbs) eventLoop() {
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
 			case eventPeerMessage:
-				args.peer.logger.Info("eventPeerMessage", zap.Any("msg", args.msg))
+				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
+					fmt.Println(args.msg)
+				}
 				if args.peer.left {
 					args.peer.logger.Warn("got message after left", zap.Any("msg", args.msg))
 					continue
@@ -351,7 +353,7 @@ func (lbs *Lbs) eventLoop() {
 					logger.Warn("handler not found",
 						zap.String("cmd", args.msg.Command.String()),
 						zap.String("cmd_id", fmt.Sprintf("0x%04x", uint16(args.msg.Command))),
-						zap.String("msg", args.msg.String()),
+						zap.String("msg", fmt.Sprint(args.msg)),
 						zap.Binary("body", args.msg.Body),
 					)
 					if args.msg.Category == CategoryQuestion {
@@ -745,10 +747,9 @@ func (p *LbsPeer) serve() {
 }
 
 func (p *LbsPeer) SendMessage(msg *LbsMessage) {
-	logger.Debug("lobby -> client",
-		zap.String("addr", p.Address()),
-		zap.Any("msg", msg),
-	)
+	if ce := p.logger.Check(zap.DebugLevel, ""); ce != nil {
+		fmt.Println(msg)
+	}
 
 	p.mOutbuf.Lock()
 	p.outbuf = append(p.outbuf, msg.Serialize()...)

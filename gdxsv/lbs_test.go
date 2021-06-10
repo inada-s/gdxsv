@@ -615,3 +615,114 @@ func Test100_LoginFlowNewUser(t *testing.T) {
 		}, msg)
 	}
 }
+
+func TestLbs_LobbyList(t *testing.T) {
+	lobbyDC1 := []uint16{2, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 22}
+	lobbyDC2 := []uint16{2, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22}
+	lobbyPS2 := []uint16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
+
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "console dc1",
+			platform: PlatformConsole,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "console dc2",
+			platform: PlatformConsole,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "console ps2",
+			platform: PlatformConsole,
+			disk:     GameDiskPS2,
+		},
+		{
+			name:     "emu dc1",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "emu ps2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskPS2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			cli, cancel := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel()
+
+			lbs.Locked(func(*Lbs) {
+				p := lbs.FindPeer(cli.UserID)
+				p.Platform = tt.platform
+				p.GameDisk = tt.disk
+			})
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsStartLobby, Direction: ClientToServer, Category: CategoryNotice, Seq: 0, Status: StatusSuccess})
+
+			AssertMsg(t,
+				&LbsMessage{Command: lbsStartLobby, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessage())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsPlazaMax, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+
+			AssertMsg(t,
+				&LbsMessage{Command: lbsPlazaMax, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0016")},
+				cli.MustReadMessage())
+
+			var lobbyList []uint16
+			if tt.disk == GameDiskDC1 {
+				lobbyList = lobbyDC1
+			}
+			if tt.disk == GameDiskDC2 {
+				lobbyList = lobbyDC2
+			}
+			if tt.disk == GameDiskPS2 {
+				lobbyList = lobbyPS2
+			}
+
+			for _, lobbyID := range lobbyList {
+				cli.MustWriteMessage(
+					(&LbsMessage{Command: lbsPlazaJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess}).Writer().Write16(uint16(lobbyID)).Msg())
+
+				msg := cli.MustReadMessage()
+				if tt.disk == GameDiskPS2 {
+					AssertMsg(t, &LbsMessage{Command: lbsPlazaJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4}, msg)
+				}
+				if tt.disk == GameDiskDC1 || tt.disk == GameDiskDC2 {
+					AssertMsg(t, &LbsMessage{Command: lbsPlazaJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6}, msg)
+				}
+				assertEq(t, lobbyID, msg.Reader().Read16())
+
+				cli.MustWriteMessage(
+					(&LbsMessage{Command: lbsPlazaStatus, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess}).Writer().Write16(uint16(lobbyID)).Msg())
+
+				msg = cli.MustReadMessage()
+				AssertMsg(t, &LbsMessage{Command: lbsPlazaStatus, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 3}, msg)
+				assertEq(t, lobbyID, msg.Reader().Read16())
+
+				cli.MustWriteMessage(
+					(&LbsMessage{Command: lbsPlazaExplain, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess}).Writer().Write16(uint16(lobbyID)).Msg())
+				msg = cli.MustReadMessage()
+				AssertMsg(t, &LbsMessage{Command: lbsPlazaExplain, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess}, msg)
+			}
+		})
+	}
+}
