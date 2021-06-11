@@ -640,6 +640,9 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
 
 	b := NewBattle(l.app, l.ID, &l.Rule, mcsRegion, mcsAddr)
+	if b == nil {
+		return
+	}
 
 	participants := l.pickLobbyBattleParticipants()
 
@@ -800,6 +803,9 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	zeonRoom.NotifyRoomEvent("", "START ROOM BATTLE")
 
 	b := NewBattle(l.app, l.ID, &l.Rule, mcsRegion, mcsAddr)
+	if b == nil {
+		return
+	}
 
 	for _, q := range participants {
 		b.Add(q)
