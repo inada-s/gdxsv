@@ -182,6 +182,7 @@ func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
 		}
 	}
 }
+
 func hexbytes(s string) []byte {
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -190,7 +191,7 @@ func hexbytes(s string) []byte {
 	return b
 }
 
-func prepareLoggedInUser(t *testing.T, lbs *Lbs, user DBUser) (*TestLbsClient, func()) {
+func prepareLoggedInUser(t *testing.T, lbs *Lbs, platform, disk string, user DBUser) (*TestLbsClient, func()) {
 	nw := NewPipeNetwork()
 	p := lbs.NewPeer(nw.Server)
 	go p.serve()
@@ -201,7 +202,8 @@ func prepareLoggedInUser(t *testing.T, lbs *Lbs, user DBUser) (*TestLbsClient, f
 	AssertMsg(t, &LbsMessage{Command: lbsAskConnectionID}, msg)
 
 	p.app.Locked(func(_ *Lbs) {
-		p.GameDisk = GameDiskDC2
+		p.Platform = platform
+		p.GameDisk = disk
 		p.DBUser = user
 		p.app.userPeers[p.UserID] = p
 		p.logger = p.logger.With(
@@ -233,16 +235,45 @@ func forceEnterLobby(t *testing.T, lbs *Lbs, cli *TestLbsClient, lobbyID uint16,
 	})
 }
 
+func forceEnterRoom(t *testing.T, lbs *Lbs, cli *TestLbsClient, roomID uint16) {
+	lbs.Locked(func(*Lbs) {
+		p := lbs.FindPeer(cli.UserID)
+		if p == nil {
+			t.Fatal("user not found", cli.DBUser)
+			return
+		}
+
+		if p.Lobby == nil {
+			t.Fatal("not in a lobby")
+			return
+		}
+
+		if p.Team == TeamNone {
+			t.Fatal("no team")
+			return
+		}
+
+		r := p.Lobby.FindRoom(p.Team, roomID)
+		if r == nil {
+			t.Fatal("no room", p.Lobby.ID, roomID)
+			return
+		}
+
+		r.Enter(&cli.DBUser)
+		p.Room = r
+	})
+}
+
 func TestLobbyChatSameLobby(t *testing.T) {
 	lbs := NewLbs()
 	defer lbs.Quit()
 	go lbs.eventLoop()
 
-	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+	user1, cancel1 := prepareLoggedInUser(t, lbs, PlatformConsole, GameDiskDC2, DBUser{UserID: "TEST01", Name: "NAME01"})
 	defer cancel1()
 	forceEnterLobby(t, lbs, user1, 1, TeamRenpo)
 
-	user2, cancel2 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST02", Name: "NAME02"})
+	user2, cancel2 := prepareLoggedInUser(t, lbs, PlatformConsole, GameDiskDC2, DBUser{UserID: "TEST02", Name: "NAME02"})
 	defer cancel2()
 	forceEnterLobby(t, lbs, user2, 1, TeamRenpo)
 
@@ -271,7 +302,7 @@ func TestLbs_RegisterBattleResult(t *testing.T) {
 	defer lbs.Quit()
 	go lbs.eventLoop()
 
-	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{
+	user1, cancel1 := prepareLoggedInUser(t, lbs, PlatformConsole, GameDiskDC2, DBUser{
 		UserID: "TEST01",
 		Name:   "NAME01",
 	})
@@ -333,11 +364,12 @@ func TestLbs_PlatformInfo(t *testing.T) {
 	defer lbs.Quit()
 	go lbs.eventLoop()
 
-	user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{
+	user1, cancel1 := prepareLoggedInUser(t, lbs, "", "", DBUser{
 		UserID: "TEST01",
 		Name:   "NAME01",
 	})
 	defer cancel1()
+
 	user1.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteString(`\
 asia-east1=36
 asia-east2=61
@@ -376,7 +408,6 @@ maxlag=8
 	called := false
 	lbs.Locked(func(*Lbs) {
 		p := lbs.FindPeer(user1.UserID)
-		assertEq(t, GameDiskDC2, p.GameDisk)
 		assertEq(t, PlatformEmuX8664, p.Platform)
 		assertEq(t, "asia-northeast1", p.bestRegion)
 		called = true
@@ -687,7 +718,7 @@ func TestLbs_LobbyListFlow(t *testing.T) {
 			defer lbs.Quit()
 			go lbs.eventLoop()
 
-			cli, cancel := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			cli, cancel := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
 			defer cancel()
 
 			lbs.Locked(func(*Lbs) {
@@ -794,14 +825,8 @@ func TestLbs_LobbyEnterFlow(t *testing.T) {
 			defer lbs.Quit()
 			go lbs.eventLoop()
 
-			cli, cancel := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			cli, cancel := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
 			defer cancel()
-
-			lbs.Locked(func(*Lbs) {
-				p := lbs.FindPeer(cli.UserID)
-				p.Platform = tt.platform
-				p.GameDisk = tt.disk
-			})
 
 			// Select a lobby
 			cli.MustWriteMessage(
@@ -959,16 +984,16 @@ func TestLbs_LobbyMatchingFlow(t *testing.T) {
 			defer lbs.Quit()
 			go lbs.eventLoop()
 
-			user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			user1, cancel1 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
 			defer cancel1()
 
-			user2, cancel2 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST02", Name: "NAME02"})
+			user2, cancel2 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST02", Name: "NAME02"})
 			defer cancel2()
 
-			user3, cancel3 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST03", Name: "NAME03"})
+			user3, cancel3 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST03", Name: "NAME03"})
 			defer cancel3()
 
-			user4, cancel4 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST04", Name: "NAME04"})
+			user4, cancel4 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST04", Name: "NAME04"})
 			defer cancel4()
 
 			forceEnterLobby(t, lbs, user1, lobbyID, TeamRenpo)
@@ -1046,6 +1071,97 @@ func TestLbs_LobbyMatchingFlow(t *testing.T) {
 
 				cli.MustWriteMessage(
 					&LbsMessage{Command: lbsLogout, Direction: ClientToServer, Category: CategoryNotice, Seq: 0, Status: StatusSuccess})
+			}
+		})
+	}
+}
+
+func TestLbs_RoomMatchingFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "console dc1",
+			platform: PlatformConsole,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "console dc2",
+			platform: PlatformConsole,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "console ps2",
+			platform: PlatformConsole,
+			disk:     GameDiskPS2,
+		},
+		{
+			name:     "emu dc1",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "emu ps2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskPS2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf.BattlePublicAddr = "192.168.1.10:9877"
+			lobbyID := uint16(2)
+
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			user1, cancel1 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel1()
+
+			user2, cancel2 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST02", Name: "NAME02"})
+			defer cancel2()
+
+			user3, cancel3 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST03", Name: "NAME03"})
+			defer cancel3()
+
+			user4, cancel4 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST04", Name: "NAME04"})
+			defer cancel4()
+
+			forceEnterLobby(t, lbs, user1, lobbyID, TeamRenpo)
+			forceEnterLobby(t, lbs, user2, lobbyID, TeamRenpo)
+			forceEnterLobby(t, lbs, user3, lobbyID, TeamZeon)
+			forceEnterLobby(t, lbs, user4, lobbyID, TeamZeon)
+
+			forceEnterRoom(t, lbs, user1, 1)
+			forceEnterRoom(t, lbs, user2, 1)
+			forceEnterRoom(t, lbs, user3, 1)
+			forceEnterRoom(t, lbs, user4, 1)
+
+			clients := []*TestLbsClient{user1, user2, user3, user4}
+
+			for _, cli := range clients {
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsMatchingEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("01")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsMatchingEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			// Receive lbsReadyBattle
+			for _, cli := range clients {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsReadyBattle, Direction: ServerToClient, Category: CategoryNotice, Status: StatusSuccess},
+					cli.MustReadMessageSkipNoticeUntil(lbsReadyBattle))
+
+				// Skip subsequent flow because it is the same as Lobby.
 			}
 		})
 	}

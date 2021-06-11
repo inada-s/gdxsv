@@ -133,9 +133,9 @@ func (r *LbsRoom) NotifyRoomEvent(kind string, text string) {
 		WriteString("").
 		WriteString("").
 		WriteString(msgBody).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 	for _, u := range r.Users {
 		peer := r.app.FindPeer(u.UserID)
