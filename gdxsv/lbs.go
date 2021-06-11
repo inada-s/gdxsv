@@ -257,7 +257,7 @@ func (lbs *Lbs) Quit() {
 			SendServerShutDown(p)
 		}
 	})
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	close(lbs.chQuit)
 }
 

@@ -175,6 +175,7 @@ func ReadLbsMessage(r io.Reader, m *LbsMessage) error {
 	}
 
 	if m.BodySize == 0 {
+		m.Body = nil
 		return nil
 	}
 
