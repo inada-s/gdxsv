@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"go.uber.org/zap"
 	"io"
 	"net"
@@ -126,6 +127,17 @@ func (c *TestLbsClient) MustReadMessageSkipNotice() *LbsMessage {
 		err := ReadLbsMessage(c.conn.Reader, msg)
 		must(c.t, err)
 		if msg.Category != CategoryNotice {
+			return msg
+		}
+	}
+}
+
+func (c *TestLbsClient) MustReadMessageSkipNoticeUntil(cmd CmdID) *LbsMessage {
+	msg := new(LbsMessage)
+	for {
+		err := ReadLbsMessage(c.conn.Reader, msg)
+		must(c.t, err)
+		if msg.Command == cmd {
 			return msg
 		}
 	}
@@ -895,6 +907,146 @@ func TestLbs_LobbyEnterFlow(t *testing.T) {
 			AssertMsg(t,
 				&LbsMessage{Command: lbsPlazaExit, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
 				cli.MustReadMessageSkipNotice())
+		})
+	}
+}
+
+func TestLbs_LobbyMatchingFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "console dc1",
+			platform: PlatformConsole,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "console dc2",
+			platform: PlatformConsole,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "console ps2",
+			platform: PlatformConsole,
+			disk:     GameDiskPS2,
+		},
+		{
+			name:     "emu dc1",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "emu ps2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskPS2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf.BattlePublicAddr = "192.168.1.10:9877"
+			hexBattlePublicAddr := "0004c0a8010a00022695"
+			lobbyID := uint16(2)
+
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			user1, cancel1 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel1()
+
+			user2, cancel2 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST02", Name: "NAME02"})
+			defer cancel2()
+
+			user3, cancel3 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST03", Name: "NAME03"})
+			defer cancel3()
+
+			user4, cancel4 := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST04", Name: "NAME04"})
+			defer cancel4()
+
+			forceEnterLobby(t, lbs, user1, lobbyID, TeamRenpo)
+			forceEnterLobby(t, lbs, user2, lobbyID, TeamRenpo)
+			forceEnterLobby(t, lbs, user3, lobbyID, TeamZeon)
+			forceEnterLobby(t, lbs, user4, lobbyID, TeamZeon)
+
+			lbs.Locked(func(*Lbs) {
+				lobby := lbs.GetLobby(tt.platform, tt.disk, lobbyID)
+				lobby.LobbySetting.TeamShuffle = false
+			})
+
+			clients := []*TestLbsClient{user1, user2, user3, user4}
+
+			// Entry
+			for _, cli := range clients {
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsLobbyMatchingEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("01")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyMatchingEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			// Receive lbsReadyBattle
+			for _, cli := range clients {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsReadyBattle, Direction: ServerToClient, Category: CategoryNotice, Status: StatusSuccess},
+					cli.MustReadMessageSkipNoticeUntil(lbsReadyBattle))
+			}
+
+			// Ask Match information
+			for i, cli := range clients {
+				myPos := fmt.Sprintf("%02d", i+1)
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsAskPlayerSide, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsAskPlayerSide, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes(myPos)},
+					cli.MustReadMessageSkipNotice())
+
+				for j := 0; j < len(clients); j++ {
+					askPos := fmt.Sprintf("%02d", i+1)
+					cli.MustWriteMessage(
+						&LbsMessage{Command: lbsAskPlayerInfo, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes(askPos)})
+					AssertMsg(t,
+						&LbsMessage{Command: lbsAskPlayerInfo, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+						cli.MustReadMessageSkipNotice())
+					// TODO: check body
+				}
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsAskRuleData, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsAskRuleData, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 39},
+					cli.MustReadMessageSkipNotice())
+				// TODO: check body
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsAskBattleCode, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsAskBattleCode, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+				// TODO: check body
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsAskMcsVersion, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsAskMcsVersion, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("0a")},
+					cli.MustReadMessageSkipNotice())
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsAskMcsAddress, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsAskMcsAddress, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 10, Body: hexbytes(hexBattlePublicAddr)},
+					cli.MustReadMessageSkipNotice())
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsLogout, Direction: ClientToServer, Category: CategoryNotice, Seq: 0, Status: StatusSuccess})
+			}
 		})
 	}
 }
