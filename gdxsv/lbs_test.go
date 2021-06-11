@@ -120,6 +120,17 @@ func (c *TestLbsClient) MustReadMessage() *LbsMessage {
 	return msg
 }
 
+func (c *TestLbsClient) MustReadMessageSkipNotice() *LbsMessage {
+	msg := new(LbsMessage)
+	for {
+		err := ReadLbsMessage(c.conn.Reader, msg)
+		must(c.t, err)
+		if msg.Category != CategoryNotice {
+			return msg
+		}
+	}
+}
+
 func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
 	if 0 < expected.Direction {
 		if expected.Direction != actual.Direction {
@@ -138,7 +149,7 @@ func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
 	}
 	if 0 < expected.BodySize {
 		if expected.BodySize != actual.BodySize {
-			t.Fatal("command", expected, actual)
+			t.Fatal("bodysize", expected, actual)
 		}
 	}
 	if 0 < expected.Seq {
@@ -361,7 +372,7 @@ maxlag=8
 	assertEq(t, true, called)
 }
 
-func Test100_LoginFlowNewUser(t *testing.T) {
+func Test_LoginFlowNewUser(t *testing.T) {
 	nw := NewPipeNetwork()
 	defer nw.Close()
 
@@ -616,7 +627,7 @@ func Test100_LoginFlowNewUser(t *testing.T) {
 	}
 }
 
-func TestLbs_LobbyList(t *testing.T) {
+func TestLbs_LobbyListFlow(t *testing.T) {
 	lobbyDC1 := []uint16{2, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 22}
 	lobbyDC2 := []uint16{2, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22}
 	lobbyPS2 := []uint16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
@@ -723,6 +734,167 @@ func TestLbs_LobbyList(t *testing.T) {
 				msg = cli.MustReadMessage()
 				AssertMsg(t, &LbsMessage{Command: lbsPlazaExplain, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess}, msg)
 			}
+		})
+	}
+}
+
+func TestLbs_LobbyEnterFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "console dc1",
+			platform: PlatformConsole,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "console dc2",
+			platform: PlatformConsole,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "console ps2",
+			platform: PlatformConsole,
+			disk:     GameDiskPS2,
+		},
+		{
+			name:     "emu dc1",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "emu ps2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskPS2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			cli, cancel := prepareLoggedInUser(t, lbs, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel()
+
+			lbs.Locked(func(*Lbs) {
+				p := lbs.FindPeer(cli.UserID)
+				p.Platform = tt.platform
+				p.GameDisk = tt.disk
+			})
+
+			// Select a lobby
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsPlazaEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0002")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsPlazaEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			// Team select scene of the lobby
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
+			if tt.disk == GameDiskPS2 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00010000")},
+					cli.MustReadMessageSkipNotice())
+			} else {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000100000000")},
+					cli.MustReadMessageSkipNotice())
+			}
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0002")})
+			if tt.disk == GameDiskPS2 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00020000")},
+					cli.MustReadMessageSkipNotice())
+			} else {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000200000000")},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			// Decide a team
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsLobbyEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			// In lobby chat
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
+			if tt.disk == GameDiskPS2 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00010001")},
+					cli.MustReadMessageSkipNotice())
+			} else if tt.disk == GameDiskDC1 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000100010000")},
+					cli.MustReadMessageSkipNotice())
+			} else if tt.disk == GameDiskDC2 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000100000001")},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyMatchingJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsLobbyMatchingJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00010000")},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyMatchingJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0002")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsLobbyMatchingJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00020000")},
+				cli.MustReadMessageSkipNotice())
+
+			// Exit lobby chat and move to team select scene
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyExit, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsLobbyExit, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			// Team select scene
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
+			if tt.disk == GameDiskPS2 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00010000")},
+					cli.MustReadMessageSkipNotice())
+			} else {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000100000000")},
+					cli.MustReadMessageSkipNotice())
+			}
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsLobbyJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0002")})
+			if tt.disk == GameDiskPS2 {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00020000")},
+					cli.MustReadMessageSkipNotice())
+			} else {
+				AssertMsg(t,
+					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000200000000")},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			// Exit the lobby
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsPlazaExit, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsPlazaExit, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
 		})
 	}
 }
