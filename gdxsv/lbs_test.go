@@ -936,6 +936,210 @@ func TestLbs_LobbyEnterFlow(t *testing.T) {
 	}
 }
 
+func TestLbs_RoomEnterFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "console dc1",
+			platform: PlatformConsole,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "console dc2",
+			platform: PlatformConsole,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "console ps2",
+			platform: PlatformConsole,
+			disk:     GameDiskPS2,
+		},
+		{
+			name:     "emu dc1",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC1,
+		},
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+		{
+			name:     "emu ps2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskPS2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			user1, cancel1 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel1()
+
+			user2, cancel2 := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST02", Name: "NAME02"})
+			defer cancel2()
+
+			lobbyID := uint16(2)
+			roomCount := fmt.Sprintf("%04d", maxRoomCount)
+
+			forceEnterLobby(t, lbs, user1, lobbyID, TeamRenpo)
+			forceEnterLobby(t, lbs, user2, lobbyID, TeamRenpo)
+
+			{
+				cli := user1
+
+				// Get room list
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsRoomMax, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsRoomMax, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes(roomCount)},
+					cli.MustReadMessageSkipNotice())
+
+				for i := 0; i < maxRoomCount; i++ {
+					roomID := fmt.Sprintf("%04d", i+1)
+					roomStatus := fmt.Sprintf("%02d", RoomStateEmpty)
+
+					cli.MustWriteMessage(
+						&LbsMessage{Command: lbsRoomStatus, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes(roomID)})
+					AssertMsg(t,
+						&LbsMessage{Command: lbsRoomStatus, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 3, Body: hexbytes(roomID + roomStatus)},
+						cli.MustReadMessageSkipNotice())
+
+					cli.MustWriteMessage(
+						&LbsMessage{Command: lbsRoomTitle, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes(roomID)})
+					AssertMsg(t,
+						&LbsMessage{Command: lbsRoomTitle, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes(roomID + "0000")},
+						cli.MustReadMessageSkipNotice())
+				}
+
+				// Create room on roomID = 1
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsRoomCreate, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsRoomCreate, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+
+				// Put room name (= User name)
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsPutRoomName, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess,
+						BodySize: 24, Body: hexbytes("001647465a4f484682a082a082a082a082a082a082a082a0")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsPutRoomName, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsEndRoomCreate, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsEndRoomCreate, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+
+				// Start waiting for other player's join
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsWaitJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsWaitJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			{
+				cli := user2
+
+				// Get room list
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsRoomMax, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsRoomMax, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes(roomCount)},
+					cli.MustReadMessageSkipNotice())
+
+				for i := 0; i < maxRoomCount; i++ {
+					roomID := fmt.Sprintf("%04d", i+1)
+					roomStatus := fmt.Sprintf("%02d", RoomStateEmpty)
+					roomName := "0000"
+					if i == 0 {
+						roomStatus = fmt.Sprintf("%02d", RoomStateRecruiting)
+						roomName = "001647465a4f484682a082a082a082a082a082a082a082a0"
+					}
+
+					cli.MustWriteMessage(
+						&LbsMessage{Command: lbsRoomStatus, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes(roomID)})
+					AssertMsg(t,
+						&LbsMessage{Command: lbsRoomStatus, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 3, Body: hexbytes(roomID + roomStatus)},
+						cli.MustReadMessageSkipNotice())
+
+					cli.MustWriteMessage(
+						&LbsMessage{Command: lbsRoomTitle, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes(roomID)})
+					AssertMsg(t,
+						&LbsMessage{Command: lbsRoomTitle, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, Body: hexbytes(roomID + roomName)},
+						cli.MustReadMessageSkipNotice())
+				}
+			}
+
+			// Enter the room
+			user2.MustWriteMessage(
+				&LbsMessage{Command: lbsRoomEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00010000")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsRoomEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				user2.MustReadMessageSkipNotice())
+
+			// User1 Receive the notification
+			AssertMsg(t,
+				&LbsMessage{Command: lbsRoomCommer}, // TODO: Check body
+				user1.MustReadMessageSkipNoticeUntil(lbsRoomCommer))
+
+			for _, cli := range []*TestLbsClient{user1, user2} {
+				// I'm ready to battle
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsMatchingEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("01")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsMatchingEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+					cli.MustReadMessageSkipNotice())
+
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsWaitJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsWaitJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0002")},
+					cli.MustReadMessageSkipNotice())
+			}
+
+			// user2 leaves the room
+			user2.MustWriteMessage(
+				&LbsMessage{Command: lbsMatchingEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsMatchingEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				user2.MustReadMessageSkipNotice())
+
+			// user1 know user2 have been left the room
+			AssertMsg(t,
+				&LbsMessage{Command: lbsWaitJoin, Direction: ServerToClient, Category: CategoryNotice, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")},
+				user1.MustReadMessageSkipNoticeUntil(lbsWaitJoin))
+			AssertMsg(t,
+				&LbsMessage{Command: lbsRoomLeaver, Direction: ServerToClient, Category: CategoryNotice, Status: StatusSuccess}, // TODO: check body
+				user1.MustReadMessageSkipNoticeUntil(lbsRoomLeaver))
+
+			// I'm not ready to battle
+			user1.MustWriteMessage(
+				&LbsMessage{Command: lbsMatchingEntry, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsMatchingEntry, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				user1.MustReadMessageSkipNotice())
+
+			// user1 leaves the room
+			user1.MustWriteMessage(
+				&LbsMessage{Command: lbsRoomExit, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsRoomExit, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				user1.MustReadMessageSkipNotice())
+		})
+	}
+}
+
 func TestLbs_LobbyMatchingFlow(t *testing.T) {
 	tests := []struct {
 		name     string
