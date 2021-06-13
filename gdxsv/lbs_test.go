@@ -1464,6 +1464,8 @@ func TestLbs_RankingListFlow(t *testing.T) {
 			_, err := getDB().(SQLiteDB).Exec(`DELETE FROM user`)
 			must(t, err)
 
+			getDB().(SQLiteDB).SQLiteCache.deleteRankingCache()
+
 			mustInsertDBUser(DBUser{UserID: "RANK01", Name: "USER01", WinCount: 1000})
 			mustInsertDBUser(DBUser{UserID: "RANK02", Name: "USER02", WinCount: 900})
 			mustInsertDBUser(DBUser{UserID: "RANK03", Name: "USER03", WinCount: 800})
