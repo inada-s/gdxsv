@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"go.uber.org/zap"
 	"io"
 	"net"
+	"runtime/debug"
 	"testing"
 	"time"
 )
@@ -109,38 +111,108 @@ type TestLbsClient struct {
 	conn *PipeConn
 }
 
+var errTimeout = fmt.Errorf("timeout")
+
+func writeMessageWithTimeout(writer io.Writer, message *LbsMessage, duration time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	var err error
+	go func() {
+		defer cancel()
+		err = WriteLbsMessage(writer, message)
+	}()
+
+	<-ctx.Done()
+
+	if err != nil {
+		return err
+	}
+
+	if ctx.Err() == nil {
+		return nil
+	}
+
+	if ctx.Err() == context.Canceled {
+		return nil
+	}
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return errTimeout
+	}
+
+	return ctx.Err()
+}
+
+func readMessageWithTimeout(reader io.Reader, message *LbsMessage, duration time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	var err error
+	go func() {
+		defer cancel()
+		err = ReadLbsMessage(reader, message)
+	}()
+
+	<-ctx.Done()
+
+	if err != nil {
+		return err
+	}
+
+	if ctx.Err() == nil {
+		return nil
+	}
+
+	if ctx.Err() == context.Canceled {
+		return nil
+	}
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return errTimeout
+	}
+
+	return ctx.Err()
+}
+
 func (c *TestLbsClient) MustWriteMessage(message *LbsMessage) {
-	err := WriteLbsMessage(c.conn.Writer, message)
-	must(c.t, err)
+	must(c.t, writeMessageWithTimeout(c.conn, message, 5*time.Second))
 }
 
 func (c *TestLbsClient) MustReadMessage() *LbsMessage {
 	msg := new(LbsMessage)
-	err := ReadLbsMessage(c.conn.Reader, msg)
-	must(c.t, err)
+	must(c.t, readMessageWithTimeout(c.conn, msg, 5*time.Second))
 	return msg
 }
 
 func (c *TestLbsClient) MustReadMessageSkipNotice() *LbsMessage {
 	msg := new(LbsMessage)
-	for {
-		err := ReadLbsMessage(c.conn.Reader, msg)
-		must(c.t, err)
+	deadline := time.Now().Add(5 * time.Second)
+
+	for 0 < time.Until(deadline) {
+		must(c.t, readMessageWithTimeout(c.conn, msg, 5*time.Second))
 		if msg.Category != CategoryNotice {
 			return msg
 		}
 	}
+
+	c.t.Fatal("MustReadMessageSkipNotice timed out:", string(debug.Stack()))
+	return nil
 }
 
 func (c *TestLbsClient) MustReadMessageSkipNoticeUntil(cmd CmdID) *LbsMessage {
 	msg := new(LbsMessage)
-	for {
-		err := ReadLbsMessage(c.conn.Reader, msg)
-		must(c.t, err)
+	deadline := time.Now().Add(5 * time.Second)
+
+	for 0 < time.Until(deadline) {
+		must(c.t, readMessageWithTimeout(c.conn, msg, 5*time.Second))
 		if msg.Command == cmd {
 			return msg
 		}
 	}
+
+	c.t.Fatal("MustReadMessageSkipNoticeUntil timed out:", string(debug.Stack()))
+	return nil
 }
 
 func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
@@ -432,18 +504,17 @@ func Test_LoginFlowNewUser(t *testing.T) {
 
 	// Connection ID exchange
 	{
-		msg = cli.MustReadMessage()
-		AssertMsg(t, &LbsMessage{
-			Command: lbsAskConnectionID,
-		}, msg)
 
+		msg = cli.MustReadMessage()
+		AssertMsg(t,
+			&LbsMessage{Command: lbsAskConnectionID},
+			msg)
 		cli.MustWriteMessage(NewClientAnswer(msg).Writer().WriteBytes(hexbytes("0000000000000000")).Msg())
 
 		msg = cli.MustReadMessage()
-		AssertMsg(t, &LbsMessage{
-			Command: lbsConnectionID,
-		}, msg)
-
+		AssertMsg(t,
+			&LbsMessage{Command: lbsConnectionID},
+			msg)
 		connectionID := msg.Reader().ReadString()
 		if connectionID == "" {
 			t.Fatal(msg)
@@ -454,16 +525,13 @@ func Test_LoginFlowNewUser(t *testing.T) {
 
 	// Regulation text requests
 	{
-		msg = cli.MustReadMessage()
-		AssertMsg(t, &LbsMessage{
-			Command: lbsWarningMessage,
-		}, msg)
+		AssertMsg(t,
+			&LbsMessage{Command: lbsWarningMessage},
+			cli.MustReadMessage())
 
 		cli.MustWriteMessage(NewClientQuestion(lbsRegulationHeader).Writer().WriteBytes(hexbytes("31303030")).Msg())
 		msg = cli.MustReadMessage()
-		AssertMsg(t, &LbsMessage{
-			Command: lbsRegulationHeader,
-		}, msg)
+		AssertMsg(t, &LbsMessage{Command: lbsRegulationHeader}, msg)
 		r := msg.Reader()
 		if r.ReadString() == "" {
 			t.Fatal(msg)
