@@ -218,39 +218,46 @@ func (c *TestLbsClient) MustReadMessageSkipNoticeUntil(cmd CmdID) *LbsMessage {
 func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
 	if 0 < expected.Direction {
 		if expected.Direction != actual.Direction {
-			t.Fatal("direction", expected, actual)
+			t.Error("Direction")
+			assertEq(t, expected, actual)
 		}
 	}
 	if 0 < expected.Category {
 		if expected.Category != actual.Category {
-			t.Fatal("category", expected, actual)
+			t.Error("Category")
+			assertEq(t, expected, actual)
 		}
 	}
 	if 0 < expected.Command {
 		if expected.Command != actual.Command {
-			t.Fatal("command", expected, actual)
+			t.Error("Command")
+			assertEq(t, expected, actual)
 		}
 	}
 	if 0 < expected.BodySize {
 		if expected.BodySize != actual.BodySize {
-			t.Fatal("bodysize", expected, actual)
+			t.Error("BodySize")
+			assertEq(t, expected, actual)
 		}
 	}
 	if 0 < expected.Seq {
 		if expected.Seq != actual.Seq {
-			t.Fatal("seq", expected, actual)
+			t.Error("Seq")
+			assertEq(t, expected, actual)
 		}
 	}
 	if 0 < expected.Status {
 		if expected.Status != actual.Status {
-			t.Fatal("status", expected, actual)
+			t.Error("Status")
+			assertEq(t, expected, actual)
 		}
 	}
 	if 0 < len(expected.Body) {
 		a := hex.EncodeToString(expected.Body)
 		b := hex.EncodeToString(actual.Body)
 		if a != b {
-			t.Fatal("body", expected, actual)
+			t.Error("Body")
+			assertEq(t, expected, actual)
 		}
 	}
 }
@@ -788,12 +795,6 @@ func TestLbs_LobbyListFlow(t *testing.T) {
 
 			cli, cancel := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
 			defer cancel()
-
-			lbs.Locked(func(*Lbs) {
-				p := lbs.FindPeer(cli.UserID)
-				p.Platform = tt.platform
-				p.GameDisk = tt.disk
-			})
 
 			cli.MustWriteMessage(
 				&LbsMessage{Command: lbsStartLobby, Direction: ClientToServer, Category: CategoryNotice, Seq: 0, Status: StatusSuccess})
@@ -1441,6 +1442,87 @@ func TestLbs_RoomMatchingFlow(t *testing.T) {
 
 				// Skip subsequent flow because it is the same as Lobby.
 			}
+		})
+	}
+}
+
+func TestLbs_RankingListFlow(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		disk     string
+	}{
+		{
+			name:     "emu dc2",
+			platform: PlatformEmuX8664,
+			disk:     GameDiskDC2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := getDB().(SQLiteDB).Exec(`DELETE FROM user`)
+			must(t, err)
+
+			mustInsertDBUser(DBUser{UserID: "RANK01", Name: "USER01", WinCount: 1000})
+			mustInsertDBUser(DBUser{UserID: "RANK02", Name: "USER02", WinCount: 900})
+			mustInsertDBUser(DBUser{UserID: "RANK03", Name: "USER03", WinCount: 800})
+			mustInsertDBUser(DBUser{UserID: "RANK04", Name: "USER04", WinCount: 700})
+			mustInsertDBUser(DBUser{UserID: "RANK05", Name: "USER05", WinCount: 600})
+			mustInsertDBUser(DBUser{UserID: "RANK06", Name: "USER06", WinCount: 500})
+			mustInsertDBUser(DBUser{UserID: "RANK07", Name: "USER07", WinCount: 400})
+			mustInsertDBUser(DBUser{UserID: "RANK08", Name: "USER08", WinCount: 300})
+			mustInsertDBUser(DBUser{UserID: "RANK09", Name: "USER09", WinCount: 200})
+			mustInsertDBUser(DBUser{UserID: "RANK10", Name: "USER10", WinCount: 100})
+
+			lbs := NewLbs()
+			defer lbs.Quit()
+			go lbs.eventLoop()
+
+			cli, cancel := prepareLoggedInUser(t, lbs, tt.platform, tt.disk, DBUser{UserID: "TEST01", Name: "NAME01"})
+			defer cancel()
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsTopRankingSuu, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsTopRankingSuu, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("000a")},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsWinLose, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsWinLose, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 18},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsTopRanking, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 5, Body: hexbytes("0000010001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsTopRanking, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsTopRanking, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 5, Body: hexbytes("0000020001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsTopRanking, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsTopRanking, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 5, Body: hexbytes("0000030001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsTopRanking, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsTopRanking, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 5, Body: hexbytes("0000040001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsTopRanking, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
+
+			cli.MustWriteMessage(
+				&LbsMessage{Command: lbsTopRanking, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 5, Body: hexbytes("0000050001")})
+			AssertMsg(t,
+				&LbsMessage{Command: lbsTopRanking, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
+				cli.MustReadMessageSkipNotice())
 		})
 	}
 }
