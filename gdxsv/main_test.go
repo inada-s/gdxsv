@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"reflect"
-	"runtime"
 	"runtime/debug"
 	"testing"
 	"time"
@@ -12,19 +11,14 @@ import (
 
 func must(tb testing.TB, err error) {
 	if err != nil {
-		pc, file, line, _ := runtime.Caller(1)
-		name := runtime.FuncForPC(pc).Name()
-		tb.Errorf("In %s:%d %s\nerr:%vn", file, line, name, err)
+		tb.Fatal("err:", err, string(debug.Stack()))
 	}
 }
 
 func assertEq(tb testing.TB, expected, actual interface{}) {
 	ok := reflect.DeepEqual(expected, actual)
 	if !ok {
-		pc, file, line, _ := runtime.Caller(1)
-		name := runtime.FuncForPC(pc).Name()
-		tb.Errorf("In %s:%d %s\nexpected: %#v \nactual: %#v\n", file, line, name, expected, actual)
-		debug.PrintStack()
+		tb.Fatalf("assertEq failed.\n expected: %#v\n actual:  %#v\n%s", expected, actual, string(debug.Stack()))
 	}
 }
 
