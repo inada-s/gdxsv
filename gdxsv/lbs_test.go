@@ -1298,6 +1298,12 @@ func TestLbs_LobbyMatchingFlow(t *testing.T) {
 
 			// Ask Match information
 			for i, cli := range clients {
+				cli.MustWriteMessage(
+					&LbsMessage{Command: lbsAskMatchingJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
+				AssertMsg(t,
+					&LbsMessage{Command: lbsAskMatchingJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("04")},
+					cli.MustReadMessageSkipNotice())
+
 				myPos := fmt.Sprintf("%02d", i+1)
 				cli.MustWriteMessage(
 					&LbsMessage{Command: lbsAskPlayerSide, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes("00")})
