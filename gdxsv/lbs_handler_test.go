@@ -7,40 +7,40 @@ func Test_isOldFlycastVersion(t *testing.T) {
 		userVersion string
 	}
 	tests := []struct {
-		name string
+		name            string
 		requiredVersion string
-		args args
-		want bool
+		args            args
+		want            bool
 	}{
 		{
-			name: "same version ok",
+			name:            "same version ok",
 			requiredVersion: "v0.7.0",
-			args: args{userVersion: "v0.7.0"},
-			want: false,
+			args:            args{userVersion: "v0.7.0"},
+			want:            false,
 		},
 		{
-			name: "old version ng",
+			name:            "old version ng",
 			requiredVersion: "v0.7.0",
-			args: args{userVersion: "v0.6.9"},
-			want: true,
+			args:            args{userVersion: "v0.6.9"},
+			want:            true,
 		},
 		{
-			name: "new version ok",
+			name:            "new version ok",
 			requiredVersion: "v0.7.0",
-			args: args{userVersion: "v9.9.9"},
-			want: false,
+			args:            args{userVersion: "v9.9.9"},
+			want:            false,
 		},
 		{
-			name: "gdxsv prefix version ok",
+			name:            "gdxsv prefix version ok",
 			requiredVersion: "v0.7.0",
-			args: args{userVersion: "gdxsv-0.7.0"},
-			want: false,
+			args:            args{userVersion: "gdxsv-0.7.0"},
+			want:            false,
 		},
 		{
-			name: "gdxsv prefix version ng",
+			name:            "gdxsv prefix version ng",
 			requiredVersion: "v0.7.0",
-			args: args{userVersion: "gdxsv-0.6.9"},
-			want: true,
+			args:            args{userVersion: "gdxsv-0.6.9"},
+			want:            true,
 		},
 	}
 

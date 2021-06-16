@@ -9,16 +9,15 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"golang.org/x/mod/semver"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/width"
 	"hash/fnv"
 	"io/ioutil"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
-
-	"golang.org/x/text/encoding/japanese"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/width"
 )
 
 type LbsHandler func(*LbsPeer, *LbsMessage)
@@ -1274,9 +1273,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1303,9 +1302,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0). // chat_type
-				Write8(0). // id color
-				Write8(0). // handle color
+				Write8(0).      // chat_type
+				Write8(0).      // id color
+				Write8(0).      // handle color
 				Write8(0).Msg() // msg color
 		}
 
