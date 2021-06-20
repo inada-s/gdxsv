@@ -124,6 +124,8 @@ const forResponse = (vm) => {
         v.name = vm.name;
         v.zone = vm.metadata.zone;
         v.created = vm.metadata.creationTimestamp;
+        v.laststart = vm.metadata.lastStartTimestamp;
+        v.laststop = vm.metadata.lastStopTimestamp;
         v.status = vm.metadata.status;
         v.tags = vm.metadata.tags.items;
         v.nat_ip = vm.metadata.networkInterfaces[0].accessConfigs[0].natIP;
@@ -151,8 +153,14 @@ async function getList(req, res) {
     res.send(JSON.stringify(vmlist, null, "  "));
 }
 
-async function getDeleteAll(req, res) {
-    const compute = new Compute();
+let removeOldVMs_lastCheckTime;
+async function removeOldVMs(compute) {
+    if (removeOldVMs_lastCheckTime) {
+        const elapsedms = Date.now() - removeOldVMs_lastCheckTime;
+        if (elapsedms/1000 < 3600) return;
+    }
+
+    removeOldVMs_lastCheckTime = Date.now();
 
     const [vms] = await compute.getVMs({
         autoPaginate: false,
@@ -160,33 +168,33 @@ async function getDeleteAll(req, res) {
         filter: "name eq gdxsv-mcs.*",
     });
 
-    const vmlist = [];
-    const deletes = [];
-    for (let vm of vms) {
-        const [operation] = await vm.delete()
-        deletes.push(operation.promise);
-        vmlist.push(forResponse(vm));
+    for (let vm of vms.filter(vm => vm.metadata.status === "TERMINATED")) {
+        if (vm.metadata.lastStartTimestamp) {
+            const elapsedms = Date.now() - Date.parse(vm.metadata.lastStartTimestamp);
+            // 5 days unused.
+            if (3600 * 24 * 5 < elapsedms/1000) {
+                console.log(vm.name, "is going to be removed");
+                await vm.delete()
+            }
+        }
     }
-    await Promise.all(deletes);
-
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(vmlist, null, "  "));
 }
 
 
 async function getAlloc(req, res) {
     const compute = new Compute();
     const query = url.parse(req.url, true).query
-
     const region = query["region"];
     const version = query["version"] ? query["version"] : "latest";
     const regionInfo = gcpRegions[region];
-    const vmName = "gdxsv-mcs-" + region + "-" + version.replace(/\./g, "-")
+    const vmName = "gdxsv-mcs-" + region + "-" + version.replace(/\./g, "-");
 
     if (!regionInfo) {
         res.status(400).send('invalid region');
         return;
     }
+
+    await removeOldVMs(compute);
 
     let [vms] = await compute.getVMs({
         autoPaginate: false,
@@ -209,7 +217,7 @@ async function getAlloc(req, res) {
         try {
             console.log("starting vm...", vm);
             let [operation] = await vm.setMetadata({
-                'startup-script': getStartupScript(version),
+                "startup-script": getStartupScript(version),
                 "enable-osconfig": "TRUE",
                 "enable-guest-attributes": "TRUE",
             });
@@ -284,9 +292,6 @@ exports.cloudFunctionEntryPoint = async (req, res) => {
 
     if (req.url.startsWith("/list")) {
         return await getList(req, res);
-    }
-    if (req.url.startsWith("/deleteall")) {
-        return await getDeleteAll(req, res);
     }
     if (req.url.startsWith("/alloc")) {
         return await getAlloc(req, res);
