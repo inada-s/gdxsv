@@ -1,6 +1,6 @@
 gdxsv
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 =====
 [![LICENSE](https://img.shields.io/github/license/inada-s/gdxsv)](LICENSE)
@@ -149,6 +149,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/inada-s"><img src="https://avatars.githubusercontent.com/u/1726079?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Shingo INADA</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=inada-s" title="Code">💻</a></td>
     <td align="center"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt=""/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
+    <td align="center"><a href="https://github.com/htc001120"><img src="https://avatars.githubusercontent.com/u/6858053?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Ming Chan</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=htc001120" title="Code">💻</a></td>
   </tr>
 </table>
 
