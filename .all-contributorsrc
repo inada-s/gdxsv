@@ -1,0 +1,24 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "inada-s",
+      "name": "Shingo INADA",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1726079?v=4",
+      "profile": "https://github.com/inada-s",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "gdxsv",
+  "projectOwner": "inada-s",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}
