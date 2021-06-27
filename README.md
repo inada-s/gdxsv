@@ -1,4 +1,7 @@
 gdxsv
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 =====
 [![LICENSE](https://img.shields.io/github/license/inada-s/gdxsv)](LICENSE)
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/inada-s/gdxsv)](https://github.com/inada-s/gdxsv)
@@ -134,3 +137,23 @@ Submodules and dependent packages are subject to their respective licenses.
 
 
 
+
+## Contributors ✨
+
+Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt=""/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
+  </tr>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
