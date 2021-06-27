@@ -1,0 +1,25 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "vkedwardli",
+      "name": "vkedwardli",
+      "avatar_url": "https://avatars.githubusercontent.com/u/602245?v=4",
+      "profile": "https://github.com/vkedwardli",
+      "contributions": [
+        "code",
+        "financial"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "gdxsv",
+  "projectOwner": "inada-s",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}
