@@ -1,12 +1,8 @@
-gdxsv
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
-=====
 [![LICENSE](https://img.shields.io/github/license/inada-s/gdxsv)](LICENSE)
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/inada-s/gdxsv)](https://github.com/inada-s/gdxsv)
 [![GoReportCard example](https://goreportcard.com/badge/github.com/inada-s/gdxsv)](https://goreportcard.com/report/github.com/inada-s/gdxsv)
 [![codecov](https://codecov.io/gh/inada-s/gdxsv/branch/master/graph/badge.svg?token=WD6DL2ZT5G)](https://codecov.io/gh/inada-s/gdxsv)
+
 
 
 Mobile Suit Gundam: Federation vs. Zeon & DX private game server.
@@ -17,10 +13,36 @@ The brother project [zdxsv is here](https://github.com/inada-s/zdxsv).
 [Mobile Suit Gundam: Federation vs. Zeon](https://en.wikipedia.org/wiki/Mobile_Suit_Gundam:_Federation_vs._Zeon) was released on Playstation2 and Dreamcast.
 This game has online mode, but the service ended in 2004. This project aims to keep the online mode alive for fans.
 
-
 ## Running Server links
 - https://www.gdxsv.net : This is the server hosted by this project. Good for flycast emulator players.
 - https://dreamcastlive.net/mobile-suit-gundam-federation-vs-zeon-dx/ : Dreamcastlive's community server. Good for real-dreamcast players.
+
+
+## Contributors ✨
+
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/inada-s"><img src="https://avatars.githubusercontent.com/u/1726079?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Shingo INADA</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=inada-s" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt=""/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
+    <td align="center"><a href="https://github.com/htc001120"><img src="https://avatars.githubusercontent.com/u/6858053?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Ming Chan</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=htc001120" title="Code">💻</a></td>
+  </tr>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
 ---
 
@@ -136,26 +158,3 @@ All server-side codes are AGPL-3.0 Licensed.
 Submodules and dependent packages are subject to their respective licenses.
 
 
-
-
-## Contributors ✨
-
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/inada-s"><img src="https://avatars.githubusercontent.com/u/1726079?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Shingo INADA</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=inada-s" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt=""/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
-    <td align="center"><a href="https://github.com/htc001120"><img src="https://avatars.githubusercontent.com/u/6858053?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Ming Chan</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=htc001120" title="Code">💻</a></td>
-  </tr>
-</table>
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
