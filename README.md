@@ -21,7 +21,7 @@ This game has online mode, but the service ended in 2004. This project aims to k
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors)
+[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -34,6 +34,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/inada-s"><img src="https://avatars.githubusercontent.com/u/1726079?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Shingo INADA</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=inada-s" title="Code">💻</a></td>
     <td align="center"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt=""/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
     <td align="center"><a href="https://github.com/htc001120"><img src="https://avatars.githubusercontent.com/u/6858053?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Ming Chan</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=htc001120" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/Q-SJO-Q"><img src="https://avatars.githubusercontent.com/u/86608532?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Q-SJO-Q</b></sub></a><br /><a href="#financial-Q-SJO-Q" title="Financial">💵</a></td>
   </tr>
 </table>
 
