@@ -301,9 +301,21 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 			// Get account by pre-sent loginkey
 			account, err := getDB().GetAccountByLoginKey(p.LoginKey)
 			if err != nil {
-				p.SendMessage(NewServerNotice(lbsShutDown).Writer().
-					WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
-				return
+				switch err {
+				case sql.ErrNoRows:
+					account, err = getDB().RegisterAccountWithLoginKey(p.IP(), p.LoginKey)
+					if err != nil {
+						p.logger.Error("failed to create account", zap.Error(err))
+						p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+							WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
+						return
+					}
+				default:
+					p.logger.Error("failed to get account", zap.Error(err))
+					p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+						WriteString("<LF=5><BODY><CENTER>FAILED TO GET ACCOUNT INFO<END>").Msg())
+					return
+				}
 			}
 
 			// Update session_id that was generated when the first request.
