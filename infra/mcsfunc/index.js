@@ -3,6 +3,8 @@
 const Compute = require('@google-cloud/compute');
 const url = require('url');
 
+const usePreemptibleVM = false;
+
 // https://cloud.google.com/compute/docs/regions-zones
 const gcpRegions = {
     "asia-east1": {"zones": ["a", "b", "c"], "location": "Changhua County, Taiwan"},
@@ -188,6 +190,11 @@ async function getAlloc(req, res) {
     const version = query["version"] ? query["version"] : "latest";
     const regionInfo = gcpRegions[region];
     const vmName = "gdxsv-mcs-" + region + "-" + version.replace(/\./g, "-");
+    const scheduling = {
+        "onHostMaintenance": usePreemptibleVM ? "TERMINATE": "MIGRATE",
+        "preemptible": usePreemptibleVM,
+        "automaticRestart": false,
+    };
 
     if (!regionInfo) {
         res.status(400).send('invalid region');
@@ -222,8 +229,13 @@ async function getAlloc(req, res) {
                 "enable-guest-attributes": "TRUE",
             });
             await operation.promise();
+
+            [operation] = await vm.update({scheduling: scheduling});
+            await operation.promise();
+
             [operation] = await vm.start();
             await operation.promise();
+
             console.log("start vm done");
             [vm.metadata] = await vm.waitFor("RUNNING", {timeout: 30});
             console.log("wait done");
@@ -248,7 +260,7 @@ async function getAlloc(req, res) {
                 http: true,
                 tags: ["gdxsv-mcs"],
                 machineType: "e2-medium",
-                scheduling: {preemptible: true},
+                scheduling: scheduling,
                 metadata: {
                     items: [
                         {key: "startup-script", value: getStartupScript(version)},
