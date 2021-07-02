@@ -159,6 +159,7 @@ const (
 	// gdxsv extended commands
 	lbsExtSyncSharedData CmdID = 0x9900
 	lbsPlatformInfo      CmdID = 0x9950
+	lbsGamePatch         CmdID = 0x9960
 )
 
 func RequestLineCheck(p *LbsPeer) {

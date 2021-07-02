@@ -121,6 +121,7 @@ type MLobbySetting struct {
 	TeamShuffle      bool   `db:"team_shuffle" json:"team_shuffle"`
 	PingLimit        int    `db:"ping_limit" json:"ping_limit"`
 	PingRegion       string `db:"ping_region" json:"ping_region"`
+	PatchNames       string `db:"patch_names" json:"patch_names"`
 }
 
 type MRule struct {

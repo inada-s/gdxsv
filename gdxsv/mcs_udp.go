@@ -283,6 +283,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 			var err error
 			pbBuf, err = pbm.MarshalAppend(pbBuf[:0], pkt)
 			proto.PutPacket(pkt)
+
 			if err != nil {
 				u.logger.Error("Marshal error", zap.Error(err))
 				u.SetCloseReason("sv_marshal_error")

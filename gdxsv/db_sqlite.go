@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS m_lobby_setting
     team_shuffle       integer not null,
     ping_limit         integer not null,
     ping_region        text default '',
+    patch_names        text default '',
     PRIMARY KEY (platform, disk, no)
 );
 CREATE TABLE IF NOT EXISTS m_rule

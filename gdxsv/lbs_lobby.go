@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -593,6 +595,22 @@ func (l *LbsLobby) Update() {
 	l.checkRoomBattleStart()
 }
 
+func (l *LbsLobby) makePatchList() *proto.GamePatchList {
+	enabledPatches := map[string]bool{}
+	for _, name := range strings.Split(l.LobbySetting.PatchNames, ",") {
+		enabledPatches[strings.TrimSpace(name)] = true
+	}
+
+	patchList := new(proto.GamePatchList)
+	for _, patch := range defaultPatchList.GetPatches() {
+		if patch.GameDisk == l.GameDisk && enabledPatches[patch.Name] {
+			patchList.Patches = append(patchList.Patches, patch)
+		}
+	}
+
+	return patchList
+}
+
 func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	if !(force || l.canStartBattle()) {
 		return
@@ -669,6 +687,16 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		}
 	}
 
+	patchList := l.makePatchList()
+	logger.Info("patchList", zap.Any("patchList", patchList))
+	patchBin, err := pb.Marshal(patchList)
+	if err != nil {
+		logger.Error("pb.Marshal patch", zap.Error(err))
+		return
+	}
+	patchMsg := NewServerNotice(lbsGamePatch)
+	patchMsg.Writer().Write(patchBin)
+
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
@@ -676,6 +704,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
 		McsAddr:    mcsAddr,
+		PatchList:  patchList,
 	})
 
 	for _, q := range participants {
@@ -697,6 +726,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			State:       McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
+		q.SendMessage(patchMsg)
 	}
 
 	if mcsPeer != nil {
@@ -830,6 +860,15 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		}
 	}
 
+	patchList := l.makePatchList()
+	patchBin, err := pb.Marshal(patchList)
+	if err != nil {
+		logger.Error("pb.Marshal patch", zap.Error(err))
+		return
+	}
+	patchMsg := NewServerNotice(lbsGamePatch)
+	patchMsg.Writer().Write(patchBin)
+
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
@@ -837,6 +876,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
 		McsAddr:    mcsAddr,
+		PatchList:  patchList,
 	})
 
 	for _, q := range participants {
