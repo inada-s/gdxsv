@@ -596,9 +596,14 @@ func (l *LbsLobby) Update() {
 }
 
 func (l *LbsLobby) makePatchList() *proto.GamePatchList {
+	sp := strings.Split(strings.TrimSpace(l.LobbySetting.PatchNames), ",")
+	if len(sp) == 0 {
+		return nil
+	}
+
 	patchList := new(proto.GamePatchList)
 
-	for _, name := range strings.Split(l.LobbySetting.PatchNames, ",") {
+	for _, name := range sp {
 		mPatch, err := getDB().GetPatch(l.Platform, l.GameDisk, name)
 		if err != nil {
 			logger.Warn("failed to load patch", zap.String("name", name), zap.Error(err))
