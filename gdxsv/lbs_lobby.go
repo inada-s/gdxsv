@@ -351,6 +351,20 @@ func (l *LbsLobby) printLobbyReminder(p *LbsPeer) {
 
 func (l *LbsLobby) Enter(p *LbsPeer) {
 	l.Users[p.UserID] = &p.DBUser
+
+	// Send game patch for offline testing
+	if l.LobbySetting.PatchNames != "" {
+		patchList := l.makePatchList()
+		logger.Info("patchList", zap.Any("patchList", patchList))
+		patchBin, err := pb.Marshal(patchList)
+		if err != nil {
+			logger.Error("pb.Marshal patch", zap.Error(err))
+			return
+		}
+		patchMsg := NewServerNotice(lbsGamePatch)
+		patchMsg.Writer().Write(patchBin)
+		p.SendMessage(patchMsg)
+	}
 }
 
 func (l *LbsLobby) Exit(userID string) {
