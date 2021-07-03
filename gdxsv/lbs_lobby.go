@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -349,6 +351,20 @@ func (l *LbsLobby) printLobbyReminder(p *LbsPeer) {
 
 func (l *LbsLobby) Enter(p *LbsPeer) {
 	l.Users[p.UserID] = &p.DBUser
+
+	// Send game patch for offline testing
+	if l.LobbySetting.PatchNames != "" {
+		patchList := l.makePatchList()
+		logger.Info("patchList", zap.Any("patchList", patchList))
+		patchBin, err := pb.Marshal(patchList)
+		if err != nil {
+			logger.Error("pb.Marshal patch", zap.Error(err))
+			return
+		}
+		patchMsg := NewServerNotice(lbsGamePatch)
+		patchMsg.Writer().Write(patchBin)
+		p.SendMessage(patchMsg)
+	}
 }
 
 func (l *LbsLobby) Exit(userID string) {
@@ -593,6 +609,33 @@ func (l *LbsLobby) Update() {
 	l.checkRoomBattleStart()
 }
 
+func (l *LbsLobby) makePatchList() *proto.GamePatchList {
+	sp := strings.Split(strings.TrimSpace(l.LobbySetting.PatchNames), ",")
+	if len(sp) == 0 {
+		return nil
+	}
+
+	patchList := new(proto.GamePatchList)
+
+	for _, name := range sp {
+		mPatch, err := getDB().GetPatch(l.Platform, l.GameDisk, name)
+		if err != nil {
+			logger.Warn("failed to load patch", zap.String("name", name), zap.Error(err))
+			continue
+		}
+
+		gamePatch, err := convertGamePatch(mPatch)
+		if err != nil {
+			logger.Warn("failed to convert patch", zap.String("name", name), zap.Error(err))
+			continue
+		}
+
+		patchList.Patches = append(patchList.Patches, gamePatch)
+	}
+
+	return patchList
+}
+
 func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	if !(force || l.canStartBattle()) {
 		return
@@ -669,6 +712,16 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		}
 	}
 
+	patchList := l.makePatchList()
+	logger.Info("patchList", zap.Any("patchList", patchList))
+	patchBin, err := pb.Marshal(patchList)
+	if err != nil {
+		logger.Error("pb.Marshal patch", zap.Error(err))
+		return
+	}
+	patchMsg := NewServerNotice(lbsGamePatch)
+	patchMsg.Writer().Write(patchBin)
+
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
@@ -676,6 +729,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
 		McsAddr:    mcsAddr,
+		PatchList:  patchList,
 	})
 
 	for _, q := range participants {
@@ -697,6 +751,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			State:       McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
+		q.SendMessage(patchMsg)
 	}
 
 	if mcsPeer != nil {
@@ -830,6 +885,15 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		}
 	}
 
+	patchList := l.makePatchList()
+	patchBin, err := pb.Marshal(patchList)
+	if err != nil {
+		logger.Error("pb.Marshal patch", zap.Error(err))
+		return
+	}
+	patchMsg := NewServerNotice(lbsGamePatch)
+	patchMsg.Writer().Write(patchBin)
+
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		Rule:       *b.Rule,
@@ -837,6 +901,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
 		McsAddr:    mcsAddr,
+		PatchList:  patchList,
 	})
 
 	for _, q := range participants {

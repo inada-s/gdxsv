@@ -42,13 +42,19 @@ func Test_isOldFlycastVersion(t *testing.T) {
 			args:            args{userVersion: "gdxsv-0.6.9"},
 			want:            true,
 		},
+		{
+			name:            "real semver dev version is old",
+			requiredVersion: "v1.0.4",
+			args:            args{userVersion: "v1.0.4-dev.3+100e01d4"},
+			want:            true,
+		},
 	}
 
 	backup := requiredFlycastVersion
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requiredFlycastVersion = tt.requiredVersion
-			if got := isOldFlycastVersion(tt.args.userVersion); got != tt.want {
+			if got := isOldFlycastVersion(tt.args.userVersion, requiredFlycastVersion); got != tt.want {
 				t.Errorf("isOldFlycastVersion() = %v, want %v", got, tt.want)
 			}
 		})

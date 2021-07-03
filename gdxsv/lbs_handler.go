@@ -159,6 +159,7 @@ const (
 	// gdxsv extended commands
 	lbsExtSyncSharedData CmdID = 0x9900
 	lbsPlatformInfo      CmdID = 0x9950
+	lbsGamePatch         CmdID = 0x9960
 )
 
 func RequestLineCheck(p *LbsPeer) {
@@ -250,12 +251,12 @@ func sendUserList(p *LbsPeer) {
 	p.SendMessage(n)
 }
 
-func isOldFlycastVersion(userVersion string) bool {
+func isOldFlycastVersion(userVersion string, minVersion string) bool {
 	if strings.HasPrefix(userVersion, "gdxsv-") {
 		// New version-string have the prefix.
 		userVersion = "v" + strings.TrimPrefix(userVersion, "gdxsv-")
 	}
-	if semver.Compare(userVersion, requiredFlycastVersion) < 0 {
+	if semver.Compare(userVersion, minVersion) < 0 {
 		return true
 	}
 	return false
@@ -284,7 +285,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 
 	switch loginType {
 	case 0:
-		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"]) {
+		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], requiredFlycastVersion) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return
@@ -334,7 +335,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>UNSUPPORTED LOGIN TYPE<END>").Msg())
 	case 2:
-		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"]) {
+		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], requiredFlycastVersion) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return
@@ -839,6 +840,13 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 
 		if rtt <= 0 || lobby.LobbySetting.PingLimit < rtt {
 			status = 1 // not available
+		}
+	}
+
+	// Check GamePatch feature is available
+	if lobby.LobbySetting.PatchNames != "" {
+		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], novelFlycastVersion) {
+			status = 1
 		}
 	}
 

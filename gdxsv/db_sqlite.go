@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS m_lobby_setting
     team_shuffle       integer not null,
     ping_limit         integer not null,
     ping_region        text default '',
+    patch_names        text default '',
     PRIMARY KEY (platform, disk, no)
 );
 CREATE TABLE IF NOT EXISTS m_rule
@@ -157,6 +158,15 @@ CREATE TABLE IF NOT EXISTS m_rule
     zeon_mask_dc   integer not null,
     stage_no       integer not null,
     PRIMARY KEY (id)
+);
+CREATE TABLE IF NOT EXISTS m_patch
+(
+    platform 	text not null,
+    disk     	text not null,
+    name     	text not null,
+    write_once 	integer not null,
+    codes 	 	text not null,
+    PRIMARY KEY (platform, disk, name)
 );
 `
 
@@ -653,6 +663,15 @@ func (db SQLiteDB) GetLobbySetting(platform, disk string, no int) (*MLobbySettin
 func (db SQLiteDB) GetRule(id string) (*MRule, error) {
 	m := &MRule{}
 	err := db.QueryRowx("SELECT * FROM m_rule WHERE id = ?", id).StructScan(m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (db SQLiteDB) GetPatch(platform, disk, name string) (*MPatch, error) {
+	m := &MPatch{}
+	err := db.QueryRowx("SELECT * FROM m_patch WHERE platform = ? AND disk = ? AND name = ?", platform, disk, name).StructScan(m)
 	if err != nil {
 		return nil, err
 	}

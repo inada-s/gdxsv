@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
 	"sync"
 	"time"
@@ -52,10 +53,11 @@ type McsUser struct {
 }
 
 type McsGame struct {
-	BattleCode string `json:"battle_code,omitempty"`
-	McsAddr    string `json:"mcs_addr,omitempty"`
-	GameDisk   string `json:"game_disk"`
-	Rule       Rule   `json:"rule,omitempty"`
+	BattleCode string               `json:"battle_code,omitempty"`
+	McsAddr    string               `json:"mcs_addr,omitempty"`
+	GameDisk   string               `json:"game_disk"`
+	Rule       Rule                 `json:"rule,omitempty"`
+	PatchList  *proto.GamePatchList `json:"patch_list,omitempty"`
 
 	State     int       `json:"state,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`

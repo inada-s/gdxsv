@@ -55,6 +55,13 @@ func TestMain(m *testing.M) {
 	})
 	mustInsertMRule(MRule{ID: "dummy"})
 	mustInsertMString("dummy", "dummy string")
+	mustInsertMPatch(MPatch{
+		Platform:  "emu-x86/64",
+		Disk:      "dc2",
+		Name:      "dummy-patch",
+		WriteOnce: true,
+		Codes:     "1, 8, 0c391d97, 1, 0",
+	})
 
 	os.Exit(m.Run())
 }

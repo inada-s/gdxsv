@@ -287,11 +287,18 @@ func (mcs *Mcs) Join(p McsPeer, sessionID string) *McsRoom {
 	mcs.mtx.Lock()
 	mcs.updated = time.Now()
 	room := mcs.rooms[user.BattleCode]
+	created := false
 	if room == nil {
 		room = newMcsRoom(mcs, game)
 		mcs.rooms[user.BattleCode] = room
+		created = true
 	}
 	mcs.mtx.Unlock()
+
+	if created {
+		logger.Info("new McsRoom", zap.String("battle_code", user.BattleCode), zap.Any("game", game))
+	}
+
 	room.Join(p, user)
 
 	sharedData.UpdateMcsUserState(sessionID, McsUserStateJoined)

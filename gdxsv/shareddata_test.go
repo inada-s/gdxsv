@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gdxsv/gdxsv/proto"
 	"reflect"
 	"testing"
 	"time"
@@ -29,6 +30,15 @@ func TestSharedData_Sync(t *testing.T) {
 		Rule:       DefaultRule,
 		State:      McsGameStateCreated,
 		UpdatedAt:  time.Unix(0, 0),
+		PatchList: &proto.GamePatchList{
+			Patches: []*proto.GamePatch{
+				{
+					GameDisk: GameDiskDC2,
+					Name:     "allow-soft-reset",
+					Codes:    []*proto.GamePatchCode{{Size: 8, Address: 0x0c391d97, Original: 1, Changed: 0}},
+				},
+			},
+		},
 	})
 
 	sd1.ShareMcsUser(&McsUser{

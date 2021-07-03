@@ -23,18 +23,20 @@ type McsRoom struct {
 }
 
 func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
-	return &McsRoom{
+	room := &McsRoom{
 		mcs:  mcs,
 		game: gameInfo,
 		battleLog: &proto.BattleLogFile{
-			LogFileVersion: 20201212,
+			LogFileVersion: 20210702,
 			GameDisk:       gameInfo.GameDisk,
 			GdxsvVersion:   gdxsvVersion,
 			BattleCode:     gameInfo.BattleCode,
 			RuleBin:        SerializeRule(&gameInfo.Rule),
+			Patches:        gameInfo.PatchList.GetPatches(),
 			StartAt:        time.Now().UnixNano(),
 		},
 	}
+	return room
 }
 
 func (r *McsRoom) PeerCount() int {

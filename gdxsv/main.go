@@ -11,6 +11,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -31,6 +32,9 @@ var (
 
 	// Minimum required flycast version.
 	requiredFlycastVersion = "v0.7.0"
+
+	// New feature installed version.
+	novelFlycastVersion = "v1.0.5"
 )
 
 var (
