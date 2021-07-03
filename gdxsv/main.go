@@ -34,7 +34,7 @@ var (
 	requiredFlycastVersion = "v0.7.0"
 
 	// New feature installed version.
-	novelFlycastVersion = "v1.0.4-dev"
+	novelFlycastVersion = "v1.0.5"
 )
 
 var (
