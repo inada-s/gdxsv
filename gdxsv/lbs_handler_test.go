@@ -43,10 +43,10 @@ func Test_isOldFlycastVersion(t *testing.T) {
 			want:            true,
 		},
 		{
-			name:            "real semver",
+			name:            "real semver dev version is old",
 			requiredVersion: "v1.0.4",
 			args:            args{userVersion: "v1.0.4-dev.3+100e01d4"},
-			want:            false,
+			want:            true,
 		},
 	}
 
