@@ -151,6 +151,14 @@ type MRule struct {
 	StageNo      int    `db:"stage_no" json:"stage_no"`
 }
 
+type MPatch struct {
+	Platform  string `db:"platform" json:"platform"`
+	Disk      string `db:"disk" json:"disk"`
+	Name      string `db:"name" json:"name"`
+	WriteOnce bool   `db:"write_once" json:"write_once"`
+	Codes     string `db:"codes" json:"codes"`
+}
+
 // DB is an interface of database operation.
 type DB interface {
 	// Init initializes the database.
@@ -228,4 +236,7 @@ type DB interface {
 
 	// GetRule returns game rule.
 	GetRule(id string) (*MRule, error)
+
+	// GetPatch returns game patch.
+	GetPatch(platform, disk, name string) (*MPatch, error)
 }

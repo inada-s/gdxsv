@@ -603,3 +603,24 @@ INSERT INTO m_rule (
 		panic(err)
 	}
 }
+
+func mustInsertMPatch(patch MPatch) {
+	db := getDB().(SQLiteDB)
+	_, err := db.NamedExec(`
+INSERT INTO m_patch (
+    platform 	,
+    disk     	,
+    name     	,
+    write_once 	,
+    codes
+) VALUES (
+    :platform 	,
+    :disk     	,
+    :name     	,
+    :write_once ,
+    :codes
+)`, patch)
+	if err != nil {
+		panic(err)
+	}
+}

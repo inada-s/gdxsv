@@ -596,16 +596,22 @@ func (l *LbsLobby) Update() {
 }
 
 func (l *LbsLobby) makePatchList() *proto.GamePatchList {
-	enabledPatches := map[string]bool{}
-	for _, name := range strings.Split(l.LobbySetting.PatchNames, ",") {
-		enabledPatches[strings.TrimSpace(name)] = true
-	}
-
 	patchList := new(proto.GamePatchList)
-	for _, patch := range defaultPatchList.GetPatches() {
-		if patch.GameDisk == l.GameDisk && enabledPatches[patch.Name] {
-			patchList.Patches = append(patchList.Patches, patch)
+
+	for _, name := range strings.Split(l.LobbySetting.PatchNames, ",") {
+		mPatch, err := getDB().GetPatch(l.Platform, l.GameDisk, name)
+		if err != nil {
+			logger.Warn("failed to load patch", zap.String("name", name), zap.Error(err))
+			continue
 		}
+
+		gamePatch, err := convertGamePatch(mPatch)
+		if err != nil {
+			logger.Warn("failed to convert patch", zap.String("name", name), zap.Error(err))
+			continue
+		}
+
+		patchList.Patches = append(patchList.Patches, gamePatch)
 	}
 
 	return patchList
