@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"net"
 	"strings"
 	"sync"
@@ -39,12 +41,12 @@ const (
 )
 
 type Lbs struct {
-	handlers  map[CmdID]LbsHandler
-	userPeers map[string]*LbsPeer
-	mcsPeers  map[string]*LbsPeer
-	lobbies   map[string]map[uint16]*LbsLobby
-	chEvent   chan interface{}
-	chQuit    chan interface{}
+	handlers    map[CmdID]LbsHandler
+	userPeers   map[string]*LbsPeer
+	mcsPeers    map[string]*LbsPeer
+	lobbies     map[string]map[uint16]*LbsLobby
+	chEvent     chan interface{}
+	chQuit      chan interface{}
 
 	noban      bool
 	reload     bool
@@ -54,12 +56,12 @@ type Lbs struct {
 
 func NewLbs() *Lbs {
 	app := &Lbs{
-		handlers:  defaultLbsHandlers,
-		userPeers: make(map[string]*LbsPeer),
-		mcsPeers:  make(map[string]*LbsPeer),
-		lobbies:   make(map[string]map[uint16]*LbsLobby),
-		chEvent:   make(chan interface{}, 64),
-		chQuit:    make(chan interface{}),
+		handlers:    defaultLbsHandlers,
+		userPeers:   make(map[string]*LbsPeer),
+		mcsPeers:    make(map[string]*LbsPeer),
+		lobbies:     make(map[string]map[uint16]*LbsLobby),
+		chEvent:     make(chan interface{}, 64),
+		chQuit:      make(chan interface{}),
 
 		banChecked: make(map[string]bool),
 		bannedIPs:  make(map[string]time.Time),
@@ -444,6 +446,36 @@ func (lbs *Lbs) eventLoop() {
 					lobby.Update()
 				}
 			}
+		}
+	}
+}
+
+// BroadcastExtLobbyUser sends the user information to other users in lbs
+func (lbs *Lbs) BroadcastExtLobbyUser(peer *LbsPeer) {
+	if peer.UserID == "" || peer.Name == "" {
+		return
+	}
+
+	if peer.PlatformInfo["bind_port"] == "" {
+		return
+	}
+
+	bin, err := pb.Marshal(&proto.ExtPlayerInfo{
+		UserId: peer.UserID,
+		Name:   peer.Name,
+		AddrList: []string{
+			fmt.Sprintf("%s:%s", peer.IP(), peer.PlatformInfo["bind_port"]),
+			fmt.Sprintf("%s:%s", peer.PlatformInfo["local_ip"], peer.PlatformInfo["bind_port"]),
+		},
+	})
+	if err != nil {
+		return
+	}
+
+	msg := NewServerNotice(lbsExtPlayerInfo).Writer().Write(bin).Msg()
+	for _, u := range lbs.userPeers {
+		if u.Platform == peer.Platform && u.GameDisk == peer.GameDisk {
+			u.SendMessage(msg)
 		}
 	}
 }

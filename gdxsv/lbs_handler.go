@@ -159,6 +159,7 @@ const (
 	// gdxsv extended commands
 	lbsExtSyncSharedData CmdID = 0x9900
 	lbsPlatformInfo      CmdID = 0x9950
+	lbsExtPlayerInfo     CmdID = 0x9955
 	lbsGamePatch         CmdID = 0x9960
 )
 
@@ -168,6 +169,8 @@ func RequestLineCheck(p *LbsPeer) {
 
 var _ = register(lbsLineCheck, func(p *LbsPeer, m *LbsMessage) {
 	// the client is alive
+
+	p.app.BroadcastExtLobbyUser(p)
 })
 
 var _ = register(lbsLogout, func(p *LbsPeer, m *LbsMessage) {
@@ -584,6 +587,7 @@ var _ = register(lbsAskBattleResult, func(p *LbsPeer, m *LbsMessage) {
 	p.app.RegisterBattleResult(p, result)
 	p.SendMessage(NewServerNotice(lbsLoginOk))
 	p.logger.Info("login ok")
+	p.app.BroadcastExtLobbyUser(p)
 })
 
 var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
@@ -884,6 +888,7 @@ var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {
 	lobby.Enter(p)
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(lobby)
+	p.app.BroadcastExtLobbyUser(p)
 })
 
 var _ = register(lbsPlazaExit, func(p *LbsPeer, m *LbsMessage) {
@@ -1293,9 +1298,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1322,9 +1327,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0).      // chat_type
-				Write8(0).      // id color
-				Write8(0).      // handle color
+				Write8(0). // chat_type
+				Write8(0). // id color
+				Write8(0). // handle color
 				Write8(0).Msg() // msg color
 		}
 

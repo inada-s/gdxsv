@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package proto;
+option go_package = "gdxsv/proto";
+
+message ExtPlayerInfo {
+  string user_id = 1;
+  string name = 2;
+  repeated string addr_list = 3;
+}
+
+message GamePatch {
+  string game_disk = 1;
+  string name = 2;
+  bool write_once = 4;
+  repeated GamePatchCode codes = 10;
+}
+
+message GamePatchCode {
+  int32 size = 1;
+  uint32 address = 2;
+  uint32 original = 3;
+  uint32 changed = 4;
+}
+
+message GamePatchList {
+  repeated GamePatch patches = 1;
+}
+
+message BattleLogUser {
+  string user_id = 1;
+  string user_name = 2;
+  string pilot_name = 3;
+  bytes game_param = 4;
+  int32 battle_count = 5;
+  int32 win_count = 6;
+  int32 lose_count = 7;
+  string platform = 10;
+}
+
+message BattleLogMessage {
+  string user_id = 1;
+  bytes body = 2;
+  uint32 seq = 3;
+
+  int64 timestamp = 10;
+}
+
+message BattleLogFile {
+  string game_disk = 5;
+  string gdxsv_version = 2;
+  string battle_code = 3;
+  int32 log_file_version = 4;
+  repeated GamePatch patches = 7;
+
+  bytes rule_bin = 10;
+  repeated BattleLogUser users = 11;
+  repeated BattleLogMessage battle_data = 12;
+
+  int64 start_at = 20;
+  int64 end_at = 21;
+}
+
+enum MessageType {
+  None = 0;
+  HelloServer = 1;
+  Ping = 2;
+  Pong = 3;
+  Battle = 4;
+  Fin = 5;
+}
+
+message BattleMessage {
+  string user_id = 1;
+  uint32 seq = 2;
+  bytes body = 3;
+}
+
+message PingMessage {
+  int64 timestamp = 1;
+  string user_id = 2;
+}
+
+message PongMessage {
+  int64 timestamp = 1;
+  string user_id = 2;
+  string public_addr = 3;
+}
+
+message HelloServerMessage {
+  string session_id_deprecated = 1;
+  bool ok = 2;
+  string user_id = 3;
+}
+
+message FinMessage {
+  string detail = 1;
+}
+
+message Packet {
+  MessageType type = 1;
+  uint32 seq = 2;
+  uint32 ack = 3;
+  string session_id = 5;
+
+  HelloServerMessage hello_server_data = 10;
+  PingMessage ping_data = 11;
+  PongMessage pong_data = 12;
+  repeated BattleMessage battle_data = 13;
+  FinMessage fin_data = 14;
+}
