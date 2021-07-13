@@ -852,7 +852,7 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 
 	// WinRate limit
 	if lobby.LobbySetting.WinRateLimit != 0 {
-		if lobby.LobbySetting.WinRateLimit * p.BattleCount < 100 * p.WinCount {
+		if lobby.LobbySetting.WinRateLimit*p.BattleCount < 100*p.WinCount {
 			status = 1
 		}
 	}
