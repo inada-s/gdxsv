@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS m_lobby_setting
     ping_limit         integer not null,
     ping_region        text default '',
     patch_names        text default '',
+    win_rate_limit     integer default 0,
     PRIMARY KEY (platform, disk, no)
 );
 CREATE TABLE IF NOT EXISTS m_rule

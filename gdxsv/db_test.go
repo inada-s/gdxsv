@@ -512,34 +512,34 @@ INSERT INTO m_ban (
 
 func mustInsertMLobbySetting(setting MLobbySetting) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO m_lobby_setting (
-    platform           ,
-    disk               ,
-    no                 ,
-    name               ,
-    mcs_region         ,
-    comment            ,
-    reminder           ,
-    rule_id            ,
-    enable_force_start ,
-    team_shuffle       ,
-    ping_limit         ,
-    ping_region        
-) VALUES (
-    :platform           ,
-    :disk               ,
-    :no                 ,
-    :name               ,
-    :mcs_region         ,
-    :comment            ,
-    :reminder           ,
-    :rule_id            ,
-    :enable_force_start ,
-    :team_shuffle       ,
-    :ping_limit         ,
-    :ping_region        
-)`, setting)
+	_, err := db.NamedExec(`INSERT INTO m_lobby_setting
+(platform,
+ no,
+ disk,
+ name,
+ mcs_region,
+ comment,
+ reminder,
+ rule_id,
+ enable_force_start,
+ team_shuffle,
+ ping_limit,
+ ping_region,
+ patch_names,
+ win_rate_limit)
+VALUES (:platform,
+        :disk,
+        :no,
+        :name,
+        :mcs_region,
+        :comment,
+        :reminder,
+        :rule_id,
+        :enable_force_start,
+        :team_shuffle,
+        :ping_limit,
+        :patch_names,
+        :win_rate_limit)`, setting)
 	if err != nil {
 		panic(err)
 	}
