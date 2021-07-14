@@ -854,6 +854,13 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 		}
 	}
 
+	// WinRate limit
+	if lobby.LobbySetting.WinRateLimit != 0 {
+		if lobby.LobbySetting.WinRateLimit*p.BattleCount < 100*p.WinCount {
+			status = 1
+		}
+	}
+
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(lobbyID).
 		Write8(uint8(status)).Msg())

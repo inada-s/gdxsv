@@ -347,28 +347,16 @@ func Test300Ranking(t *testing.T) {
 
 func mustInsertDBAccount(a DBAccount) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO account (
-    login_key     ,
-    session_id    ,
-    last_user_id  ,
-    created_ip    ,
-    last_login_ip ,
-    last_login_machine_id ,
-    created       ,
-    last_login    ,
-    system
-) VALUES (
-    :login_key     ,
-    :session_id    ,
-    :last_user_id  ,
-    :created_ip    ,
-    :last_login_ip ,
-    :last_login_machine_id ,
-    :created       ,
-    :last_login    ,
-    :system
-)`, a)
+	_, err := db.NamedExec(`INSERT INTO account
+VALUES (:login_key,
+        :session_id,
+        :last_user_id,
+        :created_ip,
+        :last_login_ip,
+        :last_login_machine_id,
+        :created,
+        :last_login,
+        :system)`, a)
 	if err != nil {
 		panic(err)
 	}
@@ -376,60 +364,32 @@ INSERT INTO account (
 
 func mustInsertDBUser(u DBUser) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO user (
-    user_id            ,
-    login_key          ,
-    session_id         ,
-    name               ,
-    team               ,
-    battle_count       ,
-    win_count          ,
-    lose_count         ,
-    kill_count         ,
-    death_count        ,
-    renpo_battle_count ,
-    renpo_win_count    ,
-    renpo_lose_count   ,
-    renpo_kill_count   ,
-    renpo_death_count  ,
-    zeon_battle_count  ,
-    zeon_win_count     ,
-    zeon_lose_count    ,
-    zeon_kill_count    ,
-    zeon_death_count   ,
-    daily_battle_count ,
-    daily_win_count    ,
-    daily_lose_count   ,
-    created            ,
-    system
-) VALUES (
-    :user_id            ,
-    :login_key          ,
-    :session_id         ,
-    :name               ,
-    :team               ,
-    :battle_count       ,
-    :win_count          ,
-    :lose_count         ,
-    :kill_count         ,
-    :death_count        ,
-    :renpo_battle_count ,
-    :renpo_win_count    ,
-    :renpo_lose_count   ,
-    :renpo_kill_count   ,
-    :renpo_death_count  ,
-    :zeon_battle_count  ,
-    :zeon_win_count     ,
-    :zeon_lose_count    ,
-    :zeon_kill_count    ,
-    :zeon_death_count   ,
-    :daily_battle_count ,
-    :daily_win_count    ,
-    :daily_lose_count   ,
-    :created            ,
-    :system
-)`, u)
+	_, err := db.NamedExec(`INSERT INTO user
+VALUES (:user_id,
+        :login_key,
+        :session_id,
+        :name,
+        :team,
+        :battle_count,
+        :win_count,
+        :lose_count,
+        :kill_count,
+        :death_count,
+        :renpo_battle_count,
+        :renpo_win_count,
+        :renpo_lose_count,
+        :renpo_kill_count,
+        :renpo_death_count,
+        :zeon_battle_count,
+        :zeon_win_count,
+        :zeon_lose_count,
+        :zeon_kill_count,
+        :zeon_death_count,
+        :daily_battle_count,
+        :daily_win_count,
+        :daily_lose_count,
+        :created,
+        :system)`, u)
 	if err != nil {
 		panic(err)
 	}
@@ -437,48 +397,26 @@ INSERT INTO user (
 
 func mustInsertBattleRecord(record BattleRecord) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO battle_record (
-    battle_code ,
-    user_id     ,
-    user_name   ,
-    pilot_name  ,
-    lobby_id    ,
-    players     ,
-    aggregate   ,
-    pos         ,
-    team        ,
-    round       ,
-    win         ,
-    lose        ,
-    kill        ,
-    death       ,
-    frame       ,
-    result      ,
-    created     ,
-    updated     ,
-    system      
-) VALUES (
-    :battle_code ,
-    :user_id     ,
-    :user_name   ,
-    :pilot_name  ,
-    :lobby_id    ,
-    :players     ,
-    :aggregate   ,
-    :pos         ,
-    :team        ,
-    :round       ,
-    :win         ,
-    :lose        ,
-    :kill        ,
-    :death       ,
-    :frame       ,
-    :result      ,
-    :created     ,
-    :updated     ,
-    :system      
-)`, record)
+	_, err := db.NamedExec(`INSERT INTO battle_record
+VALUES (:battle_code,
+        :user_id,
+        :user_name,
+        :pilot_name,
+        :lobby_id,
+        :players,
+        :aggregate,
+        :pos,
+        :team,
+        :round,
+        :win,
+        :lose,
+        :kill,
+        :death,
+        :frame,
+        :result,
+        :created,
+        :updated,
+        :system)`, record)
 	if err != nil {
 		panic(err)
 	}
@@ -512,34 +450,21 @@ INSERT INTO m_ban (
 
 func mustInsertMLobbySetting(setting MLobbySetting) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO m_lobby_setting (
-    platform           ,
-    disk               ,
-    no                 ,
-    name               ,
-    mcs_region         ,
-    comment            ,
-    reminder           ,
-    rule_id            ,
-    enable_force_start ,
-    team_shuffle       ,
-    ping_limit         ,
-    ping_region        
-) VALUES (
-    :platform           ,
-    :disk               ,
-    :no                 ,
-    :name               ,
-    :mcs_region         ,
-    :comment            ,
-    :reminder           ,
-    :rule_id            ,
-    :enable_force_start ,
-    :team_shuffle       ,
-    :ping_limit         ,
-    :ping_region        
-)`, setting)
+	_, err := db.NamedExec(`INSERT INTO m_lobby_setting
+VALUES (:platform,
+        :disk,
+        :no,
+        :name,
+        :mcs_region,
+        :comment,
+        :reminder,
+        :rule_id,
+        :enable_force_start,
+        :team_shuffle,
+        :ping_limit,
+        :ping_region,
+        :patch_names,
+        :win_rate_limit)`, setting)
 	if err != nil {
 		panic(err)
 	}
@@ -547,58 +472,31 @@ INSERT INTO m_lobby_setting (
 
 func mustInsertMRule(rule MRule) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO m_rule (
-    id             ,
-    difficulty     ,
-    damage_level   ,
-    timer          ,
-    team_flag      ,
-    stage_flag     ,
-    ms_flag        ,
-    renpo_vital    ,
-    zeon_vital     ,
-    ma_flag        ,
-    reload_flag    ,
-    boost_keep     ,
-    redar_flag     ,
-    lockon_flag    ,
-    onematch       ,
-    renpo_mask_ps2 ,
-    zeon_mask_ps2  ,
-    auto_rebattle  ,
-    no_ranking     ,
-    cpu_flag       ,
-    select_look    ,
-    renpo_mask_dc  ,
-    zeon_mask_dc   ,
-    stage_no       
-) VALUES (
-    :id             ,
-    :difficulty     ,
-    :damage_level   ,
-    :timer          ,
-    :team_flag      ,
-    :stage_flag     ,
-    :ms_flag        ,
-    :renpo_vital    ,
-    :zeon_vital     ,
-    :ma_flag        ,
-    :reload_flag    ,
-    :boost_keep     ,
-    :redar_flag     ,
-    :lockon_flag    ,
-    :onematch       ,
-    :renpo_mask_ps2 ,
-    :zeon_mask_ps2  ,
-    :auto_rebattle  ,
-    :no_ranking     ,
-    :cpu_flag       ,
-    :select_look    ,
-    :renpo_mask_dc  ,
-    :zeon_mask_dc   ,
-    :stage_no       
-)`, rule)
+	_, err := db.NamedExec(`INSERT INTO m_rule
+VALUES (:id,
+        :difficulty,
+        :damage_level,
+        :timer,
+        :team_flag,
+        :stage_flag,
+        :ms_flag,
+        :renpo_vital,
+        :zeon_vital,
+        :ma_flag,
+        :reload_flag,
+        :boost_keep,
+        :redar_flag,
+        :lockon_flag,
+        :onematch,
+        :renpo_mask_ps2,
+        :zeon_mask_ps2,
+        :auto_rebattle,
+        :no_ranking,
+        :cpu_flag,
+        :select_look,
+        :renpo_mask_dc,
+        :zeon_mask_dc,
+        :stage_no)`, rule)
 	if err != nil {
 		panic(err)
 	}
@@ -606,20 +504,12 @@ INSERT INTO m_rule (
 
 func mustInsertMPatch(patch MPatch) {
 	db := getDB().(SQLiteDB)
-	_, err := db.NamedExec(`
-INSERT INTO m_patch (
-    platform 	,
-    disk     	,
-    name     	,
-    write_once 	,
-    codes
-) VALUES (
-    :platform 	,
-    :disk     	,
-    :name     	,
-    :write_once ,
-    :codes
-)`, patch)
+	_, err := db.NamedExec(`INSERT INTO m_patch
+VALUES (:platform,
+        :disk,
+        :name,
+        :write_once,
+        :codes)`, patch)
 	if err != nil {
 		panic(err)
 	}

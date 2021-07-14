@@ -122,6 +122,7 @@ type MLobbySetting struct {
 	PingLimit        int    `db:"ping_limit" json:"ping_limit"`
 	PingRegion       string `db:"ping_region" json:"ping_region"`
 	PatchNames       string `db:"patch_names" json:"patch_names"`
+	WinRateLimit     int    `db:"win_rate_limit" json:"win_rate_limit"`
 }
 
 type MRule struct {
