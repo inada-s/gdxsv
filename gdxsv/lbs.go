@@ -41,12 +41,12 @@ const (
 )
 
 type Lbs struct {
-	handlers    map[CmdID]LbsHandler
-	userPeers   map[string]*LbsPeer
-	mcsPeers    map[string]*LbsPeer
-	lobbies     map[string]map[uint16]*LbsLobby
-	chEvent     chan interface{}
-	chQuit      chan interface{}
+	handlers  map[CmdID]LbsHandler
+	userPeers map[string]*LbsPeer
+	mcsPeers  map[string]*LbsPeer
+	lobbies   map[string]map[uint16]*LbsLobby
+	chEvent   chan interface{}
+	chQuit    chan interface{}
 
 	noban      bool
 	reload     bool
@@ -56,12 +56,12 @@ type Lbs struct {
 
 func NewLbs() *Lbs {
 	app := &Lbs{
-		handlers:    defaultLbsHandlers,
-		userPeers:   make(map[string]*LbsPeer),
-		mcsPeers:    make(map[string]*LbsPeer),
-		lobbies:     make(map[string]map[uint16]*LbsLobby),
-		chEvent:     make(chan interface{}, 64),
-		chQuit:      make(chan interface{}),
+		handlers:  defaultLbsHandlers,
+		userPeers: make(map[string]*LbsPeer),
+		mcsPeers:  make(map[string]*LbsPeer),
+		lobbies:   make(map[string]map[uint16]*LbsLobby),
+		chEvent:   make(chan interface{}, 64),
+		chQuit:    make(chan interface{}),
 
 		banChecked: make(map[string]bool),
 		bannedIPs:  make(map[string]time.Time),
