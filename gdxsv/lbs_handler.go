@@ -169,8 +169,6 @@ func RequestLineCheck(p *LbsPeer) {
 
 var _ = register(lbsLineCheck, func(p *LbsPeer, m *LbsMessage) {
 	// the client is alive
-
-	p.app.BroadcastExtLobbyUser(p)
 })
 
 var _ = register(lbsLogout, func(p *LbsPeer, m *LbsMessage) {
@@ -587,7 +585,6 @@ var _ = register(lbsAskBattleResult, func(p *LbsPeer, m *LbsMessage) {
 	p.app.RegisterBattleResult(p, result)
 	p.SendMessage(NewServerNotice(lbsLoginOk))
 	p.logger.Info("login ok")
-	p.app.BroadcastExtLobbyUser(p)
 })
 
 var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
@@ -895,7 +892,6 @@ var _ = register(lbsPlazaEntry, func(p *LbsPeer, m *LbsMessage) {
 	lobby.Enter(p)
 	p.SendMessage(NewServerAnswer(m))
 	p.app.BroadcastLobbyUserCount(lobby)
-	p.app.BroadcastExtLobbyUser(p)
 })
 
 var _ = register(lbsPlazaExit, func(p *LbsPeer, m *LbsMessage) {
