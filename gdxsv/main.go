@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -183,17 +184,17 @@ func prepareDB() {
 }
 
 func mainLbs() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
+
 	lbs := NewLbs()
 	if *noban {
 		lbs.NoBan()
 	}
 	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
-	defer lbs.Quit()
 
 	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
-	defer mcs.Quit()
-
 	if conf.LobbyHttpAddr != "" {
 		lbs.RegisterHTTPHandlers()
 		go func() {
@@ -206,10 +207,12 @@ func mainLbs() {
 
 	logger.Sugar()
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	s := <-c
-	fmt.Println("Got signal:", s)
+	<-ctx.Done()
+	stop()
+	logger.Info("Shutdown")
+	lbs.Quit()
+	mcs.Quit()
+	logger.Info("Bye")
 }
 
 func mainMcs() {
