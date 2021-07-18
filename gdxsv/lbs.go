@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"net"
 	"strings"
 	"sync"
@@ -257,7 +259,7 @@ func (lbs *Lbs) Quit() {
 			SendServerShutDown(p)
 		}
 	})
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	close(lbs.chQuit)
 }
 
@@ -444,6 +446,36 @@ func (lbs *Lbs) eventLoop() {
 					lobby.Update()
 				}
 			}
+		}
+	}
+}
+
+// BroadcastExtLobbyUser sends the user information to other users in lbs
+func (lbs *Lbs) BroadcastExtLobbyUser(peer *LbsPeer) {
+	if peer.UserID == "" || peer.Name == "" {
+		return
+	}
+
+	if peer.PlatformInfo["bind_port"] == "" {
+		return
+	}
+
+	bin, err := pb.Marshal(&proto.ExtPlayerInfo{
+		UserId: peer.UserID,
+		Name:   peer.Name,
+		AddrList: []string{
+			fmt.Sprintf("%s:%s", peer.IP(), peer.PlatformInfo["bind_port"]),
+			fmt.Sprintf("%s:%s", peer.PlatformInfo["local_ip"], peer.PlatformInfo["bind_port"]),
+		},
+	})
+	if err != nil {
+		return
+	}
+
+	msg := NewServerNotice(lbsExtPlayerInfo).Writer().Write(bin).Msg()
+	for _, u := range lbs.userPeers {
+		if u.Platform == peer.Platform && u.GameDisk == peer.GameDisk {
+			u.SendMessage(msg)
 		}
 	}
 }

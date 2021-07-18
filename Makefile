@@ -6,6 +6,12 @@ install-tools:
 	go install golang.org/x/tools/cmd/stringer@v0.1.2
 
 
+.PHONY: protoc
+protoc:
+	protoc --proto_path=. --go_out=. gdxsv/proto/*.proto
+	cd ./flycast/core/gdxsv && protoc --proto_path=../../../gdxsv/proto --cpp_out=. gdxsv.proto
+
+
 .PHONY: build
 build:
 	mkdir -p bin
@@ -15,7 +21,7 @@ build:
 
 .PHONY: test
 test:
-	go test -v ./...
+	go test -race -v ./...
 
 
 .PHONY: lint
