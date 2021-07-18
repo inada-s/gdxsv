@@ -212,6 +212,7 @@ func mainLbs() {
 	logger.Info("Shutdown")
 	lbs.Quit()
 	mcs.Quit()
+	time.Sleep(100 * time.Millisecond) // Grace to send Shutdown packet
 	logger.Info("Bye")
 }
 
