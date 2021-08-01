@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-const ringSize = 4096
+const ringSize = 1024
 
 type BattleBuffer struct {
 	mtx   sync.Mutex

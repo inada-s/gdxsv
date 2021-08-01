@@ -55,9 +55,12 @@ func (s *McsUDPServer) readLoop() error {
 	logger.Info("start udp server read loop")
 	pkt := proto.GetPacket()
 	buf := make([]byte, 4096)
+	maxMs := int64(0)
 
 	for {
 		n, addr, err := s.conn.ReadFromUDP(buf)
+		mcsMessageRecv.Add(1)
+		recvTime := time.Now()
 		if err != nil {
 			logger.Error("ReadFromUDP", zap.Error(err))
 			continue
@@ -93,6 +96,7 @@ func (s *McsUDPServer) readLoop() error {
 				if err != nil {
 					logger.Error("WriteToUDP", zap.Error(err))
 				}
+				mcsMessageSent.Add(1)
 			}
 		case proto.MessageType_HelloServer:
 			sessionID := pkt.GetSessionId()
@@ -112,6 +116,9 @@ func (s *McsUDPServer) readLoop() error {
 					s.mtx.Unlock()
 
 					go func(key string) {
+						mcsConns.Add(1)
+						defer mcsConns.Add(-1)
+
 						peer.Serve(s.mcs)
 						if peer.room != nil {
 							peer.room.Leave(peer)
@@ -142,6 +149,7 @@ func (s *McsUDPServer) readLoop() error {
 				if err != nil {
 					logger.Error("WriteToUDP", zap.Error(err))
 				}
+				mcsMessageSent.Add(1)
 			}
 		case proto.MessageType_Battle:
 			if found {
@@ -177,7 +185,25 @@ func (s *McsUDPServer) readLoop() error {
 				if err != nil {
 					logger.Error("WriteToUDP", zap.Error(err))
 				}
+				mcsMessageSent.Add(1)
 			}
+		}
+
+		ms := time.Since(recvTime).Milliseconds()
+		if maxMs < ms {
+			logger.Error("maxMs updated", zap.Int64("ms", ms))
+			maxMs = ms
+			mcsProcMaxMs.Set(maxMs)
+		}
+
+		if 20 <= ms {
+			mcsProcOver20Ms.Add(1)
+		} else if 15 <= ms {
+			mcsProcOver15Ms.Add(1)
+		} else if 10 <= ms {
+			mcsProcOver10Ms.Add(1)
+		} else if 5 <= ms {
+			mcsProcOver5Ms.Add(1)
 		}
 	}
 }
@@ -248,8 +274,8 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	u.closeMtx.Unlock()
 
 	defer cancel()
-	ticker := time.NewTicker(16 * time.Millisecond)
-	defer ticker.Stop()
+	timer := time.NewTimer(16 * time.Millisecond)
+	defer timer.Stop()
 	lastRecv := time.Now()
 	lastSend := time.Now()
 
@@ -260,17 +286,22 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			timeout := time.Since(lastRecv).Seconds() > 10.0
 			if timeout {
 				u.SetCloseReason("sv_recv_timeout")
 				return
 			}
-			if time.Since(lastSend).Seconds() >= 0.016 {
+
+			sinceLastSendMs := time.Since(lastSend).Milliseconds()
+			if 15 < sinceLastSendMs {
 				select {
 				case u.chFlush <- struct{}{}:
 				default:
 				}
+				timer.Reset(16 * time.Millisecond)
+			} else {
+				timer.Reset(time.Duration(16-sinceLastSendMs) * time.Millisecond)
 			}
 		case <-u.chFlush:
 			lastSend = time.Now()
@@ -295,6 +326,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 				// Should be returned ?
 				// return
 			}
+			mcsMessageSent.Add(1)
 		case <-u.chRecv:
 			lastRecv = time.Now()
 			u.readingMtx.Lock()
@@ -349,8 +381,4 @@ func (u *McsUDPPeer) AddSendData(data []byte) {
 
 func (u *McsUDPPeer) AddSendMessage(msg *proto.BattleMessage) {
 	u.rudp.PushBattleMessage(msg)
-	select {
-	case u.chFlush <- struct{}{}:
-	default:
-	}
 }

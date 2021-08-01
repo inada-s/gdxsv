@@ -14,11 +14,13 @@ import (
 )
 
 type McsRoom struct {
-	sync.RWMutex
+	mtx sync.RWMutex
 
-	mcs       *Mcs
-	game      *McsGame
-	peers     []McsPeer
+	mcs   *Mcs
+	game  *McsGame
+	peers []McsPeer
+
+	logMtx    sync.RWMutex
 	battleLog *proto.BattleLogFile
 }
 
@@ -34,40 +36,36 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 			RuleBin:        SerializeRule(&gameInfo.Rule),
 			Patches:        gameInfo.PatchList.GetPatches(),
 			StartAt:        time.Now().UnixNano(),
+			BattleData:     make([]*proto.BattleLogMessage, 0, 65536 * 4), // 5Game * 210sec * 60fps = 63000
 		},
 	}
 	return room
 }
 
 func (r *McsRoom) PeerCount() int {
-	r.RLock()
+	r.mtx.RLock()
 	n := len(r.peers)
-	r.RUnlock()
+	r.mtx.RUnlock()
 	return n
 }
 
 func (r *McsRoom) IsClosing() bool {
 	ret := false
-	r.RLock()
+	r.mtx.RLock()
 	for i := 0; i < len(r.peers); i++ {
 		if r.peers[i] == nil {
 			ret = true
 		}
 	}
-	r.RUnlock()
+	r.mtx.RUnlock()
 	return ret
 }
 
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
-	logMsg := &proto.BattleLogMessage{
-		UserId:    peer.UserID(),
-		Body:      msg.Body,
-		Seq:       msg.Seq,
-		Timestamp: time.Now().UnixNano(),
-	}
-
+	ts := time.Now().UnixNano()
 	k := peer.Position()
-	r.RLock()
+
+	r.mtx.RLock()
 	for i := 0; i < len(r.peers); i++ {
 		if i == k {
 			continue
@@ -86,11 +84,17 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 			}
 		}
 	}
-	r.RUnlock()
+	r.mtx.RUnlock()
 
-	r.Lock()
+	logMsg := &proto.BattleLogMessage{
+		UserId:    peer.UserID(),
+		Body:      msg.Body,
+		Seq:       msg.Seq,
+		Timestamp: ts,
+	}
+	r.logMtx.Lock()
 	r.battleLog.BattleData = append(r.battleLog.BattleData, logMsg)
-	r.Unlock()
+	r.logMtx.Unlock()
 }
 
 func (r *McsRoom) saveBattleLogLocked(path string) error {
@@ -117,9 +121,13 @@ func (r *McsRoom) saveBattleLogLocked(path string) error {
 }
 
 func (r *McsRoom) Finalize() {
-	r.Lock()
-	r.battleLog.EndAt = time.Now().UnixNano()
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
 
+	r.logMtx.Lock()
+	defer r.logMtx.Unlock()
+
+	r.battleLog.EndAt = time.Now().UnixNano()
 	fileName := fmt.Sprintf("disk%v-%v.pb", r.battleLog.GameDisk, r.battleLog.BattleCode)
 	err := r.saveBattleLogLocked(path.Join(conf.BattleLogPath, fileName))
 	if err != nil {
@@ -129,13 +137,17 @@ func (r *McsRoom) Finalize() {
 	r.mcs = nil
 	r.peers = nil
 	r.battleLog = nil
-	r.Unlock()
 	mcs.OnMcsRoomClose(r)
 }
 
 func (r *McsRoom) Join(p McsPeer, u *McsUser) {
 	p.SetMcsRoomID(r.game.BattleCode)
-	r.Lock()
+
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.logMtx.Lock()
+	defer r.logMtx.Unlock()
+
 	r.battleLog.Users = append(r.battleLog.Users, &proto.BattleLogUser{
 		UserId:      u.UserID,
 		UserName:    u.Name,
@@ -147,14 +159,13 @@ func (r *McsRoom) Join(p McsPeer, u *McsUser) {
 	})
 	p.SetPosition(len(r.peers))
 	r.peers = append(r.peers, p)
-	r.Unlock()
 }
 
 func (r *McsRoom) Leave(p McsPeer) {
 	pos := p.Position()
 	sessionID := p.SessionID()
 
-	r.Lock()
+	r.mtx.Lock()
 	if pos < len(r.peers) {
 		r.peers[pos] = nil
 	}
@@ -165,11 +176,11 @@ func (r *McsRoom) Leave(p McsPeer) {
 			break
 		}
 	}
-	r.Unlock()
+	r.mtx.Unlock()
 
 	r.mcs.OnUserLeft(r, sessionID, p.GetCloseReason())
 
 	if empty {
-		r.Finalize()
+		go r.Finalize()
 	}
 }
