@@ -274,8 +274,8 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	u.closeMtx.Unlock()
 
 	defer cancel()
-	ticker := time.NewTicker(16 * time.Millisecond)
-	defer ticker.Stop()
+	timer := time.NewTimer(16 * time.Millisecond)
+	defer timer.Stop()
 	lastRecv := time.Now()
 	lastSend := time.Now()
 
@@ -286,17 +286,22 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			timeout := time.Since(lastRecv).Seconds() > 10.0
 			if timeout {
 				u.SetCloseReason("sv_recv_timeout")
 				return
 			}
-			if time.Since(lastSend).Seconds() >= 0.016 {
+
+			sinceLastSendMs := time.Since(lastSend).Milliseconds()
+			if 15 < sinceLastSendMs {
 				select {
 				case u.chFlush <- struct{}{}:
 				default:
 				}
+				timer.Reset(16 * time.Millisecond)
+			} else {
+				timer.Reset(time.Duration(16-sinceLastSendMs) * time.Millisecond)
 			}
 		case <-u.chFlush:
 			lastSend = time.Now()
