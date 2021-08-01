@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -138,6 +139,7 @@ func prepareOption(command string) {
 		if 2 <= *pprof {
 			runtime.MemProfileRate = 1
 			runtime.SetBlockProfileRate(1)
+			runtime.SetMutexProfileFraction(1)
 			logger.Warn("mem profile mode enabled")
 		}
 		go func() {
@@ -319,11 +321,19 @@ func main() {
 		if err != nil {
 			logger.Fatal("Failed to Unmarshal", zap.Error(err))
 		}
+		t0 := logfile.BattleData[0].Timestamp
+		for _, data := range logfile.BattleData {
+			t := (data.Timestamp - t0) / 1e6
+			fmt.Println(t, data.UserId, data.Seq, hex.EncodeToString(data.Body))
+		}
+
+		logfile.BattleData = nil
 		js, err := json.MarshalIndent(logfile, "", "  ")
 		if err != nil {
 			logger.Fatal("Failed to Unmarshal", zap.Error(err))
 		}
 		fmt.Print(string(js))
+
 	default:
 		printUsage()
 		os.Exit(1)

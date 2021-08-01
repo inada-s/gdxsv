@@ -252,7 +252,7 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			sharedData.RemoveStaleData()
 
 			if 15 <= time.Since(status.UpdatedAt).Minutes() && len(status.Users) == 0 {
-				logger.Info("mcs exit")
+				logger.Info("mcs exit", zap.String("mcs-metrics", mcsMetrics.String()))
 				return nil
 			}
 		}
@@ -317,6 +317,6 @@ func (mcs *Mcs) OnMcsRoomClose(room *McsRoom) {
 	mcs.updated = time.Now()
 	delete(mcs.rooms, room.game.BattleCode)
 	mcs.mtx.Unlock()
-
+	logger.Info("mcs room closed", zap.String("mcs-metrics", mcsMetrics.String()))
 	sharedData.UpdateMcsGameState(room.game.BattleCode, McsGameStateClosed)
 }

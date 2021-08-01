@@ -5,53 +5,38 @@ set -eux
 
 cd $(dirname "$0")
 
+readonly N=${N:-"4"}
 readonly GDXSV=${GDXSV:-"zdxsv.net"}
-readonly MAXLAG=${MAXLAG:-"8"}
 readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc2\gdx-disc2.gdi'}
+#readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc1\gdx-disc1.gdi'}
 
-mkdir -p work/bin
 
-ls ./flycast/shell/linux/artifacts || true
-ls ~/Downloads/flycast.zip || true
+flycast[1]="flycast/build/artifact/flycast.exe"
+flycast[2]="flycast/build/artifact/flycast.exe"
+flycast[3]="flycast/build/artifact/flycast.exe"
+flycast[4]="flycast/build/artifact/flycast.exe"
+#flycast[2]="work/bin/flycast-merge-upstream-20210614.exe"
+#flycast[3]="work/bin/Flycast-win_x64-v0.7.8-0f5ef2e.exe"
+#flycast[4]="work/bin/Flycast-win_x64-v0.7.8-0f5ef2e.exe"
 
-if [[ -f ./flycast/shell/linux/artifacts/flycast.exe ]]; then
-  set +x
-  echo "======================="
-  echo "USE local build version"
-  echo "======================="
-  sleep 2
-  set -x
-  cp ./flycast/shell/linux/artifacts/flycast.exe work/bin/flycast.exe
-elif [[ -f ~/Downloads/flycast.zip  ]]; then
-  set +x
-  echo "======================="
-  echo "USE ci build version"
-  echo "======================="
-  sleep 2
-  set -x
-  ## TODO download
-  mv ~/Downloads/flycast.zip ./work/bin/
-  pushd work/bin
-    unzip flycast.zip
-    mv ./flycast.*exe flycast.exe || true
-  popd
-fi
-
-for i in 1 2 3 4; do
+for i in $(seq "${N}"); do
   mkdir -p work/flycast${i}/data
-  cp work/bin/flycast.exe work/flycast${i}/
+  if [[ i < ${#flycast[@]} ]] && [[ -f ${flycast[i]} ]]; then
+    cp ${flycast[i]} work/flycast${i}/flycast.exe
+  else
+    echo "Not found: flycast$i use 1"
+    cp ${flycast[1]} work/flycast${i}/flycast.exe
+  fi
 done
 
-for i in 1 2 3 4; do
+for i in $(seq "${N}"); do
   sed -i "s/^server =.*$/server = ${GDXSV}/" work/flycast${i}/emu.cfg
-  sed -i "s/^maxlag =.*$/maxlag = ${MAXLAG}/" work/flycast${i}/emu.cfg
   echo "replacing emu.cfg 'server = ${GDXSV}'"
-  echo "replacing emu.cfg 'maxlag= ${MAXLAG}'"
 done
 
 trap 'kill $(jobs -p)' EXIT
-for i in 1 2 3 4; do
-  cd work/flycast${i} && MSYS_NO_PATHCONV=1 ./flycast.exe ${GDX_ROM_PATH} &
+for i in $(seq "${N}"); do
+  cd work/flycast${i} && MSYS_NO_PATHCONV=1 ./flycast.exe "${GDX_ROM_PATH}" "$@" &
 done
 
 rm -f work/flycast1/flycast.log

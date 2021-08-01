@@ -55,9 +55,12 @@ func (s *McsUDPServer) readLoop() error {
 	logger.Info("start udp server read loop")
 	pkt := proto.GetPacket()
 	buf := make([]byte, 4096)
+	maxMs := int64(0)
 
 	for {
 		n, addr, err := s.conn.ReadFromUDP(buf)
+		mcsMessageRecv.Add(1)
+		recvTime := time.Now()
 		if err != nil {
 			logger.Error("ReadFromUDP", zap.Error(err))
 			continue
@@ -93,6 +96,7 @@ func (s *McsUDPServer) readLoop() error {
 				if err != nil {
 					logger.Error("WriteToUDP", zap.Error(err))
 				}
+				mcsMessageSent.Add(1)
 			}
 		case proto.MessageType_HelloServer:
 			sessionID := pkt.GetSessionId()
@@ -112,6 +116,9 @@ func (s *McsUDPServer) readLoop() error {
 					s.mtx.Unlock()
 
 					go func(key string) {
+						mcsConns.Add(1)
+						defer mcsConns.Add(-1)
+
 						peer.Serve(s.mcs)
 						if peer.room != nil {
 							peer.room.Leave(peer)
@@ -142,6 +149,7 @@ func (s *McsUDPServer) readLoop() error {
 				if err != nil {
 					logger.Error("WriteToUDP", zap.Error(err))
 				}
+				mcsMessageSent.Add(1)
 			}
 		case proto.MessageType_Battle:
 			if found {
@@ -177,7 +185,25 @@ func (s *McsUDPServer) readLoop() error {
 				if err != nil {
 					logger.Error("WriteToUDP", zap.Error(err))
 				}
+				mcsMessageSent.Add(1)
 			}
+		}
+
+		ms := time.Since(recvTime).Milliseconds()
+		if maxMs < ms {
+			logger.Error("maxMs updated", zap.Int64("ms", ms))
+			maxMs = ms
+			mcsProcMaxMs.Set(maxMs)
+		}
+
+		if 20 <= ms {
+			mcsProcOver20Ms.Add(1)
+		} else if 15 <= ms {
+			mcsProcOver15Ms.Add(1)
+		} else if 10 <= ms {
+			mcsProcOver10Ms.Add(1)
+		} else if 5 <= ms {
+			mcsProcOver5Ms.Add(1)
 		}
 	}
 }
@@ -295,6 +321,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 				// Should be returned ?
 				// return
 			}
+			mcsMessageSent.Add(1)
 		case <-u.chRecv:
 			lastRecv = time.Now()
 			u.readingMtx.Lock()
@@ -349,8 +376,4 @@ func (u *McsUDPPeer) AddSendData(data []byte) {
 
 func (u *McsUDPPeer) AddSendMessage(msg *proto.BattleMessage) {
 	u.rudp.PushBattleMessage(msg)
-	select {
-	case u.chFlush <- struct{}{}:
-	default:
-	}
 }

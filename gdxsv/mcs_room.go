@@ -2,11 +2,9 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"go.uber.org/zap"
 	pb "google.golang.org/protobuf/proto"
 	"os"
-	"path"
 	"sync"
 	"time"
 
@@ -59,12 +57,8 @@ func (r *McsRoom) IsClosing() bool {
 }
 
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
-	logMsg := &proto.BattleLogMessage{
-		UserId:    peer.UserID(),
-		Body:      msg.Body,
-		Seq:       msg.Seq,
-		Timestamp: time.Now().UnixNano(),
-	}
+	// FIXME battle log is disabled because of performance issue
+	//logMsg := &proto.BattleLogMessage{ UserId:    peer.UserID(), Body:      msg.Body, Seq:       msg.Seq, Timestamp: time.Now().UnixNano(), }
 
 	k := peer.Position()
 	r.RLock()
@@ -86,11 +80,8 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 			}
 		}
 	}
+	// r.battleLog.BattleData = append(r.battleLog.BattleData, logMsg)
 	r.RUnlock()
-
-	r.Lock()
-	r.battleLog.BattleData = append(r.battleLog.BattleData, logMsg)
-	r.Unlock()
 }
 
 func (r *McsRoom) saveBattleLogLocked(path string) error {
@@ -119,12 +110,14 @@ func (r *McsRoom) saveBattleLogLocked(path string) error {
 func (r *McsRoom) Finalize() {
 	r.Lock()
 	r.battleLog.EndAt = time.Now().UnixNano()
-
+	// FIXME battle log is disabled because of performance issue
+	/*
 	fileName := fmt.Sprintf("disk%v-%v.pb", r.battleLog.GameDisk, r.battleLog.BattleCode)
 	err := r.saveBattleLogLocked(path.Join(conf.BattleLogPath, fileName))
 	if err != nil {
 		logger.Error("Failed to save battle log", zap.Error(err))
 	}
+	 */
 	mcs := r.mcs
 	r.mcs = nil
 	r.peers = nil

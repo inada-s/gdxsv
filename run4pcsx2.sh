@@ -7,15 +7,15 @@ cd $(dirname "$0")
 
 readonly GDX_ISO_PATH=${GDX_ISO_PATH-'C:\rom\GDX.ISO'}
 
-rm -rf pcsx2/bin1
-rm -rf pcsx2/bin2
-rm -rf pcsx2/bin3
-rm -rf pcsx2/bin4
-
-cp -r pcsx2/{bin,bin1}
-cp -r pcsx2/{bin,bin2}
-cp -r pcsx2/{bin,bin3}
-cp -r pcsx2/{bin,bin4}
+for i in 1 2 3 4; do
+  if [[ ! -d "pcsx2/bin${i}" ]]; then
+    cp -r pcsx2/bin pcsx2/bin${i}
+  fi
+  cp pcsx2/bin/pcsx2-dev.exe pcsx2/bin${i}/pcsx2-dev.exe
+  #cp -r pcsx2/bin/cheats/* pcsx2/bin${i}/cheats
+  rm -rf pcsx2/bin${i}/cheats/*
+  cp -r pcsx2/bin/inis pcsx2/bin${i}/inis
+done
 
 echo "bin12367" > pcsx2/bin1/gdxsv_loginkey.txt
 echo "bin24567" > pcsx2/bin2/gdxsv_loginkey.txt
