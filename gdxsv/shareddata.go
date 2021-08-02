@@ -59,7 +59,7 @@ type McsGame struct {
 	BattleCode string               `json:"battle_code,omitempty"`
 	McsAddr    string               `json:"mcs_addr,omitempty"`
 	GameDisk   string               `json:"game_disk"`
-	RuleBin    []byte               `json:"rule,omitempty"`
+	RuleBin    []byte               `json:"rule_bin,omitempty"`
 	PatchList  *proto.GamePatchList `json:"patch_list,omitempty"`
 
 	State     int       `json:"state,omitempty"`
