@@ -7,6 +7,7 @@ import (
 	pb "google.golang.org/protobuf/proto"
 	"os"
 	"path"
+	"sort"
 	"sync"
 	"time"
 
@@ -29,14 +30,15 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 		mcs:  mcs,
 		game: gameInfo,
 		battleLog: &proto.BattleLogFile{
-			LogFileVersion: 20210702,
+			LogFileVersion: 20210803,
 			GameDisk:       gameInfo.GameDisk,
 			GdxsvVersion:   gdxsvVersion,
 			BattleCode:     gameInfo.BattleCode,
-			RuleBin:        SerializeRule(&gameInfo.Rule),
+			RuleBin:        gameInfo.RuleBin,
 			Patches:        gameInfo.PatchList.GetPatches(),
 			StartAt:        time.Now().UnixNano(),
-			BattleData:     make([]*proto.BattleLogMessage, 0, 65536 * 4), // 5Game * 210sec * 60fps = 63000
+			Users:          make([]*proto.BattleLogUser, 0, 4),
+			BattleData:     make([]*proto.BattleMessage, 0, 65536*4), // 5Game * 210sec * 60fps = 63000
 		},
 	}
 	return room
@@ -62,7 +64,6 @@ func (r *McsRoom) IsClosing() bool {
 }
 
 func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
-	ts := time.Now().UnixNano()
 	k := peer.Position()
 
 	r.mtx.RLock()
@@ -86,14 +87,8 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 	}
 	r.mtx.RUnlock()
 
-	logMsg := &proto.BattleLogMessage{
-		UserId:    peer.UserID(),
-		Body:      msg.Body,
-		Seq:       msg.Seq,
-		Timestamp: ts,
-	}
 	r.logMtx.Lock()
-	r.battleLog.BattleData = append(r.battleLog.BattleData, logMsg)
+	r.battleLog.BattleData = append(r.battleLog.BattleData, msg)
 	r.logMtx.Unlock()
 }
 
@@ -127,6 +122,9 @@ func (r *McsRoom) Finalize() {
 	r.logMtx.Lock()
 	defer r.logMtx.Unlock()
 
+	sort.Slice(r.battleLog.Users, func(i, j int) bool {
+		return r.battleLog.Users[i].Pos < r.battleLog.Users[j].Pos
+	})
 	r.battleLog.EndAt = time.Now().UnixNano()
 	fileName := fmt.Sprintf("disk%v-%v.pb", r.battleLog.GameDisk, r.battleLog.BattleCode)
 	err := r.saveBattleLogLocked(path.Join(conf.BattleLogPath, fileName))
@@ -147,15 +145,18 @@ func (r *McsRoom) Join(p McsPeer, u *McsUser) {
 	defer r.mtx.Unlock()
 	r.logMtx.Lock()
 	defer r.logMtx.Unlock()
-
 	r.battleLog.Users = append(r.battleLog.Users, &proto.BattleLogUser{
-		UserId:      u.UserID,
-		UserName:    u.Name,
-		PilotName:   u.PilotName,
-		GameParam:   u.GameParam,
-		BattleCount: int32(u.BattleCount),
-		WinCount:    int32(u.WinCount),
-		LoseCount:   int32(u.LoseCount),
+		UserId:       u.UserID,
+		UserName:     u.Name,
+		PilotName:    u.PilotName,
+		GameParam:    u.GameParam,
+		BattleCount:  int32(u.BattleCount),
+		WinCount:     int32(u.WinCount),
+		LoseCount:    int32(u.LoseCount),
+		Grade:        int32(u.Grade),
+		Team:         int32(u.Team),
+		UserNameSjis: u.NameSJIS,
+		Pos:          int32(u.Pos),
 	})
 	p.SetPosition(len(r.peers))
 	r.peers = append(r.peers, p)

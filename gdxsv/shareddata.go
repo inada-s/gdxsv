@@ -38,14 +38,17 @@ type McsUser struct {
 	UserID      string `json:"user_id,omitempty"`
 	Name        string `json:"name,omitempty"`
 	PilotName   string `json:"pilot_name,omitempty"`
+	NameSJIS    []byte `json:"name_sjis,omitempty"`
 	GameParam   []byte `json:"game_param,omitempty"`
 	Platform    string `json:"platform"`
 	GameDisk    string `json:"game_disk"`
+	SessionID   string `json:"session_id,omitempty"`
+	Pos         int    `json:"pos,omitempty"`
+	Team        uint16 `json:"team,omitempty"`
 	BattleCount int    `json:"battle_count,omitempty"`
 	WinCount    int    `json:"win_count,omitempty"`
 	LoseCount   int    `json:"lose_count,omitempty"`
-	Team        uint16 `json:"team,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`
+	Grade       int    `json:"grade,omitempty"`
 
 	State       int       `json:"state,omitempty"`
 	CloseReason string    `json:"close_reason,omitempty"`
@@ -56,7 +59,7 @@ type McsGame struct {
 	BattleCode string               `json:"battle_code,omitempty"`
 	McsAddr    string               `json:"mcs_addr,omitempty"`
 	GameDisk   string               `json:"game_disk"`
-	Rule       Rule                 `json:"rule,omitempty"`
+	RuleBin    []byte               `json:"rule,omitempty"`
 	PatchList  *proto.GamePatchList `json:"patch_list,omitempty"`
 
 	State     int       `json:"state,omitempty"`
