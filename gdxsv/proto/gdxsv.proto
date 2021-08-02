@@ -35,15 +35,11 @@ message BattleLogUser {
   int32 battle_count = 5;
   int32 win_count = 6;
   int32 lose_count = 7;
+  int32 grade = 8;
+  int32 team = 9;
   string platform = 10;
-}
-
-message BattleLogMessage {
-  string user_id = 1;
-  bytes body = 2;
-  uint32 seq = 3;
-
-  int64 timestamp = 10;
+  bytes user_name_sjis = 11;
+  int32 pos = 12;
 }
 
 message BattleLogFile {
@@ -55,7 +51,7 @@ message BattleLogFile {
 
   bytes rule_bin = 10;
   repeated BattleLogUser users = 11;
-  repeated BattleLogMessage battle_data = 12;
+  repeated BattleMessage battle_data = 12;
 
   int64 start_at = 20;
   int64 end_at = 21;

@@ -321,10 +321,8 @@ func main() {
 		if err != nil {
 			logger.Fatal("Failed to Unmarshal", zap.Error(err))
 		}
-		t0 := logfile.BattleData[0].Timestamp
 		for _, data := range logfile.BattleData {
-			t := (data.Timestamp - t0) / 1e6
-			fmt.Println(t, data.UserId, data.Seq, hex.EncodeToString(data.Body))
+			fmt.Println(data.UserId, data.Seq, hex.EncodeToString(data.Body))
 		}
 
 		logfile.BattleData = nil

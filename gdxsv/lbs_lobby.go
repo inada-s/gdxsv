@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 	pb "google.golang.org/protobuf/proto"
+	"io/ioutil"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -724,7 +727,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
-		Rule:       *b.Rule,
+		RuleBin:    SerializeRule(b.Rule),
 		GameDisk:   l.GameDisk,
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
@@ -732,23 +735,32 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		PatchList:  patchList,
 	})
 
-	for _, q := range participants {
+	for i, q := range participants {
+		nameSJIS, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
+		if err != nil {
+			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
+		}
+
 		sharedData.ShareMcsUser(&McsUser{
 			BattleCode:  b.BattleCode,
 			McsRegion:   b.McsRegion,
 			UserID:      q.UserID,
 			Name:        q.Name,
 			PilotName:   q.PilotName,
+			NameSJIS:    nameSJIS,
 			GameParam:   q.GameParam,
 			Platform:    q.Platform,
 			GameDisk:    q.GameDisk,
+			SessionID:   q.SessionID,
+			Pos:         i + 1,
+			Team:        q.Team,
 			BattleCount: q.BattleCount,
 			WinCount:    q.WinCount,
 			LoseCount:   q.LoseCount,
-			Team:        q.Team,
-			SessionID:   q.SessionID,
-			UpdatedAt:   time.Now(),
-			State:       McsUserStateCreated,
+			Grade:       int(decideGrade(q.WinCount, q.Rank)),
+
+			UpdatedAt: time.Now(),
+			State:     McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
 		q.SendMessage(patchMsg)
@@ -896,7 +908,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
-		Rule:       *b.Rule,
+		RuleBin:    SerializeRule(b.Rule),
 		GameDisk:   l.GameDisk,
 		UpdatedAt:  time.Now(),
 		State:      McsGameStateCreated,
@@ -904,25 +916,35 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		PatchList:  patchList,
 	})
 
-	for _, q := range participants {
+	for i, q := range participants {
+		nameSJIS, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
+		if err != nil {
+			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
+		}
+
 		sharedData.ShareMcsUser(&McsUser{
 			BattleCode:  b.BattleCode,
 			McsRegion:   b.McsRegion,
 			UserID:      q.UserID,
 			Name:        q.Name,
 			PilotName:   q.PilotName,
+			NameSJIS:    nameSJIS,
 			GameParam:   q.GameParam,
 			Platform:    q.Platform,
 			GameDisk:    q.GameDisk,
+			SessionID:   q.SessionID,
+			Pos:         i + 1,
+			Team:        q.Team,
 			BattleCount: q.BattleCount,
 			WinCount:    q.WinCount,
 			LoseCount:   q.LoseCount,
-			Team:        q.Team,
-			SessionID:   q.SessionID,
-			UpdatedAt:   time.Now(),
-			State:       McsUserStateCreated,
+			Grade:       int(decideGrade(q.WinCount, q.Rank)),
+
+			UpdatedAt: time.Now(),
+			State:     McsUserStateCreated,
 		})
 		NotifyReadyBattle(q)
+		q.SendMessage(patchMsg)
 	}
 
 	if mcsPeer != nil {
