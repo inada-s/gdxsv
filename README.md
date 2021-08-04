@@ -139,20 +139,13 @@ The `gdxsv` directory contains main server program.
 ### `flycast`
 The `flycast` directory is a submodule, that is flycast fork customized for the development of this server.
 
-It contains some dirty code for gdxsv, but I would like to deliver the artifacts upstream.
+It contains some dirty code for gdxsv, but I would like to deliver the artifacts upstream someday....
 
 You can download the latest version of flycast built for gdxsv from the [Release page](https://github.com/inada-s/flycast/release) of this repository.
 
 ### `pcsx2`
 The `pcsx2` directory is a submodule, that is pcsx2 fork customized for the development of this server.
-I don't expect to play with this because of performance issues.
-
-The PS2 version of this game has a lot of debug symbols left and useful for analysis.
-
-### `ps2patch`
-The `ps2patch` directory contains source program of paches for playstation2 version to enter network mode.
-These patches now depends on pcsx2 fork.
-The c code will be compiled with [ps2dev-docker](https://github.com/ps2dev/ps2dev-docker) and be applied as cheating codes.
+I don't expect to play with this for now, but PS2 version has a lot of debug symbols left and useful for analysis.
 
 ---
 
