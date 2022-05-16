@@ -21,7 +21,7 @@ This game has online mode, but the service ended in 2004. This project aims to k
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-6-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-7-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -37,6 +37,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/Q-SJO-Q"><img src="https://avatars.githubusercontent.com/u/86608532?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Q-SJO-Q</b></sub></a><br /><a href="#financial-Q-SJO-Q" title="Financial">💵</a></td>
     <td align="center"><a href="https://github.com/crazytaka3"><img src="https://avatars.githubusercontent.com/u/86925395?v=4?s=100" width="100px;" alt=""/><br /><sub><b>crazytaka3</b></sub></a><br /><a href="#financial-crazytaka3" title="Financial">💵</a></td>
     <td align="center"><a href="https://www.facebook.com/Mobile.Suit.Gundam.DX/"><img src="https://avatars.githubusercontent.com/u/87101475?v=4?s=100" width="100px;" alt=""/><br /><sub><b>HK-DX-Players</b></sub></a><br /><a href="#financial-HK-DX-Players" title="Financial">💵</a></td>
+    <td align="center"><a href="https://github.com/MIGUSUKE"><img src="https://avatars.githubusercontent.com/u/88677965?v=4?s=100" width="100px;" alt=""/><br /><sub><b>migu</b></sub></a><br /><a href="#financial-MIGUSUKE" title="Financial">💵</a></td>
   </tr>
 </table>
 
