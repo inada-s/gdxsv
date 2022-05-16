@@ -12,8 +12,8 @@ export interface ILocaleItem {
 }
 
 // seems typescript bug here, use any for now
-// export default ():[string, React.Dispatch<React.SetStateAction<LocaleType>>, ILocaleItem[], any] => {
-export default ():any[] => {
+// React.Dispatch<React.SetStateAction<LocaleType>>, ILocaleItem[], any]
+const Locale = ():any => {
     const defaultLocale:LocaleType =
         localStorage['locale'] ||
         (browserLanguage && browserLanguage.toLowerCase().split(/[_-]+/)[0]) || // Remove the region code
@@ -38,3 +38,5 @@ export default ():any[] => {
     
     return [locale, changeLocale, localeList, messages[locale]];
 };
+
+export default Locale
