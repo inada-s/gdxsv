@@ -42,7 +42,29 @@ func splitIPPort(addr string) (net.IP, uint16, error) {
 		return nil, 0, err
 	}
 
-	return net.ParseIP(host), uint16(portNum), nil
+	ip := net.ParseIP(host)
+	if ip == nil {
+		logger.Warn("public battle address is not a valid IP, trying to resolve it as a name "+
+			"(not recommended: replace with a bare address is possible)", zap.String("host", host))
+		// Look up name over DNS
+		candidates, err := net.LookupIP(host)
+		if err != nil {
+			logger.Error("failed to look up public battle host", zap.String("host", host), zap.Error(err))
+		} else {
+			// Pick first valid IPv4 result
+			for _, entry := range candidates {
+				if entry.To4() != nil {
+					ip = entry
+					break
+				}
+			}
+			if ip == nil {
+				logger.Error("could not find a valid IPv4 from looking up battle host", zap.String("host", host))
+			}
+		}
+	}
+
+	return ip, uint16(portNum), nil
 }
 
 func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsRegion string, mcsAddr string) *LbsBattle {
