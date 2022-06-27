@@ -31,7 +31,7 @@ type LbsBattle struct {
 	TestBattle bool
 }
 
-func splitIPPort(addr string) (net.IP, uint16, error) {
+func toIPPort(addr string) (net.IP, uint16, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, 0, err
@@ -42,7 +42,12 @@ func splitIPPort(addr string) (net.IP, uint16, error) {
 		return nil, 0, err
 	}
 
-	return net.ParseIP(host), uint16(portNum), nil
+	ipAddr, err := net.ResolveIPAddr("ip4", host)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return ipAddr.IP, uint16(portNum), nil
 }
 
 func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsRegion string, mcsAddr string) *LbsBattle {
@@ -51,7 +56,7 @@ func NewBattle(app *Lbs, lobbyID uint16, rule *Rule, mcsRegion string, mcsAddr s
 		mcsAddr = conf.BattlePublicAddr
 	}
 
-	ip, port, err := splitIPPort(mcsAddr)
+	ip, port, err := toIPPort(mcsAddr)
 	if err != nil {
 		logger.Error("failed to parse mcs addr", zap.Error(err))
 		return nil
@@ -98,7 +103,7 @@ func (b *LbsBattle) NumOfEntryUsers() uint16 {
 }
 
 func (b *LbsBattle) SetBattleServer(addr string) {
-	ip, port, err := splitIPPort(addr)
+	ip, port, err := toIPPort(addr)
 	if err != nil {
 		logger.Error("failed to set battle server", zap.Error(err))
 		return
