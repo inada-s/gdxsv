@@ -37,7 +37,7 @@ func toIPPort(addr string) (net.IP, uint16, error) {
 		return nil, 0, err
 	}
 
-	portNum, err := strconv.Atoi(portStr)
+	portNum, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return nil, 0, err
 	}
