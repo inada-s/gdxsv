@@ -1,6 +1,7 @@
 bin/
 work/
 .vscode/
+.idea/
 log.txt
 dump.txt
 gdxsv.db
