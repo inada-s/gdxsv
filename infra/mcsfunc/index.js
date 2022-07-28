@@ -256,7 +256,7 @@ async function getAlloc(req, res) {
             console.log("trying to create new vm in", zoneName);
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
-                os: "ubuntu-1804",
+                os: "ubuntu-1804-bionic-v",
                 http: true,
                 tags: ["gdxsv-mcs"],
                 machineType: "e2-medium",
