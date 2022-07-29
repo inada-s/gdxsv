@@ -38,6 +38,7 @@ echo "startup-script"
 
 su -c "echo 'deb http://packages.cloud.google.com/apt google-compute-engine-bionic-stable main' > /etc/apt/sources.list.d/google-compute-engine.list"
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+rm /var/lib/dpkg/lock-frontend
 apt update
 apt -y install google-osconfig-agent jq wget curl
 
@@ -256,7 +257,7 @@ async function getAlloc(req, res) {
             console.log("trying to create new vm in", zoneName);
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
-                os: "ubuntu-1804",
+                os: "ubuntu-1804-bionic-v",
                 http: true,
                 tags: ["gdxsv-mcs"],
                 machineType: "e2-medium",
