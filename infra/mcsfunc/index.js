@@ -39,6 +39,8 @@ echo "startup-script"
 su -c "echo 'deb http://packages.cloud.google.com/apt google-compute-engine-bionic-stable main' > /etc/apt/sources.list.d/google-compute-engine.list"
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 rm /var/lib/dpkg/lock-frontend
+rm /var/lib/dpkg/lock
+rm /var/cache/apt/archives/lock
 apt update
 apt -y install google-osconfig-agent jq wget curl
 
