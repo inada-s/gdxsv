@@ -161,6 +161,7 @@ const (
 	lbsPlatformInfo      CmdID = 0x9950
 	lbsExtPlayerInfo     CmdID = 0x9955
 	lbsGamePatch         CmdID = 0x9960
+	lbsBattleUserCount   CmdID = 0x9965
 )
 
 func RequestLineCheck(p *LbsPeer) {
@@ -618,6 +619,8 @@ var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsAskKDDICharges, func(p *LbsPeer, m *LbsMessage) {
 	// 課金予測情報 (円)
 	p.SendMessage(NewServerAnswer(m).Writer().Write32(0).Msg())
+	var mcsUsersCount uint32 = uint32(len(sharedData.mcsUsers))
+	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
 })
 
 var _ = register(lbsAskNewsTag, func(p *LbsPeer, m *LbsMessage) {
