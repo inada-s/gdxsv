@@ -339,6 +339,7 @@ func (lbs *Lbs) eventLoop() {
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
+				lbs.BroadcastBattleUserCount()
 			case eventPeerMessage:
 				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
 					fmt.Println(args.msg)
@@ -366,6 +367,7 @@ func (lbs *Lbs) eventLoop() {
 				args.peer.logger.Info("eventPeerLeave")
 				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
+				lbs.BroadcastBattleUserCount()
 			case eventFunc:
 				func() {
 					defer func() {
@@ -605,6 +607,15 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 				p.SendMessage(msg1)
 				p.SendMessage(msg2)
 			}
+		}
+	}
+}
+
+func (lbs *Lbs) BroadcastBattleUserCount() {
+	for userID := range lbs.userPeers {
+		var mcsUsersCount uint32 = uint32(len(sharedData.mcsUsers))
+		if p := lbs.FindPeer(userID); p != nil {
+			p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
 		}
 	}
 }
