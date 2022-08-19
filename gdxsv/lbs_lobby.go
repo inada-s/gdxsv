@@ -86,6 +86,8 @@ func (l *LbsLobby) LoadLobbySetting() error {
 	setting, err := getDB().GetLobbySetting(l.Platform, l.GameDisk, int(l.ID))
 	if err == sql.ErrNoRows {
 		l.Rule = DefaultRule
+		l.LobbySetting.EnableForceStart = true
+		l.lobbySettingMessages = l.buildLobbySettingMessages()
 		return nil
 	}
 
