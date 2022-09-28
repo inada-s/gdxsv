@@ -187,6 +187,7 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 		logger.Fatal("net.ListenTCP", zap.Error(err))
 	}
 
+	go lbs.serveUDP(addr)
 	go lbs.eventLoop()
 
 	for {
@@ -198,6 +199,50 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 		logger.Info("a new connection open", zap.String("addr", tcpConn.RemoteAddr().String()))
 		peer := lbs.NewPeer(tcpConn)
 		go peer.serve()
+	}
+}
+
+func (lbs *Lbs) serveUDP(addr string) {
+	logger.Info("lbs.ServeUDP", zap.String("addr", addr))
+
+	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
+	if err != nil {
+		logger.Fatal("net.ResolveUDPAddr", zap.Error(err))
+	}
+	udpConn, err := net.ListenUDP("udp4", udpAddr)
+	if err != nil {
+		logger.Fatal("net.ListenUDP", zap.Error(err))
+	}
+
+	buf := make([]byte, 128)
+	pkt := new(proto.Packet)
+	for {
+		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
+		if err != nil {
+			logger.Error("udpConn.ReadFromUDP", zap.Error(err))
+			if err == net.ErrClosed {
+				go lbs.serveUDP(addr)
+				return
+			}
+		}
+
+		pkt.Reset()
+		err = pb.Unmarshal(buf[:n], pkt)
+		if err != nil {
+			logger.Error("pb.Unmarshal", zap.Error(err))
+			continue
+		}
+
+		if pkt.HelloLbsData != nil {
+			lbs.Locked(func(lbs *Lbs) {
+				peer := lbs.FindPeer(pkt.HelloLbsData.UserId)
+				if peer != nil {
+					peer.udpAddr = *remoteAddr
+					logger.Info("set peer.udpAddr",
+						zap.String("user_id", peer.UserID), zap.String("addr", peer.udpAddr.String()))
+				}
+			})
+		}
 	}
 }
 
@@ -452,36 +497,6 @@ func (lbs *Lbs) eventLoop() {
 	}
 }
 
-// BroadcastExtLobbyUser sends the user information to other users in lbs
-func (lbs *Lbs) BroadcastExtLobbyUser(peer *LbsPeer) {
-	if peer.UserID == "" || peer.Name == "" {
-		return
-	}
-
-	if peer.PlatformInfo["bind_port"] == "" {
-		return
-	}
-
-	bin, err := pb.Marshal(&proto.ExtPlayerInfo{
-		UserId: peer.UserID,
-		Name:   peer.Name,
-		AddrList: []string{
-			fmt.Sprintf("%s:%s", peer.IP(), peer.PlatformInfo["bind_port"]),
-			fmt.Sprintf("%s:%s", peer.PlatformInfo["local_ip"], peer.PlatformInfo["bind_port"]),
-		},
-	})
-	if err != nil {
-		return
-	}
-
-	msg := NewServerNotice(lbsExtPlayerInfo).Writer().Write(bin).Msg()
-	for _, u := range lbs.userPeers {
-		if u.Platform == peer.Platform && u.GameDisk == peer.GameDisk {
-			u.SendMessage(msg)
-		}
-	}
-}
-
 func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	if lobby == nil {
 		return
@@ -721,11 +736,12 @@ type LbsPeer struct {
 	DBUser
 	logger *zap.Logger
 
-	conn   net.Conn
-	app    *Lbs
-	Room   *LbsRoom
-	Lobby  *LbsLobby
-	Battle *LbsBattle
+	conn    net.Conn
+	udpAddr net.UDPAddr
+	app     *Lbs
+	Room    *LbsRoom
+	Lobby   *LbsLobby
+	Battle  *LbsBattle
 
 	Platform     string
 	GameDisk     string

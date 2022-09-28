@@ -159,8 +159,8 @@ const (
 	// gdxsv extended commands
 	lbsExtSyncSharedData CmdID = 0x9900
 	lbsPlatformInfo      CmdID = 0x9950
-	lbsExtPlayerInfo     CmdID = 0x9955
 	lbsGamePatch         CmdID = 0x9960
+	lbsP2PMatching       CmdID = 0x9961
 	lbsBattleUserCount   CmdID = 0x9965
 )
 

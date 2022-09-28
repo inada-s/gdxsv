@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"gdxsv/gdxsv/proto"
+	"hash/fnv"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -641,48 +643,89 @@ func (l *LbsLobby) makePatchList() *proto.GamePatchList {
 	return patchList
 }
 
+func (l *LbsLobby) makeP2PMatchingMsg(battleCode string, participants []*LbsPeer) ([]*LbsMessage, error) {
+	hash := fnv.New32()
+	hash.Write([]byte(battleCode))
+	matching := &proto.P2PMatching{
+		BattleCode:   battleCode,
+		SessionId:    int32(hash.Sum32()),
+		PlayerCount:  int32(len(participants)),
+		PeerId:       0,
+		TimeoutMinMs: 5000,
+		TimeoutMaxMs: 10000,
+		Candidates:   nil,
+	}
+
+	for i, p := range participants {
+		ips := map[string]bool{}
+		ports := map[string]bool{}
+		addrs := map[string]bool{}
+
+		ips["127.0.0.1"] = true
+		ips[p.IP()] = true
+		ips[p.PlatformInfo["local_ip"]] = true
+		ports[p.PlatformInfo["udp_port"]] = true
+		ports[fmt.Sprint(p.udpAddr.Port)] = true
+
+		for ip := range ips {
+			for port := range ports {
+				if ip == "" || port == "" || port == "0" {
+					continue
+				}
+				addrs[ip+":"+port] = true
+			}
+		}
+
+		for addr := range addrs {
+			ip, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				logger.Warn("SplitHostPort error", zap.Error(err))
+				continue
+			}
+
+			portInt, err := strconv.Atoi(port)
+			if err != nil {
+				logger.Warn("Atoi error", zap.Error(err))
+				continue
+			}
+
+			logger.Info(addr)
+
+			matching.Candidates = append(matching.Candidates, &proto.PlayerAddress{
+				UserId: p.UserID,
+				PeerId: int32(i),
+				Ip:     ip,
+				Port:   int32(portInt),
+			})
+		}
+	}
+
+	var msgs []*LbsMessage
+	for i := range participants {
+		matching.PeerId = int32(i)
+		bin, err := pb.Marshal(matching)
+		if err != nil {
+			return nil, err
+		}
+		msg := NewServerNotice(lbsP2PMatching)
+		msg.Writer().Write(bin)
+		msgs = append(msgs, msg)
+	}
+
+	return msgs, nil
+}
+
 func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	if !(force || l.canStartBattle()) {
 		return
 	}
 
-	var mcsRegion = l.LobbySetting.McsRegion
-	var mcsPeer *LbsPeer
-	var mcsAddr = conf.BattlePublicAddr
-
-	if mcsRegion == "best" {
-		bestRegion, err := l.findBestGCPRegion(l.getNextLobbyBattleParticipants())
-		if err != nil {
-			logger.Error("findBestGCPRegion failed", zap.Error(err))
-			l.NotifyLobbyEvent("", "Failed to find best region.")
-			l.NotifyLobbyEvent("", "Use default server.")
-			mcsRegion = ""
-		} else {
-			logger.Info("findBestGCPRegion", zap.String("best_region", bestRegion))
-			mcsRegion = bestRegion
+	mcsRegion, mcsPeer, mcsAddr, startNow, alloc := l.prepareMcs(l.LobbySetting.McsRegion)
+	if !startNow {
+		if alloc {
+			l.NotifyLobbyEvent("", "Allocating game server...")
 		}
-	}
-
-	if McsFuncEnabled() && mcsRegion != "" {
-		stat := l.app.FindMcs(mcsRegion)
-		if stat == nil {
-			logger.Info("mcs status not found")
-			if GoMcsFuncAlloc(mcsRegion) {
-				l.NotifyLobbyEvent("", "Allocating game server...")
-			}
-			return
-		}
-
-		peer := l.app.FindMcsPeer(stat.PublicAddr)
-		if peer == nil {
-			if GoMcsFuncAlloc(mcsRegion) {
-				l.NotifyLobbyEvent("", "Waiting game server...")
-			}
-			return
-		}
-
-		mcsPeer = peer
-		mcsAddr = stat.PublicAddr
+		return
 	}
 
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
@@ -727,6 +770,16 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	patchMsg := NewServerNotice(lbsGamePatch)
 	patchMsg.Writer().Write(patchBin)
 
+	var p2pMatchingMsgs []*LbsMessage
+	if mcsRegion == "p2p" {
+		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b.BattleCode, participants)
+		if err != nil {
+			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
+			return
+		}
+		logger.Info("p2pMatchingMsg", zap.Any("p2pMatchingMsg", p2pMatchingMsgs[0]))
+	}
+
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		RuleBin:    SerializeRule(b.Rule),
@@ -766,6 +819,9 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		})
 		NotifyReadyBattle(q)
 		q.SendMessage(patchMsg)
+		if 0 < len(p2pMatchingMsgs) {
+			q.SendMessage(p2pMatchingMsgs[i])
+		}
 	}
 
 	if mcsPeer != nil {
@@ -827,45 +883,13 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		return
 	}
 
-	var mcsRegion = l.LobbySetting.McsRegion
-	var mcsPeer *LbsPeer
-	var mcsAddr = conf.BattlePublicAddr
-
-	if mcsRegion == "best" {
-		bestRegion, err := l.findBestGCPRegion(l.getNextLobbyBattleParticipants())
-		if err != nil {
-			logger.Error("findBestGCPRegion failed", zap.Error(err))
-			l.NotifyLobbyEvent("", "Failed to find best region.")
-			l.NotifyLobbyEvent("", "Use default server.")
-			mcsRegion = ""
-		} else {
-			logger.Info("findBestGCPRegion", zap.String("best_region", bestRegion))
-			mcsRegion = bestRegion
+	mcsRegion, mcsPeer, mcsAddr, startNow, alloc := l.prepareMcs(l.LobbySetting.McsRegion)
+	if !startNow {
+		if alloc {
+			renpoRoom.NotifyRoomEvent("", "Allocating game server...")
+			zeonRoom.NotifyRoomEvent("", "Allocating game server...")
 		}
-	}
-
-	if McsFuncEnabled() && mcsRegion != "" {
-		stat := l.app.FindMcs(mcsRegion)
-		if stat == nil {
-			if GoMcsFuncAlloc(mcsRegion) {
-				renpoRoom.NotifyRoomEvent("", "Allocating game server...")
-				zeonRoom.NotifyRoomEvent("", "Allocating game server...")
-			}
-			return
-		}
-
-		peer := l.app.FindMcsPeer(stat.PublicAddr)
-		if peer == nil {
-			logger.Info("mcs peer not found")
-			if GoMcsFuncAlloc(mcsRegion) {
-				renpoRoom.NotifyRoomEvent("", "Waiting game server...")
-				zeonRoom.NotifyRoomEvent("", "Waiting game server...")
-			}
-			return
-		}
-
-		mcsPeer = peer
-		mcsAddr = stat.PublicAddr
+		return
 	}
 
 	renpoRoom.NotifyRoomEvent("", "START ROOM BATTLE")
@@ -908,6 +932,15 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	patchMsg := NewServerNotice(lbsGamePatch)
 	patchMsg.Writer().Write(patchBin)
 
+	var p2pMatchingMsgs []*LbsMessage
+	if mcsRegion == "p2p" {
+		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b.BattleCode, participants)
+		if err != nil {
+			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
+			return
+		}
+	}
+
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
 		RuleBin:    SerializeRule(b.Rule),
@@ -947,9 +980,61 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		})
 		NotifyReadyBattle(q)
 		q.SendMessage(patchMsg)
+		if 0 < len(p2pMatchingMsgs) {
+			q.SendMessage(p2pMatchingMsgs[i])
+		}
 	}
 
 	if mcsPeer != nil {
 		sharedData.NotifyLatestLbsStatus(mcsPeer)
 	}
+}
+
+func (l *LbsLobby) prepareMcs(mcsRegion string) (newMcsRegion string, mcsPeer *LbsPeer, mcsAddr string, canStart bool, alloc bool) {
+	if mcsRegion == "p2p" {
+		newMcsRegion = "p2p"
+		mcsPeer = nil
+		mcsAddr = "255.255.255.255:255"
+		canStart = true
+		return
+	}
+
+	if mcsRegion == "best" {
+		bestRegion, err := l.findBestGCPRegion(l.getNextLobbyBattleParticipants())
+		if err != nil {
+			logger.Error("findBestGCPRegion failed", zap.Error(err))
+			mcsRegion = ""
+		} else {
+			logger.Info("findBestGCPRegion", zap.String("best_region", bestRegion))
+			mcsRegion = bestRegion
+		}
+	}
+
+	if McsFuncEnabled() && mcsRegion != "" {
+		stat := l.app.FindMcs(mcsRegion)
+		if stat == nil {
+			alloc = GoMcsFuncAlloc(mcsRegion)
+			return
+		}
+
+		peer := l.app.FindMcsPeer(stat.PublicAddr)
+		if peer == nil {
+			logger.Info("mcs peer not found")
+			alloc = GoMcsFuncAlloc(mcsRegion)
+			return
+		}
+
+		newMcsRegion = mcsRegion
+		mcsPeer = peer
+		mcsAddr = stat.PublicAddr
+		canStart = true
+		return
+	}
+
+	// default server fallback
+	newMcsRegion = ""
+	mcsPeer = nil
+	mcsAddr = conf.BattlePublicAddr
+	canStart = true
+	return
 }

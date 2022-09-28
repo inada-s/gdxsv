@@ -3,10 +3,21 @@ syntax = "proto3";
 package proto;
 option go_package = "gdxsv/proto";
 
-message ExtPlayerInfo {
+message P2PMatching {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 player_count = 3;
+  int32 peer_id = 4;
+  int32 timeout_min_ms = 5;
+  int32 timeout_max_ms = 6;
+  repeated PlayerAddress candidates = 10;
+}
+
+message PlayerAddress {
   string user_id = 1;
-  string name = 2;
-  repeated string addr_list = 3;
+  int32 peer_id = 2;
+  string ip = 3;
+  int32 port = 4;
 }
 
 message GamePatch {
@@ -64,6 +75,7 @@ enum MessageType {
   Pong = 3;
   Battle = 4;
   Fin = 5;
+  HelloLbs = 10;
 }
 
 message BattleMessage {
@@ -93,6 +105,10 @@ message FinMessage {
   string detail = 1;
 }
 
+message HelloLbsMessage {
+  string user_id = 1;
+}
+
 message Packet {
   MessageType type = 1;
   uint32 seq = 2;
@@ -104,4 +120,5 @@ message Packet {
   PongMessage pong_data = 12;
   repeated BattleMessage battle_data = 13;
   FinMessage fin_data = 14;
+  HelloLbsMessage hello_lbs_data = 15;
 }
