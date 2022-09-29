@@ -683,9 +683,9 @@ func (l *LbsLobby) makeP2PMatchingMsg(battleCode string, participants []*LbsPeer
 				continue
 			}
 
-			portInt, err := strconv.Atoi(port)
+			portInt, err := strconv.ParseInt(port, 10, 32)
 			if err != nil {
-				logger.Warn("Atoi error", zap.Error(err))
+				logger.Warn("ParseInt error", zap.Error(err))
 				continue
 			}
 
