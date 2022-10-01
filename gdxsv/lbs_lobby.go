@@ -780,15 +780,17 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 		logger.Info("p2pMatchingMsg", zap.Any("p2pMatchingMsg", p2pMatchingMsgs[0]))
 	}
 
-	sharedData.ShareMcsGame(&McsGame{
-		BattleCode: b.BattleCode,
-		RuleBin:    SerializeRule(b.Rule),
-		GameDisk:   l.GameDisk,
-		UpdatedAt:  time.Now(),
-		State:      McsGameStateCreated,
-		McsAddr:    mcsAddr,
-		PatchList:  patchList,
-	})
+	if mcsRegion != "p2p" {
+		sharedData.ShareMcsGame(&McsGame{
+			BattleCode: b.BattleCode,
+			RuleBin:    SerializeRule(b.Rule),
+			GameDisk:   l.GameDisk,
+			UpdatedAt:  time.Now(),
+			State:      McsGameStateCreated,
+			McsAddr:    mcsAddr,
+			PatchList:  patchList,
+		})
+	}
 
 	for i, q := range participants {
 		nameSJIS, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
@@ -796,27 +798,29 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
 		}
 
-		sharedData.ShareMcsUser(&McsUser{
-			BattleCode:  b.BattleCode,
-			McsRegion:   b.McsRegion,
-			UserID:      q.UserID,
-			Name:        q.Name,
-			PilotName:   q.PilotName,
-			NameSJIS:    nameSJIS,
-			GameParam:   q.GameParam,
-			Platform:    q.Platform,
-			GameDisk:    q.GameDisk,
-			SessionID:   q.SessionID,
-			Pos:         i + 1,
-			Team:        q.Team,
-			BattleCount: q.BattleCount,
-			WinCount:    q.WinCount,
-			LoseCount:   q.LoseCount,
-			Grade:       int(decideGrade(q.WinCount, q.Rank)),
+		if mcsRegion != "p2p" {
+			sharedData.ShareMcsUser(&McsUser{
+				BattleCode:  b.BattleCode,
+				McsRegion:   b.McsRegion,
+				UserID:      q.UserID,
+				Name:        q.Name,
+				PilotName:   q.PilotName,
+				NameSJIS:    nameSJIS,
+				GameParam:   q.GameParam,
+				Platform:    q.Platform,
+				GameDisk:    q.GameDisk,
+				SessionID:   q.SessionID,
+				Pos:         i + 1,
+				Team:        q.Team,
+				BattleCount: q.BattleCount,
+				WinCount:    q.WinCount,
+				LoseCount:   q.LoseCount,
+				Grade:       int(decideGrade(q.WinCount, q.Rank)),
 
-			UpdatedAt: time.Now(),
-			State:     McsUserStateCreated,
-		})
+				UpdatedAt: time.Now(),
+				State:     McsUserStateCreated,
+			})
+		}
 		NotifyReadyBattle(q)
 		q.SendMessage(patchMsg)
 		if 0 < len(p2pMatchingMsgs) {
@@ -941,15 +945,17 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		}
 	}
 
-	sharedData.ShareMcsGame(&McsGame{
-		BattleCode: b.BattleCode,
-		RuleBin:    SerializeRule(b.Rule),
-		GameDisk:   l.GameDisk,
-		UpdatedAt:  time.Now(),
-		State:      McsGameStateCreated,
-		McsAddr:    mcsAddr,
-		PatchList:  patchList,
-	})
+	if mcsRegion != "p2p" {
+		sharedData.ShareMcsGame(&McsGame{
+			BattleCode: b.BattleCode,
+			RuleBin:    SerializeRule(b.Rule),
+			GameDisk:   l.GameDisk,
+			UpdatedAt:  time.Now(),
+			State:      McsGameStateCreated,
+			McsAddr:    mcsAddr,
+			PatchList:  patchList,
+		})
+	}
 
 	for i, q := range participants {
 		nameSJIS, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
@@ -957,27 +963,29 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
 		}
 
-		sharedData.ShareMcsUser(&McsUser{
-			BattleCode:  b.BattleCode,
-			McsRegion:   b.McsRegion,
-			UserID:      q.UserID,
-			Name:        q.Name,
-			PilotName:   q.PilotName,
-			NameSJIS:    nameSJIS,
-			GameParam:   q.GameParam,
-			Platform:    q.Platform,
-			GameDisk:    q.GameDisk,
-			SessionID:   q.SessionID,
-			Pos:         i + 1,
-			Team:        q.Team,
-			BattleCount: q.BattleCount,
-			WinCount:    q.WinCount,
-			LoseCount:   q.LoseCount,
-			Grade:       int(decideGrade(q.WinCount, q.Rank)),
+		if mcsRegion != "p2p" {
+			sharedData.ShareMcsUser(&McsUser{
+				BattleCode:  b.BattleCode,
+				McsRegion:   b.McsRegion,
+				UserID:      q.UserID,
+				Name:        q.Name,
+				PilotName:   q.PilotName,
+				NameSJIS:    nameSJIS,
+				GameParam:   q.GameParam,
+				Platform:    q.Platform,
+				GameDisk:    q.GameDisk,
+				SessionID:   q.SessionID,
+				Pos:         i + 1,
+				Team:        q.Team,
+				BattleCount: q.BattleCount,
+				WinCount:    q.WinCount,
+				LoseCount:   q.LoseCount,
+				Grade:       int(decideGrade(q.WinCount, q.Rank)),
 
-			UpdatedAt: time.Now(),
-			State:     McsUserStateCreated,
-		})
+				UpdatedAt: time.Now(),
+				State:     McsUserStateCreated,
+			})
+		}
 		NotifyReadyBattle(q)
 		q.SendMessage(patchMsg)
 		if 0 < len(p2pMatchingMsgs) {
