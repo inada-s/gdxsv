@@ -466,7 +466,7 @@ VALUES (:platform,
         :ping_region,
         :patch_names,
         :win_rate_limit,
-        :min_flycast_version)`, setting)
+        :min_client_version)`, setting)
 	if err != nil {
 		panic(err)
 	}
