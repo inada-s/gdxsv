@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS m_lobby_setting
     ping_region        text default '',
     patch_names        text default '',
     win_rate_limit     integer default 0,
+    min_client_version text default '',
     PRIMARY KEY (platform, disk, no)
 );
 CREATE TABLE IF NOT EXISTS m_rule

@@ -7,17 +7,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
-	"golang.org/x/mod/semver"
-	"golang.org/x/text/encoding/japanese"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/width"
 	"hash/fnv"
 	"io/ioutil"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+
+	"go.uber.org/zap"
+	"golang.org/x/mod/semver"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/width"
 )
 
 type LbsHandler func(*LbsPeer, *LbsMessage)
@@ -847,9 +848,9 @@ var _ = register(lbsPlazaStatus, func(p *LbsPeer, m *LbsMessage) {
 		}
 	}
 
-	// Check GamePatch feature is available
-	if lobby.LobbySetting.PatchNames != "" {
-		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], novelFlycastVersion) {
+	// Check client version
+	if lobby.LobbySetting.MinClientVersion != "" {
+		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], lobby.LobbySetting.MinClientVersion) {
 			status = 1
 		}
 	}
