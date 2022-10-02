@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"golang.org/x/oauth2/google"
 )
@@ -74,7 +76,7 @@ func getMcsFuncClient() (*http.Client, error) {
 		return mcsFuncClientCache, nil
 	}
 
-	jsonKey, err := ioutil.ReadFile(conf.GCPKeyPath)
+	jsonKey, err := os.ReadFile(conf.GCPKeyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +118,7 @@ func McsFuncAlloc(region string) error {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

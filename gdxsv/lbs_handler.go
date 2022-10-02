@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -608,7 +608,7 @@ var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
 		}
 		buf = append(buf, v)
 	}
-	bin, err := ioutil.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
+	bin, err := io.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
 	if err != nil {
 		logger.Error("failed to read pilot name", zap.Error(err))
 	}

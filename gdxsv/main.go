@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"gdxsv/gdxsv/proto"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -310,7 +309,7 @@ func main() {
 			logger.Info("Migration done")
 		}
 	case "battlelog2json":
-		b, err := ioutil.ReadFile(args[1])
+		b, err := os.ReadFile(args[1])
 		if err != nil {
 			logger.Fatal("Failed to open log file", zap.Error(err))
 		}
