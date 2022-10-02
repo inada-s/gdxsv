@@ -7,9 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"gdxsv/gdxsv/proto"
-	"google.golang.org/api/option"
-	pb "google.golang.org/protobuf/proto"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -20,10 +17,13 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/api/option"
+	pb "google.golang.org/protobuf/proto"
+
 	"cloud.google.com/go/profiler"
 	"github.com/caarlos0/env"
 	"github.com/jmoiron/sqlx"
-	"github.com/tommy351/zap-stackdriver"
+	stackdriver "github.com/tommy351/zap-stackdriver"
 	"go.uber.org/zap"
 )
 
@@ -33,10 +33,7 @@ var (
 	gdxsvRevision string
 
 	// Minimum required flycast version.
-	requiredFlycastVersion = "v0.7.0"
-
-	// New feature installed version.
-	novelFlycastVersion = "v1.0.5"
+	requiredFlycastVersion = "v1.0.5"
 )
 
 var (
@@ -312,7 +309,7 @@ func main() {
 			logger.Info("Migration done")
 		}
 	case "battlelog2json":
-		b, err := ioutil.ReadFile(args[1])
+		b, err := os.ReadFile(args[1])
 		if err != nil {
 			logger.Fatal("Failed to open log file", zap.Error(err))
 		}

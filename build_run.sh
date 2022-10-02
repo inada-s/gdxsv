@@ -8,7 +8,7 @@ cd $(dirname "$0")
 
 make
 
-readonly LOCALIP=${LOCALIP:-"192.168.1.34"}
+readonly LOCALIP=${LOCALIP:-"127.0.0.1"}
 
 export GDXSV_LOBBY_PUBLIC_ADDR="${LOCALIP}:9876"
 export GDXSV_LOBBY_ADDR="localhost:9876"

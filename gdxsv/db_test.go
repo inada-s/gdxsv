@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/jmoiron/sqlx"
 	"log"
 	"testing"
 	"time"
+
+	"github.com/jmoiron/sqlx"
 )
 
 var testLoginKey string
@@ -464,7 +465,8 @@ VALUES (:platform,
         :ping_limit,
         :ping_region,
         :patch_names,
-        :win_rate_limit)`, setting)
+        :win_rate_limit,
+        :min_client_version)`, setting)
 	if err != nil {
 		panic(err)
 	}

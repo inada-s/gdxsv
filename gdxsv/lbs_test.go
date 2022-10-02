@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"net"
 	"runtime/debug"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type MockAddr struct {
@@ -471,7 +472,7 @@ us-east4=161
 us-west1=94
 us-west2=100
 us-west3=112
-flycast=v0.7.5
+flycast=v1.0.5
 build_date=2021-05-30T17:23:27Z
 git_hash=2953907d
 cpu=x86/64
