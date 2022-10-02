@@ -13,6 +13,38 @@ import (
 	"go.uber.org/zap"
 )
 
+const samplePlatformInfo = `\
+asia-east1=36
+asia-east2=61
+asia-northeast1=2
+asia-northeast2=13
+asia-northeast3=37
+asia-southeast1=69
+australia-southeast1=122
+europe-north1=278
+europe-west1=233
+europe-west2=232
+europe-west3=240
+europe-west4=238
+europe-west6=246
+northamerica-northeast1=166
+southamerica-east1=257
+us-central1=132
+us-east1=156
+us-east4=161
+us-west1=94
+us-west2=100
+us-west3=112
+flycast=v1.0.5
+build_date=2021-05-30T17:23:27Z
+git_hash=2953907d
+cpu=x86/64
+cpuid=aaaaaaaaaaaaaaaaaaa
+os=Windows
+patch_id=8152517
+disk=2
+maxlag=8`
+
 type MockAddr struct {
 	NetworkString string
 	AddrString    string
@@ -450,38 +482,7 @@ func TestLbs_PlatformInfo(t *testing.T) {
 	})
 	defer cancel1()
 
-	user1.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteString(`\
-asia-east1=36
-asia-east2=61
-asia-northeast1=2
-asia-northeast2=13
-asia-northeast3=37
-asia-southeast1=69
-australia-southeast1=122
-europe-north1=278
-europe-west1=233
-europe-west2=232
-europe-west3=240
-europe-west4=238
-europe-west6=246
-northamerica-northeast1=166
-southamerica-east1=257
-us-central1=132
-us-east1=156
-us-east4=161
-us-west1=94
-us-west2=100
-us-west3=112
-flycast=v1.0.5
-build_date=2021-05-30T17:23:27Z
-git_hash=2953907d
-cpu=x86/64
-cpuid=aaaaaaaaaaaaaaaaaaa
-os=Windows
-patch_id=8152517
-disk=2
-maxlag=8
-`).Msg())
+	user1.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteString(samplePlatformInfo).Msg())
 
 	time.Sleep(time.Millisecond) // FIXME
 
@@ -507,8 +508,7 @@ func Test_LoginFlowNewUser(t *testing.T) {
 	cli := &TestLbsClient{t: t, conn: nw.Client}
 	var msg *LbsMessage
 
-	// TODO: use readable text
-	cli.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteBytes(hexbytes("666c79636173743d76302e372e350a6769745f686173683d32393533393037640a6275696c645f646174653d323032312d30352d33305431373a32333a32375a0a6370753d7838362f36340a6f733d57696e646f77730a6469736b3d320a6d61786c61673d380a70617463685f69643d383135323531370a63707569643d3735366536353437343936353665363936633635373436650a617369612d65617374313d33360a617369612d65617374323d36310a617369612d6e6f72746865617374313d320a617369612d6e6f72746865617374323d31330a617369612d6e6f72746865617374333d33370a617369612d736f75746865617374313d36390a6175737472616c69612d736f75746865617374313d3132320a6575726f70652d6e6f727468313d3237380a6575726f70652d77657374313d3233330a6575726f70652d77657374323d3233320a6575726f70652d77657374333d3234300a6575726f70652d77657374343d3233380a6575726f70652d77657374363d3234360a6e6f727468616d65726963612d6e6f72746865617374313d3136360a736f757468616d65726963612d65617374313d3235370a75732d63656e7472616c313d3133320a75732d65617374313d3135360a75732d65617374343d3136310a75732d77657374313d39340a75732d77657374323d3130300a75732d77657374333d3131320a000877fa1a6571fd1d64")).Msg())
+	cli.MustWriteMessage(NewClientCustom(lbsPlatformInfo).Writer().WriteString(samplePlatformInfo).Msg())
 
 	// Connection ID exchange
 	{
