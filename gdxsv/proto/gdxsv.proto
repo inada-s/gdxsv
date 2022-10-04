@@ -18,6 +18,7 @@ message PlayerAddress {
   int32 peer_id = 2;
   string ip = 3;
   int32 port = 4;
+  int32 team = 5;
 }
 
 message GamePatch {
