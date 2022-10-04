@@ -651,7 +651,7 @@ func (l *LbsLobby) makeP2PMatchingMsg(battleCode string, participants []*LbsPeer
 		SessionId:    int32(hash.Sum32()),
 		PlayerCount:  int32(len(participants)),
 		PeerId:       0,
-		TimeoutMinMs: 5000,
+		TimeoutMinMs: 6500,
 		TimeoutMaxMs: 10000,
 		Candidates:   nil,
 	}
@@ -696,6 +696,7 @@ func (l *LbsLobby) makeP2PMatchingMsg(battleCode string, participants []*LbsPeer
 				PeerId: int32(i),
 				Ip:     ip,
 				Port:   int32(portInt),
+				Team:   int32(p.Team),
 			})
 		}
 	}
