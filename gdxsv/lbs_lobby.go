@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"gdxsv/gdxsv/proto"
 	"hash/fnv"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net"
 	"sort"
@@ -124,9 +124,9 @@ func chatMsg(userID, name, text string) *LbsMessage {
 		WriteString(userID).
 		WriteString(name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 }
 
@@ -792,7 +792,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	})
 
 	for i, q := range participants {
-		nameSJIS, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
+		nameSJIS, err := io.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
 		if err != nil {
 			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
 		}
@@ -954,7 +954,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	})
 
 	for i, q := range participants {
-		nameSJIS, err := ioutil.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
+		nameSJIS, err := io.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
 		if err != nil {
 			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
 		}
