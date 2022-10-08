@@ -209,6 +209,11 @@ var _ = register(lbsAskConnectionID, func(p *LbsPeer, m *LbsMessage) {
 	p.logger.Info("update session id")
 	p.SendMessage(NewServerQuestion(lbsConnectionID).Writer().
 		WriteString(p.SessionID).Msg())
+
+	if p.lastSessionID != "" {
+		sharedData.SetMcsUserCloseReason(p.lastSessionID, "back to lobby")
+		sharedData.UpdateMcsUserState(p.lastSessionID, McsUserStateLeft)
+	}
 })
 
 var _ = register(lbsConnectionID, func(p *LbsPeer, m *LbsMessage) {
@@ -584,7 +589,10 @@ var _ = register(lbsAskBattleResult, func(p *LbsPeer, m *LbsMessage) {
 		unk19, unk20, unk21, unk22, unk23, unk24,
 		unk25, unk26, unk27, unk28,
 	}
-	p.app.RegisterBattleResult(p, result)
+	if result.BattleCode != "" {
+		p.app.RegisterBattleResult(p, result)
+		sharedData.UpdateMcsGameState(result.BattleCode, McsGameStateClosed)
+	}
 	p.SendMessage(NewServerNotice(lbsLoginOk))
 	p.logger.Info("login ok")
 })
@@ -630,7 +638,7 @@ var _ = register(lbsAskNewsTag, func(p *LbsPeer, m *LbsMessage) {
 
 	newsTag, err := getDB().GetString("news_tag")
 	if err != nil {
-		logger.Error("failed to get news_tag", zap.Error(err))
+		logger.Warn("failed to get news_tag", zap.Error(err))
 	}
 
 	if newsTag == "" {
