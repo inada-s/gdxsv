@@ -3,6 +3,16 @@ syntax = "proto3";
 package proto;
 option go_package = "gdxsv/proto";
 
+message P2PMatchingReport {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 player_count = 3;
+  int32 peer_id = 4;
+  string close_reason = 5;
+  int32 frame_count = 6;
+  repeated string logs = 10;
+}
+
 message P2PMatching {
   string battle_code = 1;
   int32 session_id = 2;
