@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"compress/zlib"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"gdxsv/gdxsv/proto"
+	pb "google.golang.org/protobuf/proto"
 	"hash/fnv"
 	"io"
 	"math"
@@ -162,6 +165,7 @@ const (
 	lbsPlatformInfo      CmdID = 0x9950
 	lbsGamePatch         CmdID = 0x9960
 	lbsP2PMatching       CmdID = 0x9961
+	lbsP2PMatchingReport CmdID = 0x9962
 	lbsBattleUserCount   CmdID = 0x9965
 )
 
@@ -1640,6 +1644,50 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 		loginKey := hex.EncodeToString(hasher.Sum(nil))
 		if p.LoginKey == "" {
 			p.LoginKey = loginKey
+		}
+	}
+})
+
+var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
+	if 0 < m.BodySize {
+		buf := bytes.NewBuffer(nil)
+		zr, err := zlib.NewReader(bytes.NewReader(m.Body))
+		if err != nil {
+			p.logger.Warn("zlib.NewReader", zap.Error(err))
+			return
+		}
+
+		_, err = io.Copy(buf, zr)
+		if err != nil {
+			p.logger.Warn("io.Copy", zap.Error(err))
+			return
+		}
+
+		var report proto.P2PMatchingReport
+		err = pb.Unmarshal(buf.Bytes(), &report)
+		if err != nil {
+			p.logger.Warn("pb.Unmarshal", zap.Error(err))
+			return
+		}
+
+		if report.CloseReason == "game_end" {
+			p.logger.Info("P2PMatchingReport",
+				zap.String("close_reason", report.CloseReason),
+				zap.String("battle_code", report.BattleCode),
+				zap.Int32("session_id", report.SessionId),
+				zap.Int32("player_count", report.PlayerCount),
+				zap.Int32("peer_id", report.PeerId),
+				zap.Int32("frame_count", report.FrameCount),
+				zap.Strings("logs", report.Logs))
+		} else {
+			p.logger.Warn("P2PMatchingReport",
+				zap.String("close_reason", report.CloseReason),
+				zap.String("battle_code", report.BattleCode),
+				zap.Int32("session_id", report.SessionId),
+				zap.Int32("player_count", report.PlayerCount),
+				zap.Int32("peer_id", report.PeerId),
+				zap.Int32("frame_count", report.FrameCount),
+				zap.Strings("logs", report.Logs))
 		}
 	}
 })
