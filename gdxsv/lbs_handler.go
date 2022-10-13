@@ -523,10 +523,7 @@ var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 
 	p.DBUser = *u
 	p.app.userPeers[p.UserID] = p
-	p.logger = p.logger.With(
-		zap.String("user_id", p.UserID),
-		zap.String("handle_name", p.Name),
-	)
+	p.logger = p.logger.With(zap.String("user_id", p.UserID), zap.String("handle_name", p.Name))
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
 	p.SendMessage(NewServerQuestion(lbsAskGameCode))
 })
@@ -1607,6 +1604,8 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 	// patched client sends client-platform information
 	r := m.Reader()
 	platformInfo := r.ReadString()
+	isFirstTime := len(p.PlatformInfo) == 0
+
 	for _, line := range strings.Split(strings.TrimSuffix(platformInfo, "\n"), "\n") {
 		kv := strings.SplitN(line, "=", 2)
 		if len(kv) == 2 {
@@ -1615,11 +1614,13 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
-	p.logger = p.logger.With(
-		zap.String("flycast", p.PlatformInfo["flycast"]),
-		zap.String("os", p.PlatformInfo["os"]),
-		zap.String("cpu", p.PlatformInfo["cpu"]),
-	)
+	if isFirstTime && len(p.PlatformInfo) != 0 {
+		p.logger = p.logger.With(
+			zap.String("flycast", p.PlatformInfo["flycast"]),
+			zap.String("os", p.PlatformInfo["os"]),
+			zap.String("cpu", p.PlatformInfo["cpu"]),
+		)
+	}
 
 	if p.PlatformInfo["cpu"] == "x86/64" {
 		p.Platform = PlatformEmuX8664
