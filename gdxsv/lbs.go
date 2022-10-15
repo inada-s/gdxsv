@@ -17,17 +17,15 @@ import (
 const (
 	maxLobbyCount = 22
 	maxRoomCount  = 5
-)
 
-const (
 	PlatformConsole  = "console"    // Real PS2 / Dreamcast
 	PlatformEmuX8664 = "emu-x86/64" // PCSX2 / Flycast on x64 platform
-)
 
-const (
 	GameDiskDC1 = "dc1" // Dreamcast
 	GameDiskDC2 = "dc2" // Dreamcast DX
 	GameDiskPS2 = "ps2" // PS2 DX
+
+	McsAddrP2PGame = "255.255.255.255:255"
 )
 
 func lobbyKey(platform string, disk string) string {
@@ -444,6 +442,12 @@ func (lbs *Lbs) eventLoop() {
 				}
 
 				lbs.banChecked[g.BattleCode] = true
+
+				if g.McsAddr == McsAddrP2PGame {
+					// temp ban is currently disabled on p2p game
+					logger.Info("p2p game ignored")
+					continue
+				}
 
 				var mcsUsers []*McsUser
 				stateCount := map[int]int{}

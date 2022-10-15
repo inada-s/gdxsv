@@ -997,7 +997,7 @@ func (l *LbsLobby) prepareMcs(mcsRegion string) (newMcsRegion string, mcsPeer *L
 	if mcsRegion == "p2p" {
 		newMcsRegion = "p2p"
 		mcsPeer = nil
-		mcsAddr = "255.255.255.255:255"
+		mcsAddr = McsAddrP2PGame
 		canStart = true
 		return
 	}
