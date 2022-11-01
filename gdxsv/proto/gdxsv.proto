@@ -75,6 +75,10 @@ message BattleLogFile {
   repeated BattleLogUser users = 11;
   repeated BattleMessage battle_data = 12;
 
+  map<int32, int64> inputs = 15; // frame -> inputs
+  map<int32, int32> rands = 16; // frame -> game rand
+  map<int32, string> keyframe = 17; // frame -> key frame string
+
   int64 start_at = 20;
   int64 end_at = 21;
 }
