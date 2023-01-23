@@ -99,7 +99,7 @@ EOF
 cat << 'EOF' > /home/ubuntu/upload-battlelog.sh
 while :; do
   sleep 1m
-  gsutil -m mv -z pb /home/ubuntu/battlelog/* gs://gdxsv/battlelog/
+  gsutil mv -z pb /home/ubuntu/battlelog/* gs://gdxsv/battlelog/
 done
 EOF
 
