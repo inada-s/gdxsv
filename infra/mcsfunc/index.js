@@ -36,13 +36,7 @@ function getStartupScript(version) {
 #!/bin/bash
 echo "startup-script"
 
-su -c "echo 'deb http://packages.cloud.google.com/apt google-compute-engine-bionic-stable main' > /etc/apt/sources.list.d/google-compute-engine.list"
-curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-rm /var/lib/dpkg/lock-frontend
-rm /var/lib/dpkg/lock
-rm /var/cache/apt/archives/lock
-apt update
-apt -y install google-osconfig-agent jq wget curl
+snap install jq
 
 if grep -xqFe 'ubuntu ALL=NOPASSWD: /sbin/shutdown' /etc/sudoers; then
   echo 'ubuntu ALL=NOPASSWD: /sbin/shutdown' >> /etc/sudoers
@@ -105,7 +99,7 @@ EOF
 cat << 'EOF' > /home/ubuntu/upload-battlelog.sh
 while :; do
   sleep 1m
-  gsutil -m mv -z pb /home/ubuntu/battlelog/* gs://gdxsv/battlelog/
+  gsutil mv -z pb /home/ubuntu/battlelog/* gs://gdxsv/battlelog/
 done
 EOF
 
