@@ -2,7 +2,6 @@ package main
 
 import (
 	"net"
-	"reflect"
 	"testing"
 )
 
@@ -27,7 +26,7 @@ func Test_toIPPort(t *testing.T) {
 				t.Errorf("toIPPort() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			if !got.Equal(tt.want) {
 				t.Errorf("toIPPort() got = %v, want %v", got, tt.want)
 			}
 			if got1 != tt.want1 {
