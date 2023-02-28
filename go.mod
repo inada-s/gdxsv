@@ -1,6 +1,6 @@
 module gdxsv
 
-go 1.16
+go 1.20
 
 require (
 	cloud.google.com/go v0.83.0
@@ -16,4 +16,20 @@ require (
 	golang.org/x/text v0.3.8
 	google.golang.org/api v0.47.0
 	google.golang.org/protobuf v1.26.0
+)
+
+require (
+	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/pprof v0.0.0-20210601050228-01bbb1931b22 // indirect
+	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
+	go.opencensus.io v0.23.0 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
+	google.golang.org/grpc v1.38.0 // indirect
 )
