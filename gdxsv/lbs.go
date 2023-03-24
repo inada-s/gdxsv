@@ -116,13 +116,6 @@ func (lbs *Lbs) IsBannedAccount(loginKey string) bool {
 }
 
 func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
-	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
-		if lbs.noban {
-			logger.Warn("passed temp banned user", zap.String("user_id", p.UserID), zap.String("name", p.Name))
-			return false
-		}
-		return true
-	}
 	return false
 }
 
