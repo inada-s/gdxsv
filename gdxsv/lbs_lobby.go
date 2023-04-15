@@ -579,7 +579,7 @@ func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
 	peers := l.getNextLobbyBattleParticipants()
 
 	if l.LobbySetting.TeamShuffle {
-		teams := teamShuffle(rand.Int63(), peers)
+		teams := teamShuffle(gRand.Int63(), peers)
 		for i := 0; i < len(teams); i++ {
 			peers[i].Team = teams[i]
 		}
