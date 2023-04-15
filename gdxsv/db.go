@@ -2,14 +2,13 @@ package main
 
 import (
 	"bytes"
-	"math/rand"
 	"time"
 )
 
 func randomString(length int, source string) string {
 	var result bytes.Buffer
 	for i := 0; i < length; i++ {
-		index := rand.Intn(len(source))
+		index := gRand.Intn(len(source))
 		result.WriteByte(source[index])
 	}
 	return result.String()

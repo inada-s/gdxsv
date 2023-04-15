@@ -34,6 +34,9 @@ var (
 
 	// Minimum required flycast version.
 	requiredFlycastVersion = "v1.0.5"
+
+	// Global random
+	gRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 var (
@@ -274,7 +277,6 @@ func main() {
 		zap.String("gdxsv_version", gdxsvVersion),
 		zap.String("gdxsv_revision", gdxsvRevision))
 
-	rand.Seed(time.Now().UnixNano())
 	args := flag.Args()
 
 	if len(args) < 1 {
