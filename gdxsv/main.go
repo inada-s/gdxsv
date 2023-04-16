@@ -42,13 +42,14 @@ var (
 var (
 	conf Config
 
-	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
-	pprof    = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
-	cprof    = flag.Int("cprof", 0, "0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile")
-	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
-	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
-	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
-	noban    = flag.Bool("noban", false, "not to check bad users")
+	cpu       = flag.Int("cpu", 2, "setting GOMAXPROCS")
+	pprof     = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
+	cprof     = flag.Int("cprof", 0, "0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile")
+	prodlog   = flag.Bool("prodlog", false, "use production logging mode")
+	loglevel  = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
+	mcsdelay  = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
+	noban     = flag.Bool("noban", false, "disable user ban")
+	notempban = flag.Bool("notempban", false, "disable temporary ban")
 )
 
 var (
@@ -192,6 +193,9 @@ func mainLbs() {
 	lbs := NewLbs()
 	if *noban {
 		lbs.NoBan()
+	}
+	if *notempban {
+		lbs.NoTempBan()
 	}
 	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
 
