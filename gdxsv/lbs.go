@@ -46,7 +46,8 @@ type Lbs struct {
 	chEvent   chan interface{}
 	chQuit    chan interface{}
 
-	noban      bool
+	noBan      bool
+	noTempBan  bool
 	reload     bool
 	banChecked map[string]bool
 	bannedIPs  map[string]time.Time
@@ -80,7 +81,11 @@ func NewLbs() *Lbs {
 }
 
 func (lbs *Lbs) NoBan() {
-	lbs.noban = true
+	lbs.noBan = true
+}
+
+func (lbs *Lbs) NoTempBan() {
+	lbs.noTempBan = true
 }
 
 func (lbs *Lbs) IsBannedEndpoint(p *LbsPeer) bool {
@@ -92,7 +97,7 @@ func (lbs *Lbs) IsBannedEndpoint(p *LbsPeer) bool {
 		logger.Warn("GetBan returned err", zap.Error(err))
 		return false
 	}
-	if banned && lbs.noban {
+	if banned && lbs.noBan {
 		logger.Warn("passed banned user", zap.String("ip", p.IP()), zap.String("machine_id", p.PlatformInfo["machine_id"]))
 		return false
 	}
@@ -108,7 +113,7 @@ func (lbs *Lbs) IsBannedAccount(loginKey string) bool {
 		logger.Warn("IsBannedAccount returned err", zap.Error(err))
 		return false
 	}
-	if banned && lbs.noban {
+	if banned && lbs.noBan {
 		logger.Warn("passed banned user", zap.String("login_key", loginKey))
 		return false
 	}
@@ -116,6 +121,13 @@ func (lbs *Lbs) IsBannedAccount(loginKey string) bool {
 }
 
 func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
+	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
+		if lbs.noTempBan {
+			logger.Warn("passed temp banned user", zap.String("user_id", p.UserID), zap.String("name", p.Name))
+			return false
+		}
+		return true
+	}
 	return false
 }
 
