@@ -93,7 +93,7 @@ export GDXSV_BATTLE_PUBLIC_ADDR=$(curl -s https://ipinfo.io/ip):9877
 export GDXSV_BATTLE_LOG_PATH=/home/ubuntu/battlelog
 mkdir -p $GDXSV_BATTLE_LOG_PATH
 
-"$TAG_NAME"/bin/gdxsv -prodlog -cprof=2 mcs >> /var/log/gdxsv-mcs.log 2>&1
+"$TAG_NAME"/bin/gdxsv -prodlog -cprof=1 mcs >> /var/log/gdxsv-mcs.log 2>&1
 EOF
 
 cat << 'EOF' > /home/ubuntu/upload-battlelog.sh
@@ -253,7 +253,7 @@ async function getAlloc(req, res) {
             console.log("trying to create new vm in", zoneName);
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
-                os: "ubuntu-1804-bionic-v",
+                os: "ubuntu-2204-jammy-v",
                 http: true,
                 tags: ["gdxsv-mcs"],
                 machineType: "e2-medium",
