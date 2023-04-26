@@ -32,7 +32,6 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 		battleLog: &proto.BattleLogFile{
 			LogFileVersion: 20210803,
 			GameDisk:       gameInfo.GameDisk,
-			GdxsvVersion:   gdxsvVersion,
 			BattleCode:     gameInfo.BattleCode,
 			RuleBin:        gameInfo.RuleBin,
 			Patches:        gameInfo.PatchList.GetPatches(),

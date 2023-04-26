@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"gdxsv/gdxsv/proto"
@@ -643,17 +644,42 @@ func (l *LbsLobby) makePatchList() *proto.GamePatchList {
 	return patchList
 }
 
-func (l *LbsLobby) makeP2PMatchingMsg(battleCode string, participants []*LbsPeer) ([]*LbsMessage, error) {
+func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]*LbsMessage, error) {
 	hash := fnv.New32()
-	hash.Write([]byte(battleCode))
+	hash.Write([]byte(b.BattleCode))
+
 	matching := &proto.P2PMatching{
-		BattleCode:   battleCode,
+		BattleCode:   b.BattleCode,
 		SessionId:    int32(hash.Sum32()),
 		PlayerCount:  int32(len(participants)),
 		PeerId:       0,
 		TimeoutMinMs: 6500,
 		TimeoutMaxMs: 10000,
 		Candidates:   nil,
+		RuleBin:      SerializeRule(b.Rule),
+		Users:        nil,
+	}
+
+	for i, q := range participants {
+		nameSJIS, err := io.ReadAll(transform.NewReader(strings.NewReader(q.Name), japanese.ShiftJIS.NewEncoder()))
+		if err != nil {
+			logger.Error("failed to encode name", zap.Error(err), zap.String("name", q.Name))
+		}
+
+		matching.Users = append(matching.Users, &proto.BattleLogUser{
+			UserId:       q.UserID,
+			UserName:     q.Name,
+			PilotName:    q.PilotName,
+			GameParam:    bytes.TrimRightFunc(q.GameParam, func(r rune) bool { return r == 0 }),
+			BattleCount:  int32(q.BattleCount),
+			WinCount:     int32(q.WinCount),
+			LoseCount:    int32(q.LoseCount),
+			Grade:        int32(decideGrade(q.WinCount, q.Battle.GetUserRankByPos(byte(i+1)))),
+			Team:         int32(q.Team),
+			Platform:     q.Platform,
+			UserNameSjis: nameSJIS,
+			Pos:          int32(i + 1),
+		})
 	}
 
 	for i, p := range participants {
@@ -773,7 +799,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	var p2pMatchingMsgs []*LbsMessage
 	if mcsRegion == "p2p" {
-		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b.BattleCode, participants)
+		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b, participants)
 		if err != nil {
 			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
 			return
@@ -936,7 +962,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 
 	var p2pMatchingMsgs []*LbsMessage
 	if mcsRegion == "p2p" {
-		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b.BattleCode, participants)
+		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b, participants)
 		if err != nil {
 			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
 			return
