@@ -20,6 +20,9 @@ message P2PMatching {
   int32 peer_id = 4;
   int32 timeout_min_ms = 5;
   int32 timeout_max_ms = 6;
+
+  bytes rule_bin = 8;
+  repeated BattleLogUser users = 9;
   repeated PlayerAddress candidates = 10;
 }
 
@@ -66,7 +69,7 @@ message BattleLogUser {
 
 message BattleLogFile {
   string game_disk = 5;
-  string gdxsv_version = 2;
+  string gdxsv_version_deprecated = 2;
   string battle_code = 3;
   int32 log_file_version = 4;
   repeated GamePatch patches = 7;
@@ -74,6 +77,7 @@ message BattleLogFile {
   bytes rule_bin = 10;
   repeated BattleLogUser users = 11;
   repeated BattleMessage battle_data = 12;
+  repeated fixed64 inputs = 15;
 
   int64 start_at = 20;
   int64 end_at = 21;
