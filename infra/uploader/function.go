@@ -80,7 +80,7 @@ func uploadFileToGCS(ctx context.Context, bucketName, objectName string, r io.Re
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	const maxMemory = 2 * 1024 * 1024 // 2 megabytes.
+	const maxMemory = 10 * 1024 * 1024 // 10 megabytes.
 	ctx := context.Background()
 
 	// ParseMultipartForm parses a request body as multipart/form-data.
