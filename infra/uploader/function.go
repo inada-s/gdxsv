@@ -1,6 +1,7 @@
 package function
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
@@ -61,13 +62,20 @@ func uploadFileToGCS(ctx context.Context, bucketName, objectName string, r io.Re
 	}
 
 	w := obj.NewWriter(ctx)
+	w.ContentEncoding = "gzip"
+	w.CacheControl = "no-transform"
+	gw := gzip.NewWriter(w)
 
-	if _, err = io.Copy(w, r); err != nil {
+	if _, err = io.Copy(gw, r); err != nil {
 		return fmt.Errorf("io.Copy: %v", err)
+	}
+	if err := gw.Close(); err != nil {
+		return fmt.Errorf("gzipWriter.Close: %v", err)
 	}
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("Writer.Close: %v", err)
 	}
+
 	return nil
 }
 
