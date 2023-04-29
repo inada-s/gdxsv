@@ -350,6 +350,15 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 			lbs.BroadcastLobbyMatchEntryUserCount(p.Lobby)
 			p.Lobby = nil
 		}
+		if p.logout && p.Battle != nil {
+			mcsAddr := net.JoinHostPort(p.Battle.ServerIP.String(), fmt.Sprint(p.Battle.ServerPort))
+			if mcsAddr == McsAddrP2PGame {
+				if !isOldFlycastVersion(p.PlatformInfo["flycast"], "v1.2.0") {
+					sharedData.UpdateMcsGameState(p.Battle.BattleCode, McsGameStateClosed)
+					sharedData.UpdateMcsUserState(p.Battle.BattleCode, McsUserStateLeft)
+				}
+			}
+		}
 		if p.Battle != nil {
 			p.Battle = nil
 		}
