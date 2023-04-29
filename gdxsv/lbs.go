@@ -369,7 +369,7 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 	}
 
 	p.conn.Close()
-	p.left = true
+	p.cleaned = true
 }
 
 func (lbs *Lbs) eventLoop() {
@@ -392,8 +392,8 @@ func (lbs *Lbs) eventLoop() {
 				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
 					fmt.Println(args.msg)
 				}
-				if args.peer.left {
-					args.peer.logger.Warn("got message after left", zap.Any("msg", args.msg))
+				if args.peer.cleaned {
+					args.peer.logger.Warn("got message after cleaned", zap.Any("msg", args.msg))
 					continue
 				}
 
@@ -763,7 +763,8 @@ type LbsPeer struct {
 	bestRegion    string
 	lastSessionID string
 	lastRecvTime  time.Time
-	left          bool
+	logout        bool
+	cleaned       bool
 
 	chWrite    chan bool
 	chDispatch chan bool

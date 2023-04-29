@@ -67,14 +67,21 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 				for _, u := range lbs.userPeers {
 					if !userAdded[u.UserID] {
 						userAdded[u.UserID] = true
-						resp.LobbyUsers = append(resp.LobbyUsers, &onlineUser{
+						user := &onlineUser{
 							UserID:     u.UserID,
 							Name:       u.Name,
 							Team:       teamName(int(u.Team)),
 							BattleCode: "",
 							Platform:   u.Platform,
 							Disk:       u.GameDisk,
-						})
+						}
+
+						if u.logout && u.Battle != nil {
+							user.BattleCode = u.Battle.BattleCode
+							resp.BattleUsers = append(resp.BattleUsers, user)
+						} else {
+							resp.LobbyUsers = append(resp.LobbyUsers, user)
+						}
 					}
 				}
 			})

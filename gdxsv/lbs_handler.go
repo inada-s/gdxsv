@@ -189,6 +189,8 @@ var _ = register(lbsLogout, func(p *LbsPeer, m *LbsMessage) {
 		p.app.BroadcastLobbyUserCount(p.Lobby)
 		p.Lobby = nil
 	}
+
+	p.logout = true
 })
 
 func SendServerShutDown(p *LbsPeer) {
