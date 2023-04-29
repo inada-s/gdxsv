@@ -612,18 +612,16 @@ var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
 	for i := 0; i < 18; i++ {
 		r.Read8()
 	}
-	for 0 < r.Remaining() {
-		v := r.Read8()
-		if v == 0 {
-			break
-		}
-		buf = append(buf, v)
+	for i := 0; i < 16; i++ {
+		buf = append(buf, r.Read8())
 	}
-	bin, err := io.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder()))
-	if err != nil {
+
+	if bin, err := io.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder())); err != nil {
 		logger.Error("failed to read pilot name", zap.Error(err))
+	} else {
+		p.PilotName = string(bin)
 	}
-	p.PilotName = string(bin)
+
 	p.logger = p.logger.With(zap.String("pilot_name", p.PilotName))
 	p.SendMessage(NewServerAnswer(m))
 })
@@ -1316,9 +1314,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1345,9 +1343,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0).      // chat_type
-				Write8(0).      // id color
-				Write8(0).      // handle color
+				Write8(0). // chat_type
+				Write8(0). // id color
+				Write8(0). // handle color
 				Write8(0).Msg() // msg color
 		}
 
