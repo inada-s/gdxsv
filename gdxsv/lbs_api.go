@@ -58,19 +58,24 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			ActiveGames []*activeGame `json:"active_games"`
 		}
 
+		userAdded := map[string]bool{}
+
 		resp, err, _ := httpRequestGroup.Do("/lbs/status", func() (interface{}, error) {
 			resp := new(statusResponse)
 
 			lbs.Locked(func(lbs *Lbs) {
 				for _, u := range lbs.userPeers {
-					resp.LobbyUsers = append(resp.LobbyUsers, &onlineUser{
-						UserID:     u.UserID,
-						Name:       u.Name,
-						Team:       teamName(int(u.Team)),
-						BattleCode: "",
-						Platform:   u.Platform,
-						Disk:       u.GameDisk,
-					})
+					if !userAdded[u.UserID] {
+						userAdded[u.UserID] = true
+						resp.LobbyUsers = append(resp.LobbyUsers, &onlineUser{
+							UserID:     u.UserID,
+							Name:       u.Name,
+							Team:       teamName(int(u.Team)),
+							BattleCode: "",
+							Platform:   u.Platform,
+							Disk:       u.GameDisk,
+						})
+					}
 				}
 			})
 
@@ -81,14 +86,17 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 					disk = b.GameDisk
 				}
 
-				resp.BattleUsers = append(resp.BattleUsers, &onlineUser{
-					UserID:     u.UserID,
-					Name:       u.Name,
-					Team:       teamName(int(u.Team)),
-					BattleCode: u.BattleCode,
-					Platform:   u.Platform,
-					Disk:       disk,
-				})
+				if !userAdded[u.UserID] {
+					userAdded[u.UserID] = true
+					resp.BattleUsers = append(resp.BattleUsers, &onlineUser{
+						UserID:     u.UserID,
+						Name:       u.Name,
+						Team:       teamName(int(u.Team)),
+						BattleCode: u.BattleCode,
+						Platform:   u.Platform,
+						Disk:       disk,
+					})
+				}
 			}
 
 			for _, g := range sharedData.GetMcsGames() {

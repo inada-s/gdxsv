@@ -715,8 +715,6 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 				continue
 			}
 
-			logger.Info(addr)
-
 			matching.Candidates = append(matching.Candidates, &proto.PlayerAddress{
 				UserId: p.UserID,
 				PeerId: int32(i),
@@ -728,14 +726,24 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 	}
 
 	var msgs []*LbsMessage
-	for i := range participants {
+	for i, p := range participants {
 		matching.PeerId = int32(i)
+
+		// TODO: Remove this when minimum version is newer than v1.2.0
+		isOldVersion := p.PlatformInfo["flycast"] == "" || isOldFlycastVersion(p.PlatformInfo["flycast"], "v1.2.0")
+		if isOldVersion {
+			matching.RuleBin = nil
+			matching.Users = nil
+		}
+
 		bin, err := pb.Marshal(matching)
 		if err != nil {
 			return nil, err
 		}
+
 		msg := NewServerNotice(lbsP2PMatching)
 		msg.Writer().Write(bin)
+
 		msgs = append(msgs, msg)
 	}
 
