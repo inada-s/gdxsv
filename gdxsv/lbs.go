@@ -655,10 +655,15 @@ func (lbs *Lbs) BroadcastBattleUserCount() {
 func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	record, err := getDB().GetBattleRecordUser(result.BattleCode, p.UserID)
 	if err != nil {
-		logger.Error("failed to load battle record",
+		logger.Warn("failed to load battle record",
 			zap.Error(err),
 			zap.String("battle_code", result.BattleCode),
 			zap.Any("battle_result", result))
+		return
+	}
+
+	if record.System != 0 {
+		// already updated
 		return
 	}
 
@@ -668,6 +673,7 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	record.Kill = int(result.KillCount)
 	record.Death = 0 // missing in gdxsv
 	record.Frame = 0 // missing in gdxsv
+	record.System = 1
 
 	err = getDB().UpdateBattleRecord(record)
 	if err != nil {
@@ -682,17 +688,35 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 		zap.String("user_id", p.UserID),
 		zap.Any("before", p.DBUser))
 
-	rec, err := getDB().CalculateUserTotalBattleCount(p.UserID, 0)
-	if err != nil {
-		logger.Error("failed to calculate battle count", zap.Error(err))
-		return
-	}
+	if record.Players == 4 {
+		if record.Aggregate != 0 {
+			p.DBUser.BattleCount += record.Round
+			p.DBUser.WinCount += record.Win
+			p.DBUser.LoseCount += record.Lose
+			p.DBUser.KillCount += record.Kill
+			p.DBUser.DeathCount += record.Death
 
-	p.DBUser.BattleCount = rec.Battle
-	p.DBUser.WinCount = rec.Win
-	p.DBUser.LoseCount = rec.Lose
-	p.DBUser.KillCount = rec.Kill
-	p.DBUser.DeathCount = rec.Death
+			if record.Team == TeamRenpo {
+				p.DBUser.RenpoBattleCount += record.Round
+				p.DBUser.RenpoWinCount += record.Win
+				p.DBUser.RenpoLoseCount += record.Lose
+				p.DBUser.RenpoKillCount += record.Kill
+				p.DBUser.RenpoDeathCount += record.Death
+			}
+
+			if record.Team == TeamZeon {
+				p.DBUser.ZeonBattleCount += record.Round
+				p.DBUser.ZeonWinCount += record.Win
+				p.DBUser.ZeonLoseCount += record.Lose
+				p.DBUser.ZeonKillCount += record.Kill
+				p.DBUser.ZeonDeathCount += record.Death
+			}
+		}
+
+		p.DBUser.DailyBattleCount += record.Round
+		p.DBUser.DailyWinCount += record.Win
+		p.DBUser.DailyLoseCount += record.Lose
+	}
 
 	err = getDB().UpdateUser(&p.DBUser)
 	if err != nil {

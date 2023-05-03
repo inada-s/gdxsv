@@ -213,6 +213,10 @@ func mainLbs() {
 
 	logger.Sugar()
 
+	if err := getDB().ResetDailyBattleCount(); err != nil {
+		logger.Warn("ResetDailyBattleCount failure", zap.Error(err))
+	}
+
 	<-ctx.Done()
 	stop()
 	logger.Info("Shutdown")

@@ -491,6 +491,17 @@ func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*Battl
 	return b, err
 }
 
+func (db SQLiteDB) ResetDailyBattleCount() (err error) {
+	_, err = db.Exec(`
+UPDATE
+	user
+SET
+	daily_battle_count = 0,
+	daily_win_count = 0,
+	daily_lose_count = 0`)
+	return
+}
+
 func (db SQLiteDB) CalculateUserTotalBattleCount(userID string, team byte) (ret BattleCountResult, err error) {
 	if team == 0 {
 		r := db.QueryRow(`

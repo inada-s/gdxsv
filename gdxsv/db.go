@@ -207,6 +207,9 @@ type DB interface {
 	// GetBattleRecordUser load a battle record by battle_code and user_id.
 	GetBattleRecordUser(battleCode string, userID string) (*BattleRecord, error)
 
+	// ResetDailyBattleCount clears daily battle count of all users.
+	ResetDailyBattleCount() (err error)
+
 	// UpdateBattleRecord updates all mutable information of battle_record.
 	UpdateBattleRecord(record *BattleRecord) error
 
