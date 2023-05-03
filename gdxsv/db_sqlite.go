@@ -497,8 +497,8 @@ UPDATE
 	user
 SET
 	daily_battle_count = 0,
-    daily_win_count = 0,
-    daily_lose_count = 0`)
+	daily_win_count = 0,
+	daily_lose_count = 0`)
 	return
 }
 
