@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
@@ -653,6 +654,15 @@ func (lbs *Lbs) BroadcastBattleUserCount() {
 }
 
 func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
+	js, err := json.Marshal(result)
+	if err != nil {
+		logger.Error("failed to marshal battle result",
+			zap.Error(err),
+			zap.String("battle_code", result.BattleCode),
+			zap.Any("battle_result", result))
+		return
+	}
+
 	record, err := getDB().GetBattleRecordUser(result.BattleCode, p.UserID)
 	if err != nil {
 		logger.Error("failed to load battle record",
@@ -668,6 +678,7 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	record.Kill = int(result.KillCount)
 	record.Death = 0 // missing in gdxsv
 	record.Frame = 0 // missing in gdxsv
+	record.Result = string(js)
 
 	err = getDB().UpdateBattleRecord(record)
 	if err != nil {
@@ -693,6 +704,40 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	p.DBUser.LoseCount = rec.Lose
 	p.DBUser.KillCount = rec.Kill
 	p.DBUser.DeathCount = rec.Death
+
+	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 1)
+	if err != nil {
+		logger.Error("failed to calculate battle count", zap.Error(err))
+		return
+	}
+
+	p.DBUser.RenpoBattleCount = rec.Battle
+	p.DBUser.RenpoWinCount = rec.Win
+	p.DBUser.RenpoLoseCount = rec.Lose
+	p.DBUser.RenpoKillCount = rec.Kill
+	p.DBUser.RenpoDeathCount = rec.Death
+
+	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 2)
+	if err != nil {
+		logger.Error("failed to calculate battle count", zap.Error(err))
+		return
+	}
+
+	p.DBUser.ZeonBattleCount = rec.Battle
+	p.DBUser.ZeonWinCount = rec.Win
+	p.DBUser.ZeonLoseCount = rec.Lose
+	p.DBUser.ZeonKillCount = rec.Kill
+	p.DBUser.ZeonDeathCount = rec.Death
+
+	rec, err = getDB().CalculateUserDailyBattleCount(p.UserID)
+	if err != nil {
+		logger.Error("failed to calculate battle count", zap.Error(err))
+		return
+	}
+
+	p.DBUser.DailyBattleCount = rec.Battle
+	p.DBUser.DailyWinCount = rec.Win
+	p.DBUser.DailyLoseCount = rec.Lose
 
 	err = getDB().UpdateUser(&p.DBUser)
 	if err != nil {
