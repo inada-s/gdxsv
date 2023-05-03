@@ -5,11 +5,16 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
 	"net"
 	"sync"
 	"time"
+)
+
+var (
+	ErrMcsExit = errors.New("no one has been connected for a period of time")
 )
 
 type McsPeer interface {
@@ -159,7 +164,8 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 		for sum := 0; sum < len(buf); {
 			err = conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if err != nil {
-				logger.Warn("SetWriteDeadline failed", zap.Error(err))
+				logger.Error("SetWriteDeadline failed", zap.Error(err))
+				return err
 			}
 			n, err := conn.Write(buf[sum:])
 			if err != nil {
@@ -246,14 +252,14 @@ func (mcs *Mcs) DialAndSyncWithLbs(lobbyAddr string, battlePublicAddr string, ba
 			err = sendMcsStatus()
 			if err != nil {
 				logger.Warn("failed to send mcsStatus", zap.Error(err))
-				// Don't return here not to quit running games when lbs restarted.
+				return err
 			}
 
 			sharedData.RemoveStaleData()
 
 			if 15 <= time.Since(status.UpdatedAt).Minutes() && len(status.Users) == 0 {
 				logger.Info("mcs exit", zap.String("mcs-metrics", mcsMetrics.String()))
-				return nil
+				return ErrMcsExit
 			}
 		}
 	}

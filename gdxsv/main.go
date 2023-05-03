@@ -227,9 +227,15 @@ func mainMcs() {
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 	defer mcs.Quit()
 
-	err := mcs.DialAndSyncWithLbs(conf.LobbyPublicAddr, conf.BattlePublicAddr, conf.BattleRegion)
-	if err != nil {
+	for i := 0; i < 10; i++ {
+		err := mcs.DialAndSyncWithLbs(conf.LobbyPublicAddr, conf.BattlePublicAddr, conf.BattleRegion)
+		if err == nil || err == ErrMcsExit {
+			break
+		}
+
 		logger.Error("failed to dial lbs", zap.Error(err))
+		logger.Info("Retry to connect to lbs in 30 seconds")
+		time.Sleep(30 * time.Second)
 	}
 }
 
