@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
@@ -654,21 +653,17 @@ func (lbs *Lbs) BroadcastBattleUserCount() {
 }
 
 func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
-	js, err := json.Marshal(result)
+	record, err := getDB().GetBattleRecordUser(result.BattleCode, p.UserID)
 	if err != nil {
-		logger.Error("failed to marshal battle result",
+		logger.Warn("failed to load battle record",
 			zap.Error(err),
 			zap.String("battle_code", result.BattleCode),
 			zap.Any("battle_result", result))
 		return
 	}
 
-	record, err := getDB().GetBattleRecordUser(result.BattleCode, p.UserID)
-	if err != nil {
-		logger.Error("failed to load battle record",
-			zap.Error(err),
-			zap.String("battle_code", result.BattleCode),
-			zap.Any("battle_result", result))
+	if record.System != 0 {
+		// already updated
 		return
 	}
 
@@ -678,7 +673,7 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	record.Kill = int(result.KillCount)
 	record.Death = 0 // missing in gdxsv
 	record.Frame = 0 // missing in gdxsv
-	record.Result = string(js)
+	record.System = 1
 
 	err = getDB().UpdateBattleRecord(record)
 	if err != nil {
@@ -693,51 +688,35 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 		zap.String("user_id", p.UserID),
 		zap.Any("before", p.DBUser))
 
-	rec, err := getDB().CalculateUserTotalBattleCount(p.UserID, 0)
-	if err != nil {
-		logger.Error("failed to calculate battle count", zap.Error(err))
-		return
+	if record.Players == 4 {
+		if record.Aggregate != 0 {
+			p.DBUser.BattleCount += record.Round
+			p.DBUser.WinCount += record.Win
+			p.DBUser.LoseCount += record.Lose
+			p.DBUser.KillCount += record.Kill
+			p.DBUser.DeathCount += record.Death
+
+			if record.Team == TeamRenpo {
+				p.DBUser.RenpoBattleCount += record.Round
+				p.DBUser.RenpoWinCount += record.Win
+				p.DBUser.RenpoLoseCount += record.Lose
+				p.DBUser.RenpoKillCount += record.Kill
+				p.DBUser.RenpoDeathCount += record.Death
+			}
+
+			if record.Team == TeamZeon {
+				p.DBUser.ZeonBattleCount += record.Round
+				p.DBUser.ZeonWinCount += record.Win
+				p.DBUser.ZeonLoseCount += record.Lose
+				p.DBUser.ZeonKillCount += record.Kill
+				p.DBUser.ZeonDeathCount += record.Death
+			}
+		}
+
+		p.DBUser.DailyBattleCount += record.Round
+		p.DBUser.DailyWinCount += record.Win
+		p.DBUser.DailyLoseCount += record.Lose
 	}
-
-	p.DBUser.BattleCount = rec.Battle
-	p.DBUser.WinCount = rec.Win
-	p.DBUser.LoseCount = rec.Lose
-	p.DBUser.KillCount = rec.Kill
-	p.DBUser.DeathCount = rec.Death
-
-	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 1)
-	if err != nil {
-		logger.Error("failed to calculate battle count", zap.Error(err))
-		return
-	}
-
-	p.DBUser.RenpoBattleCount = rec.Battle
-	p.DBUser.RenpoWinCount = rec.Win
-	p.DBUser.RenpoLoseCount = rec.Lose
-	p.DBUser.RenpoKillCount = rec.Kill
-	p.DBUser.RenpoDeathCount = rec.Death
-
-	rec, err = getDB().CalculateUserTotalBattleCount(p.UserID, 2)
-	if err != nil {
-		logger.Error("failed to calculate battle count", zap.Error(err))
-		return
-	}
-
-	p.DBUser.ZeonBattleCount = rec.Battle
-	p.DBUser.ZeonWinCount = rec.Win
-	p.DBUser.ZeonLoseCount = rec.Lose
-	p.DBUser.ZeonKillCount = rec.Kill
-	p.DBUser.ZeonDeathCount = rec.Death
-
-	rec, err = getDB().CalculateUserDailyBattleCount(p.UserID)
-	if err != nil {
-		logger.Error("failed to calculate battle count", zap.Error(err))
-		return
-	}
-
-	p.DBUser.DailyBattleCount = rec.Battle
-	p.DBUser.DailyWinCount = rec.Win
-	p.DBUser.DailyLoseCount = rec.Lose
 
 	err = getDB().UpdateUser(&p.DBUser)
 	if err != nil {
