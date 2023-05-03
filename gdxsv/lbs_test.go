@@ -454,6 +454,20 @@ func TestLbs_RegisterBattleResult(t *testing.T) {
 		assertEq(t, 9, p.WinCount)
 		assertEq(t, 1, p.LoseCount)
 		assertEq(t, 30, p.KillCount)
+
+		assertEq(t, 10, p.RenpoBattleCount)
+		assertEq(t, 9, p.RenpoWinCount)
+		assertEq(t, 1, p.RenpoLoseCount)
+		assertEq(t, 30, p.RenpoKillCount)
+
+		assertEq(t, 0, p.ZeonBattleCount)
+		assertEq(t, 0, p.ZeonWinCount)
+		assertEq(t, 0, p.ZeonLoseCount)
+		assertEq(t, 0, p.ZeonKillCount)
+
+		assertEq(t, 10, p.DailyBattleCount)
+		assertEq(t, 9, p.DailyWinCount)
+		assertEq(t, 1, p.DailyLoseCount)
 	})
 }
 
