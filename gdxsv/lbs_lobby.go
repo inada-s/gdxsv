@@ -202,11 +202,16 @@ func (l *LbsLobby) buildDescription(ping string) string {
 	if !ok {
 		locName = "Default Server"
 	}
+
 	if l.LobbySetting.McsRegion == "best" {
 		locName = "Best Server [Auto Detection]"
 		if 0 < l.LobbySetting.PingLimit && l.LobbySetting.PingTestRegion() != "" {
 			locName = "Best Server [Ping Limit]"
 		}
+	}
+
+	if l.LobbySetting.McsRegion == "p2p" {
+		locName = "P2P [Rollback]"
 	}
 
 	if ping == "" {
