@@ -20,7 +20,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/encoding/japanese"
-	"golang.org/x/text/transform"
 	"golang.org/x/text/width"
 )
 
@@ -616,10 +615,11 @@ var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
 		buf = append(buf, r.Read8())
 	}
 
-	if bin, err := io.ReadAll(transform.NewReader(bytes.NewReader(buf), japanese.ShiftJIS.NewDecoder())); err != nil {
+	if bin, err := japanese.ShiftJIS.NewDecoder().Bytes(buf); err != nil {
 		logger.Error("failed to read pilot name", zap.Error(err))
 	} else {
-		p.PilotName = string(bin)
+		bin = append(bin, 0)
+		p.PilotName = string(bin[:bytes.IndexRune(bin, 0)])
 	}
 
 	p.logger = p.logger.With(zap.String("pilot_name", p.PilotName))
@@ -1314,9 +1314,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1343,9 +1343,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0). // chat_type
-				Write8(0). // id color
-				Write8(0). // handle color
+				Write8(0).      // chat_type
+				Write8(0).      // id color
+				Write8(0).      // handle color
 				Write8(0).Msg() // msg color
 		}
 
