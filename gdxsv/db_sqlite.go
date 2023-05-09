@@ -1,9 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +90,7 @@ CREATE TABLE IF NOT EXISTS battle_record
     user_id     text,
     user_name   text,
     pilot_name  text,
+    disk        text,
     lobby_id    integer,
     players     integer default 0,
     aggregate   integer default 0,
@@ -96,6 +103,7 @@ CREATE TABLE IF NOT EXISTS battle_record
     death       integer default 0,
     frame       integer default 0,
     result      text    default '',
+    replay_url  text    default '',
     created     timestamp,
     updated     timestamp,
     system      integer default 0,
@@ -177,6 +185,7 @@ CREATE INDEX IF NOT EXISTS ACCOUNT_LAST_LOGIN_IP ON account(last_login_ip);
 CREATE INDEX IF NOT EXISTS ACCOUNT_LAST_LOGIN_MACHINE_ID ON account(last_login_machine_id);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_USER_ID ON battle_record(user_id);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_PLAYERS ON battle_record(players);
+CREATE INDEX IF NOT EXISTS BATTLE_RECORD_REPLAY_URL ON battle_record(replay_url);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_CREATED ON battle_record(created);
 CREATE INDEX IF NOT EXISTS BATTLE_RECORD_AGGREGATE ON battle_record(aggregate);
 `
@@ -276,6 +285,41 @@ func (db SQLiteDB) Migrate() error {
 		if err != nil {
 			_ = tx.Rollback()
 			return errors.Wrap(err, "DROP TABLE failed")
+		}
+	}
+
+	if os.Getenv("MIGRATE_202305") != "" {
+		tx.Exec("UPDATE battle_record SET disk = 'dc2' WHERE disk IS NULL")
+		tx.Exec("UPDATE battle_record SET lobby_id = 0 WHERE lobby_id IS NULL")
+		tx.Exec(`
+UPDATE battle_record SET pos = (
+	SELECT COUNT(*) + 1
+	FROM battle_record AS b2
+	WHERE b2.battle_code = battle_record.battle_code AND b2.created < battle_record.created
+)
+WHERE pos = 0`)
+		tx.Exec(`
+UPDATE battle_record
+SET pilot_name = substr(pilot_name, 1, length(pilot_name) - length(''))
+WHERE pilot_name like '%' || X'00';
+`)
+	}
+
+	if conf.GCSBaseURL != "" {
+		if f, err := os.Open("gdxsv_replays.txt"); err == nil {
+			sc := bufio.NewScanner(f)
+			sc.Split(bufio.ScanLines)
+			for sc.Scan() {
+				line := sc.Text()
+				if strings.HasSuffix(line, ".pb") {
+					battleCode := strings.TrimSuffix(filepath.Base(line), ".pb")
+					if len(battleCode) == 13 {
+						url := conf.GCSBaseURL + strings.TrimPrefix(line, "gs://gdxsv")
+						tx.Exec("UPDATE battle_record SET replay_url = ? WHERE battle_code = ?", url, battleCode)
+					}
+				}
+			}
+			f.Close()
 		}
 	}
 
@@ -454,9 +498,9 @@ func (db SQLiteDB) AddBattleRecord(battleRecord *BattleRecord) error {
 	battleRecord.Created = now
 	_, err := db.NamedExec(`
 INSERT INTO battle_record
-	(battle_code, user_id, user_name, pilot_name, lobby_id, players, aggregate, pos, team, created, updated, system)
+	(disk, battle_code, user_id, user_name, pilot_name, lobby_id, players, aggregate, pos, team, created, updated, system, replay_url)
 VALUES
-	(:battle_code, :user_id, :user_name, :pilot_name, :lobby_id, :players, :aggregate, :pos, :team, :created, :updated, :system)`,
+	(:disk, :battle_code, :user_id, :user_name, :pilot_name, :lobby_id, :players, :aggregate, :pos, :team, :created, :updated, :system, :replay_url)`,
 		battleRecord)
 	return err
 }
@@ -474,7 +518,8 @@ SET
 	frame = :frame,
 	result = :result,
 	updated = :updated,
-	system = :system
+	system = :system,
+	replay_url = :replay_url
 WHERE
 	battle_code = :battle_code AND user_id = :user_id`, battle)
 
@@ -489,6 +534,11 @@ func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*Battl
 	b := new(BattleRecord)
 	err := db.Get(b, `SELECT * FROM battle_record WHERE battle_code = ? AND user_id = ?`, battleCode, userID)
 	return b, err
+}
+
+func (db SQLiteDB) SetReplayURL(battleCode string, url string) error {
+	_, err := db.Exec(`UPDATE battle_record SET replay_url = ? WHERE battle_code = ?`, url, battleCode)
+	return err
 }
 
 func (db SQLiteDB) ResetDailyBattleCount() (err error) {
@@ -689,4 +739,141 @@ func (db SQLiteDB) GetPatch(platform, disk, name string) (*MPatch, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func (db SQLiteDB) FindReplay(q *FindReplayQuery) ([]*FoundReplay, error) {
+	order := "DESC"
+	if q.Reverse {
+		order = "ASC"
+	}
+
+	rows, err := db.NamedQuery(`
+SELECT
+  disk,
+  battle_code,
+  lobby_id,
+  players,
+  MAX(round) as round,
+  GROUP_CONCAT(pos, '/') AS pos_list,
+  GROUP_CONCAT(team, '/') AS team_list,
+  GROUP_CONCAT(win, '/') AS win_list,
+  GROUP_CONCAT(user_id, '/') AS user_id_list,
+  GROUP_CONCAT(user_name, '/') AS user_name_list,
+  GROUP_CONCAT(pilot_name, '/') AS pilot_name_list,
+  created AS start_at,
+  replay_url
+FROM battle_record
+WHERE battle_code IN (
+  SELECT DISTINCT
+    battle_code
+  FROM
+    battle_record
+  WHERE
+    replay_url != ''
+    AND (disk = :disk OR :disk = '')
+    AND (battle_code = :battle_code OR :battle_code = '')
+    AND (user_id = user_id OR :user_id = '')
+    AND (user_name = :user_name OR :user_name = '')
+    AND (pilot_name = :pilot_name OR :pilot_name = '')
+    AND (lobby_id = :lobby_id OR :lobby_id = -1)
+    AND (players = :players OR :players = -1)
+    AND (aggregate = :aggregate OR :aggregate = -1)
+  ORDER BY created `+order+`
+  LIMIT 100 OFFSET (:page) * 100)
+GROUP BY battle_code
+`, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type sqlRow struct {
+		Disk          string    `db:"disk"`
+		BattleCode    string    `db:"battle_code"`
+		LobbyID       int       `db:"lobby_id"`
+		Players       int       `db:"players"`
+		Round         int       `db:"round"`
+		PosList       string    `db:"pos_list"`
+		TeamList      string    `db:"team_list"`
+		WinList       string    `db:"win_list"`
+		UserIDList    string    `db:"user_id_list"`
+		UserNameList  string    `db:"user_name_list"`
+		PilotNameList string    `db:"pilot_name_list"`
+		StartAt       time.Time `db:"start_at"`
+		ReplayURL     string    `db:"replay_url"`
+	}
+
+	var result []*FoundReplay
+	var r sqlRow
+	for rows.Next() {
+		err = rows.StructScan(&r)
+		if err != nil {
+			log.Println(err)
+			return nil, err
+		}
+		n := r.Players
+
+		replay := FoundReplay{}
+		replay.Round = r.Round
+		replay.Disk = r.Disk
+		replay.StartAt = r.StartAt.Unix()
+		replay.ReplayURL = r.ReplayURL
+
+		posList := strings.SplitN(r.PosList, "/", n)
+		teamList := strings.SplitN(r.TeamList, "/", n)
+		winList := strings.SplitN(r.WinList, "/", n)
+		userIDList := strings.SplitN(r.UserIDList, "/", n)
+		userNameList := strings.SplitN(r.UserNameList, "/", n)
+		pilotNameList := strings.SplitN(r.PilotNameList, "/", n)
+
+		if len(teamList) != n ||
+			len(winList) != n ||
+			len(userIDList) != n ||
+			len(userNameList) != n ||
+			len(pilotNameList) != n {
+			continue
+		}
+
+		for i := 0; i < n; i++ {
+			team, err := strconv.Atoi(teamList[i])
+			if err != nil {
+				return nil, err
+			}
+
+			pos, err := strconv.Atoi(posList[i])
+			if err != nil {
+				return nil, err
+			}
+
+			if team == TeamRenpo && replay.RenpoWin == 0 {
+				replay.RenpoWin, err = strconv.Atoi(winList[i])
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if team == TeamZeon && replay.ZeonWin == 0 {
+				replay.ZeonWin, err = strconv.Atoi(winList[i])
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			replay.Users = append(replay.Users, &ReplayUser{
+				UserID:    userIDList[i],
+				UserName:  userNameList[i],
+				PilotName: pilotNameList[i],
+				Team:      team,
+				Pos:       pos,
+			})
+		}
+
+		sort.Slice(replay.Users, func(i, j int) bool {
+			return replay.Users[i].Pos < replay.Users[j].Pos
+		})
+
+		result = append(result, &replay)
+	}
+
+	return result, nil
 }

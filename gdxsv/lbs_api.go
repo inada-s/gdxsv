@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -125,6 +126,65 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(resp)
+		if err != nil {
+			logger.Error("JSON encode failed", zap.Error(err))
+		}
+	})
+
+	http.HandleFunc("/lbs/replay", func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		q := NewFindReplayQuery()
+		q.BattleCode = r.URL.Query().Get("battle_code")
+		q.Disk = r.URL.Query().Get("disk")
+		q.UserID = r.URL.Query().Get("user_id")
+		q.UserName = r.URL.Query().Get("user_name")
+		q.PilotName = r.URL.Query().Get("pilot_name")
+		if r.URL.Query().Has("lobby_id") {
+			if q.LobbyID, err = strconv.Atoi(r.URL.Query().Get("lobby_id")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+		if r.URL.Query().Has("players") {
+			if q.Players, err = strconv.Atoi(r.URL.Query().Get("players")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+		if r.URL.Query().Has("aggregate") {
+			if q.Aggregate, err = strconv.Atoi(r.URL.Query().Get("aggregate")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+		if r.URL.Query().Has("reverse") {
+			if reverse, err := strconv.Atoi(r.URL.Query().Get("reverse")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			} else {
+				q.Reverse = reverse == 1
+			}
+		}
+		if r.URL.Query().Has("page") {
+			if q.Page, err = strconv.Atoi(r.URL.Query().Get("page")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+
+		replays, err := getDB().FindReplay(q)
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+
+		if len(replays) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(replays)
 		if err != nil {
 			logger.Error("JSON encode failed", zap.Error(err))
 		}

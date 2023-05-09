@@ -17,6 +17,7 @@ export GDXSV_DB_NAME="gdxsv.db"
 export GDXSV_GCP_PROJECT_ID="gdxsv-274515"
 export GDXSV_GCP_KEY_PATH="/etc/google/auth/application_default_credentials.json"
 export GDXSV_MCSFUNC_URL="https://asia-northeast1-gdxsv-274515.cloudfunctions.net/mcsfunc"
+export GDXSV_GCS_BASEURL="https://storage.googleapis.com/gdxsv"
 
 if [[ ! -d $LATEST_TAG/bin ]]; then
   echo "Downloading latest version..."

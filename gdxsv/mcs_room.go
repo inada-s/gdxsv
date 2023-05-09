@@ -125,7 +125,7 @@ func (r *McsRoom) Finalize() {
 		return r.battleLog.Users[i].Pos < r.battleLog.Users[j].Pos
 	})
 	r.battleLog.EndAt = time.Now().UnixNano()
-	fileName := fmt.Sprintf("disk%v-%v.pb", r.battleLog.GameDisk, r.battleLog.BattleCode)
+	fileName := fmt.Sprintf("%s.pb", r.battleLog.BattleCode)
 	err := r.saveBattleLogLocked(path.Join(conf.BattleLogPath, fileName))
 	if err != nil {
 		logger.Error("Failed to save battle log", zap.Error(err))

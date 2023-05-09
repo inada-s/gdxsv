@@ -69,6 +69,7 @@ type Config struct {
 	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`
 	McsFuncKey   string `env:"GDXSV_MCSFUNC_KEY" envDefault:""` // deprecated
 	McsFuncURL   string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
+	GCSBaseURL   string `env:"GDXSV_GCS_BASEURL" envDefault:""`
 
 	DBName string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }

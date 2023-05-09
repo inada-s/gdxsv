@@ -75,6 +75,7 @@ type BattleRecord struct {
 	UserID     string `db:"user_id" json:"user_id,omitempty"`
 	UserName   string `db:"user_name" json:"user_name,omitempty"`
 	PilotName  string `db:"pilot_name" json:"pilot_name,omitempty"`
+	Disk       string `db:"disk" json:"disk,omitempty"`
 	LobbyID    int    `db:"lobby_id" json:"lobby_id,omitempty"`
 	Players    int    `db:"players" json:"players,omitempty"`
 	Aggregate  int    `db:"aggregate" json:"aggregate,omitempty"`
@@ -89,9 +90,10 @@ type BattleRecord struct {
 	Frame  int    `db:"frame" json:"frame,omitempty"`
 	Result string `db:"result" json:"result,omitempty"`
 
-	Created time.Time `db:"created" json:"created,omitempty"`
-	Updated time.Time `db:"updated" json:"updated,omitempty"`
-	System  uint32    `db:"system" json:"system,omitempty"`
+	Created   time.Time `db:"created" json:"created,omitempty"`
+	Updated   time.Time `db:"updated" json:"updated,omitempty"`
+	System    uint32    `db:"system" json:"system,omitempty"`
+	ReplayURL string    `db:"replay_url" json:"replay_url,omitempty"`
 }
 
 type BattleCountResult struct {
@@ -105,6 +107,46 @@ type BattleCountResult struct {
 type RankingRecord struct {
 	Rank int `db:"rank"`
 	DBUser
+}
+
+type FindReplayQuery struct {
+	BattleCode string `db:"battle_code" json:"battle_code"`
+	Disk       string `db:"disk" json:"disk"`
+	UserID     string `db:"user_id" json:"user_id"`
+	UserName   string `db:"user_name" json:"user_name"`
+	PilotName  string `db:"pilot_name" json:"pilot_name"`
+	LobbyID    int    `db:"lobby_id" json:"lobby_id"`
+	Players    int    `db:"players" json:"players"`
+	Aggregate  int    `db:"aggregate" json:"aggregate"`
+	Reverse    bool   `db:"reverse" json:"reverse"`
+	Page       int    `db:"page" json:"page"`
+}
+
+func NewFindReplayQuery() *FindReplayQuery {
+	return &FindReplayQuery{
+		LobbyID:   -1,
+		Players:   -1,
+		Aggregate: -1,
+	}
+}
+
+type ReplayUser struct {
+	UserID    string `json:"user_id"`
+	UserName  string `json:"user_name"`
+	PilotName string `json:"pilot_name"`
+	Team      int    `json:"team"`
+	Pos       int    `json:"pos"`
+}
+
+type FoundReplay struct {
+	BattleCode string        `json:"battle_code,omitempty"`
+	Disk       string        `json:"disk,omitempty"`
+	Users      []*ReplayUser `json:"users,omitempty"`
+	Round      int           `json:"round,omitempty"`
+	RenpoWin   int           `json:"renpo_win,omitempty"`
+	ZeonWin    int           `json:"zeon_win,omitempty"`
+	StartAt    int64         `json:"start_at,omitempty"`
+	ReplayURL  string        `json:"replay_url,omitempty"`
 }
 
 type MLobbySetting struct {
@@ -207,6 +249,9 @@ type DB interface {
 	// GetBattleRecordUser load a battle record by battle_code and user_id.
 	GetBattleRecordUser(battleCode string, userID string) (*BattleRecord, error)
 
+	// SetReplayURL updates battle_record to set replay_url.
+	SetReplayURL(battleCode string, url string) error
+
 	// ResetDailyBattleCount clears daily battle count of all users.
 	ResetDailyBattleCount() (err error)
 
@@ -243,4 +288,7 @@ type DB interface {
 
 	// GetPatch returns game patch.
 	GetPatch(platform, disk, name string) (*MPatch, error)
+
+	// FindReplay returns list of FoundReplay filtered by Query.
+	FindReplay(q *FindReplayQuery) ([]*FoundReplay, error)
 }

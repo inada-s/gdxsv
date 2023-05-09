@@ -346,6 +346,125 @@ func Test300Ranking(t *testing.T) {
 	assertEq(t, 3, titansRanking[2].Rank)
 }
 
+func Test400Replay(t *testing.T) {
+	_, err := getDB().(SQLiteDB).Exec("DELETE FROM user")
+	must(t, err)
+	_, err = getDB().(SQLiteDB).Exec("DELETE FROM battle_record")
+	must(t, err)
+
+	var users []*DBUser
+	for i := 0; i < 4; i++ {
+		ac, err := getDB().RegisterAccount("12.34.56.78")
+		must(t, err)
+		u, err := getDB().RegisterUser(ac.LoginKey)
+		must(t, err)
+		users = append(users, u)
+	}
+
+	for _, br := range []*BattleRecord{
+		{
+			Disk:       "dc2",
+			BattleCode: "replaytest0",
+			UserID:     users[0].UserID,
+			Players:    4,
+			Aggregate:  1,
+			Pos:        2,
+			Round:      10,
+			Win:        4,
+			Lose:       6,
+			Kill:       1000,
+			Death:      0,
+			Frame:      9999,
+			Result:     "",
+			Team:       1,
+			System:     1,
+			ReplayURL:  "example.com/replay1",
+		},
+		{
+			Disk:       "dc2",
+			BattleCode: "replaytest0",
+			UserID:     users[1].UserID,
+			Players:    4,
+			Aggregate:  1,
+			Pos:        1,
+			Round:      10,
+			Win:        4,
+			Lose:       6,
+			Kill:       1000,
+			Death:      0,
+			Frame:      9999,
+			Result:     "",
+			Team:       1,
+			System:     1,
+			ReplayURL:  "example.com/replay1",
+		},
+		{
+			Disk:       "dc2",
+			BattleCode: "replaytest0",
+			UserID:     users[2].UserID,
+			Players:    4,
+			Aggregate:  1,
+			Pos:        4,
+			Round:      10,
+			Win:        6,
+			Lose:       4,
+			Kill:       0,
+			Death:      1000,
+			Frame:      9999,
+			Result:     "",
+			Team:       2,
+			System:     1,
+			ReplayURL:  "example.com/replay1",
+		},
+		{
+			Disk:       "dc2",
+			BattleCode: "replaytest0",
+			UserID:     users[3].UserID,
+			Players:    4,
+			Aggregate:  1,
+			Pos:        3,
+			Round:      10,
+			Win:        6,
+			Lose:       4,
+			Kill:       0,
+			Death:      1000,
+			Frame:      9999,
+			Result:     "",
+			Team:       2,
+			System:     1,
+			ReplayURL:  "example.com/replay1",
+		}} {
+		err := getDB().AddBattleRecord(br)
+		must(t, err)
+		err = getDB().UpdateBattleRecord(br)
+		must(t, err)
+	}
+
+	foundReplay, err := getDB().FindReplay(&FindReplayQuery{
+		BattleCode: "replaytest0",
+		Aggregate:  -1,
+		LobbyID:    -1,
+		Players:    -1,
+		Reverse:    false,
+		Page:       0,
+	})
+	must(t, err)
+	assertEq(t, 1, len(foundReplay))
+	assertEq(t, "example.com/replay1", foundReplay[0].ReplayURL)
+
+	foundReplay, err = getDB().FindReplay(&FindReplayQuery{
+		BattleCode: "",
+		UserID:     "ABC123",
+		Aggregate:  -1,
+		LobbyID:    -1,
+		Players:    -1,
+		Reverse:    false,
+		Page:       0,
+	})
+	must(t, err)
+	assertEq(t, 0, len(foundReplay))
+}
+
 func mustInsertDBAccount(a DBAccount) {
 	db := getDB().(SQLiteDB)
 	_, err := db.NamedExec(`INSERT INTO account
@@ -399,7 +518,8 @@ VALUES (:user_id,
 func mustInsertBattleRecord(record BattleRecord) {
 	db := getDB().(SQLiteDB)
 	_, err := db.NamedExec(`INSERT INTO battle_record
-VALUES (:battle_code,
+VALUES (:disk,
+        :battle_code,
         :user_id,
         :user_name,
         :pilot_name,
@@ -415,6 +535,7 @@ VALUES (:battle_code,
         :death,
         :frame,
         :result,
+        :replay_url,
         :created,
         :updated,
         :system)`, record)
