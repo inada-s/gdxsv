@@ -136,41 +136,46 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 	http.HandleFunc("/lbs/replay", func(w http.ResponseWriter, r *http.Request) {
 		// Public API: find replays
 
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		var err error
 		q := NewFindReplayQuery()
-		q.BattleCode = r.URL.Query().Get("battle_code")
-		q.Disk = r.URL.Query().Get("disk")
-		q.UserID = r.URL.Query().Get("user_id")
-		q.UserName = r.URL.Query().Get("user_name")
-		q.PilotName = r.URL.Query().Get("pilot_name")
-		if r.URL.Query().Has("lobby_id") {
-			if q.LobbyID, err = strconv.Atoi(r.URL.Query().Get("lobby_id")); err != nil {
+		q.BattleCode = r.FormValue("battle_code")
+		q.Disk = r.FormValue("disk")
+		q.UserID = r.FormValue("user_id")
+		q.UserName = r.FormValue("user_name")
+		q.PilotName = r.FormValue("pilot_name")
+		if r.FormValue("lobby_id") != "" {
+			if q.LobbyID, err = strconv.Atoi(r.FormValue("lobby_id")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
 				return
 			}
 		}
-		if r.URL.Query().Has("players") {
-			if q.Players, err = strconv.Atoi(r.URL.Query().Get("players")); err != nil {
+		if r.FormValue("players") != "" {
+			if q.Players, err = strconv.Atoi(r.FormValue("players")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
 				return
 			}
 		}
-		if r.URL.Query().Has("aggregate") {
-			if q.Aggregate, err = strconv.Atoi(r.URL.Query().Get("aggregate")); err != nil {
+		if r.FormValue("aggregate") != "" {
+			if q.Aggregate, err = strconv.Atoi(r.FormValue("aggregate")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
 				return
 			}
 		}
-		if r.URL.Query().Has("reverse") {
-			if reverse, err := strconv.Atoi(r.URL.Query().Get("reverse")); err != nil {
+		if r.FormValue("reverse") != "" {
+			if reverse, err := strconv.Atoi(r.FormValue("reverse")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
 				return
 			} else {
 				q.Reverse = reverse == 1
 			}
 		}
-		if r.URL.Query().Has("page") {
-			if q.Page, err = strconv.Atoi(r.URL.Query().Get("page")); err != nil {
+		if r.FormValue("page") != "" {
+			if q.Page, err = strconv.Atoi(r.FormValue("page")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
 				return
 			}
