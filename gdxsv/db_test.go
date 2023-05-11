@@ -462,6 +462,54 @@ func Test400Replay(t *testing.T) {
 	assertEq(t, 0, len(foundReplay))
 }
 
+func Test450SetReplayURL(t *testing.T) {
+	err := getDB().AddBattleRecord(&BattleRecord{
+		BattleCode: "Test450SetReplayURL",
+		UserID:     "Test450",
+	})
+	must(t, err)
+
+	err = getDB().SetReplayURL("Test450SetReplayURL", "http://example.com/replay_test")
+	must(t, err)
+
+	br, err := getDB().GetBattleRecordUser("Test450SetReplayURL", "Test450")
+	must(t, err)
+
+	assertEq(t, "http://example.com/replay_test", br.ReplayURL)
+}
+
+func Test460SetReplayURLBulk(t *testing.T) {
+	err := getDB().AddBattleRecord(&BattleRecord{
+		Disk:       "",
+		BattleCode: "Test460SetReplayURLBulk1",
+		UserID:     "Test460",
+	})
+	must(t, err)
+
+	err = getDB().AddBattleRecord(&BattleRecord{
+		Disk:       "",
+		BattleCode: "Test460SetReplayURLBulk2",
+		UserID:     "Test460",
+	})
+	must(t, err)
+
+	err = getDB().SetReplayURLBulk(
+		[]string{"Test460SetReplayURLBulk1", "Test460SetReplayURLBulk2"},
+		[]string{"http://example.com/replay_test1", "http://example.com/replay_test2"},
+		[]string{"dc1", "dc2"})
+	must(t, err)
+
+	br, err := getDB().GetBattleRecordUser("Test460SetReplayURLBulk1", "Test460")
+	must(t, err)
+	assertEq(t, "http://example.com/replay_test1", br.ReplayURL)
+	assertEq(t, "dc1", br.Disk)
+
+	br, err = getDB().GetBattleRecordUser("Test460SetReplayURLBulk2", "Test460")
+	must(t, err)
+	assertEq(t, "http://example.com/replay_test2", br.ReplayURL)
+	assertEq(t, "dc2", br.Disk)
+}
+
 func mustInsertDBAccount(a DBAccount) {
 	db := getDB().(SQLiteDB)
 	_, err := db.NamedExec(`INSERT INTO account
@@ -633,4 +681,18 @@ VALUES (:platform,
 	if err != nil {
 		panic(err)
 	}
+}
+
+func TestNewFindReplayQuery(t *testing.T) {
+	x := NewFindReplayQuery()
+	assertEq(t, "", x.BattleCode)
+	assertEq(t, "", x.Disk)
+	assertEq(t, "", x.UserID)
+	assertEq(t, "", x.UserName)
+	assertEq(t, "", x.PilotName)
+	assertEq(t, -1, x.LobbyID)
+	assertEq(t, -1, x.Players)
+	assertEq(t, -1, x.Aggregate)
+	assertEq(t, false, x.Reverse)
+	assertEq(t, 0, x.Page)
 }
