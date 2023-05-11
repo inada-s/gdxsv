@@ -442,6 +442,7 @@ func TestLbs_RegisterBattleResult(t *testing.T) {
 		p := lbs.FindPeer("TEST01")
 		if p == nil {
 			t.Fatal("peer not found")
+			return
 		}
 
 		lbs.RegisterBattleResult(p, &BattleResult{
