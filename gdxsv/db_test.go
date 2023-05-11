@@ -54,9 +54,6 @@ func Test002GetInvalidAccount(t *testing.T) {
 func Test101RegisterUser(t *testing.T) {
 	u, err := getDB().RegisterUser(testLoginKey)
 	must(t, err)
-	if u == nil {
-		t.FailNow()
-	}
 	assertEq(t, testLoginKey, u.LoginKey)
 	assertEq(t, 6, len(u.UserID))
 	assertEq(t, 0, u.BattleCount)
