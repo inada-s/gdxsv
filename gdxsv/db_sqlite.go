@@ -287,21 +287,41 @@ func (db SQLiteDB) Migrate() error {
 	}
 
 	if os.Getenv("MIGRATE_202305") != "" {
-		tx.Exec("UPDATE battle_record SET disk = 'dc2' WHERE disk IS NULL")
-		tx.Exec("UPDATE battle_record SET lobby_id = 0 WHERE lobby_id IS NULL")
-		tx.Exec(`
+		_, err = tx.Exec("UPDATE battle_record SET disk = 'dc2' WHERE disk IS NULL")
+		if err != nil {
+			_ = tx.Rollback()
+			return errors.Wrap(err, "set disk dc2 failure")
+		}
+
+		_, err = tx.Exec("UPDATE battle_record SET lobby_id = 0 WHERE lobby_id IS NULL")
+		if err != nil {
+			_ = tx.Rollback()
+			return errors.Wrap(err, "set lobby_id = 0 failure")
+		}
+
+		_, err = tx.Exec(`
 UPDATE battle_record SET pos = (
 	SELECT COUNT(*) + 1
 	FROM battle_record AS b2
 	WHERE b2.battle_code = battle_record.battle_code AND b2.created < battle_record.created
 )
 WHERE pos = 0`)
-		tx.Exec(`
+		if err != nil {
+			_ = tx.Rollback()
+			return errors.Wrap(err, "set pos failure")
+		}
+
+		_, err = tx.Exec(`
 UPDATE battle_record
 SET pilot_name = substr(pilot_name, 1, length(pilot_name) - length(''))
 WHERE pilot_name like '%' || X'00';
 `)
+		if err != nil {
+			_ = tx.Rollback()
+			return errors.Wrap(err, "fix pilot name failure")
+		}
 	}
+
 	return tx.Commit()
 }
 
