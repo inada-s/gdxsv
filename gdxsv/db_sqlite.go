@@ -809,7 +809,7 @@ WHERE battle_code IN (
     replay_url != ''
     AND (disk = :disk OR :disk = '')
     AND (battle_code = :battle_code OR :battle_code = '')
-    AND (user_id = user_id OR :user_id = '')
+    AND (user_id = :user_id OR :user_id = '')
     AND (user_name = :user_name OR :user_name = '')
     AND (pilot_name = :pilot_name OR :pilot_name = '')
     AND (lobby_id = :lobby_id OR :lobby_id = -1)
