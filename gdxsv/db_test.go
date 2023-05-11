@@ -518,11 +518,11 @@ VALUES (:user_id,
 func mustInsertBattleRecord(record BattleRecord) {
 	db := getDB().(SQLiteDB)
 	_, err := db.NamedExec(`INSERT INTO battle_record
-VALUES (:disk,
-        :battle_code,
+VALUES (:battle_code,
         :user_id,
         :user_name,
         :pilot_name,
+        :disk,
         :lobby_id,
         :players,
         :aggregate,
