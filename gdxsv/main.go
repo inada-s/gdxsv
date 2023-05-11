@@ -1,30 +1,28 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"gdxsv/gdxsv/proto"
 	"log"
 	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
-
-	"google.golang.org/api/option"
-	pb "google.golang.org/protobuf/proto"
 
 	"cloud.google.com/go/profiler"
 	"github.com/caarlos0/env"
 	"github.com/jmoiron/sqlx"
 	stackdriver "github.com/tommy351/zap-stackdriver"
 	"go.uber.org/zap"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -69,7 +67,6 @@ type Config struct {
 	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`
 	McsFuncKey   string `env:"GDXSV_MCSFUNC_KEY" envDefault:""` // deprecated
 	McsFuncURL   string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
-	GCSBaseURL   string `env:"GDXSV_GCS_BASEURL" envDefault:""`
 
 	DBName string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }
@@ -100,8 +97,7 @@ Usage: gdxsv <Flags...> [lbs, mcs, initdb, migratedb]
   migratedb: Update database schema.
     It is supposed to run this command before you run updated gdxsv.
 
-  battlelog2json: Convert battle log file to json.
-
+  update_replay_url: Update battle_record.replay_url in database from 'gsutil ls' result.
 Flags:
 
 `)
@@ -325,27 +321,42 @@ func main() {
 		} else {
 			logger.Info("Migration done")
 		}
-	case "battlelog2json":
-		b, err := os.ReadFile(args[1])
-		if err != nil {
-			logger.Fatal("Failed to open log file", zap.Error(err))
-		}
-		logfile := new(proto.BattleLogFile)
-		err = pb.Unmarshal(b, logfile)
-		if err != nil {
-			logger.Fatal("Failed to Unmarshal", zap.Error(err))
-		}
-		for _, data := range logfile.BattleData {
-			fmt.Println(data.UserId, data.Seq, hex.EncodeToString(data.Body))
+	case "update_replay_url":
+		prepareDB()
+		var battleCodes []string
+		var urls []string
+		var disks []string
+
+		sc := bufio.NewScanner(os.Stdin)
+		sc.Split(bufio.ScanLines)
+		for sc.Scan() {
+			line := sc.Text()
+			if strings.HasPrefix(line, "gs://") && strings.HasSuffix(line, ".pb") {
+				path := strings.TrimPrefix(line, "gs://")
+				url := "https://storage.googleapis.com/" + path
+
+				fileNameWithoutExt := strings.TrimSuffix(filepath.Base(path), ".pb")
+				if len(fileNameWithoutExt) == BattleCodeLength {
+					battleCodes = append(battleCodes, fileNameWithoutExt)
+					urls = append(urls, url)
+					disks = append(disks, "")
+				} else if strings.Contains(fileNameWithoutExt, "-") {
+					sp := strings.SplitN(fileNameWithoutExt, "-", 2)
+					if len(sp) == 2 && len(sp[1]) == BattleCodeLength {
+						battleCodes = append(battleCodes, sp[1])
+						urls = append(urls, url)
+						disks = append(disks, strings.TrimPrefix(sp[0], "disk"))
+					}
+				}
+			}
 		}
 
-		logfile.BattleData = nil
-		js, err := json.MarshalIndent(logfile, "", "  ")
+		err := getDB().SetReplayURLBulk(battleCodes, urls, disks)
 		if err != nil {
-			logger.Fatal("Failed to Unmarshal", zap.Error(err))
+			logger.Error("SetReplayURLBulk failed:", zap.Error(err))
+		} else {
+			logger.Info("SetReplayURLBulk done")
 		}
-		fmt.Print(string(js))
-
 	default:
 		printUsage()
 		os.Exit(1)

@@ -9,6 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const BattleCodeLength = 13
+
 func genBattleCode() string {
 	return fmt.Sprintf("%013d", time.Now().UnixNano()/1000000)
 }

@@ -8,7 +8,6 @@ import (
 	"go.uber.org/zap"
 	pb "google.golang.org/protobuf/proto"
 	"net"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -728,29 +727,6 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 	logger.Info("update battle count",
 		zap.String("user_id", p.UserID),
 		zap.Any("after", p.DBUser))
-
-	if record.ReplayURL == "" {
-		if url, ok := lbs.IsReplayUploaded(record.BattleCode); ok {
-			if err := getDB().SetReplayURL(record.BattleCode, url); err != nil {
-				logger.Warn("SetReplayURL failure", zap.Error(err))
-			}
-		}
-	}
-}
-
-func (lbs *Lbs) IsReplayUploaded(battleCode string) (string, bool) {
-	if conf.GCSBaseURL == "" {
-		return "", false
-	}
-	url := conf.GCSBaseURL + "/replays/" + battleCode + ".pb"
-	resp, err := http.Head(url)
-	if err != nil {
-		logger.Warn("IsReplayUploaded: head failed", zap.Error(err))
-		return "", false
-	}
-
-	defer resp.Body.Close()
-	return url, resp.StatusCode == 200
 }
 
 type LbsPeer struct {

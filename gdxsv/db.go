@@ -252,6 +252,9 @@ type DB interface {
 	// SetReplayURL updates battle_record to set replay_url.
 	SetReplayURL(battleCode string, url string) error
 
+	// SetReplayURLBulk updates battle_record to set replay_url.
+	SetReplayURLBulk(battleCodes, urls, disks []string) error
+
 	// ResetDailyBattleCount clears daily battle count of all users.
 	ResetDailyBattleCount() (err error)
 

@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,25 +302,6 @@ SET pilot_name = substr(pilot_name, 1, length(pilot_name) - length(''))
 WHERE pilot_name like '%' || X'00';
 `)
 	}
-
-	if conf.GCSBaseURL != "" {
-		if f, err := os.Open("gdxsv_replays.txt"); err == nil {
-			sc := bufio.NewScanner(f)
-			sc.Split(bufio.ScanLines)
-			for sc.Scan() {
-				line := sc.Text()
-				if strings.HasSuffix(line, ".pb") {
-					battleCode := strings.TrimSuffix(filepath.Base(line), ".pb")
-					if len(battleCode) == 13 {
-						url := conf.GCSBaseURL + strings.TrimPrefix(line, "gs://gdxsv")
-						tx.Exec("UPDATE battle_record SET replay_url = ? WHERE battle_code = ?", url, battleCode)
-					}
-				}
-			}
-			f.Close()
-		}
-	}
-
 	return tx.Commit()
 }
 
@@ -539,6 +518,44 @@ func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*Battl
 func (db SQLiteDB) SetReplayURL(battleCode string, url string) error {
 	_, err := db.Exec(`UPDATE battle_record SET replay_url = ? WHERE battle_code = ?`, url, battleCode)
 	return err
+}
+
+func (db SQLiteDB) SetReplayURLBulk(battleCodes, urls, disks []string) error {
+	if len(battleCodes) != len(urls) {
+		return errors.New("Invalid parameter length")
+	}
+
+	// begin tx
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return errors.Wrap(err, "Begin failed")
+	}
+
+	for i := 0; i < len(battleCodes); i++ {
+		battleCode := battleCodes[i]
+		url := urls[i]
+		disk := ""
+		if i < len(disks) {
+			disk = disks[i]
+		}
+
+		if disk == "" {
+			_, err := tx.Exec(`UPDATE battle_record SET replay_url = ? WHERE battle_code = ?`, url, battleCode)
+			if err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		} else {
+			_, err := tx.Exec(`UPDATE battle_record SET replay_url = ?, disk = ? WHERE battle_code = ?`, url, disk, battleCode)
+			if err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (db SQLiteDB) ResetDailyBattleCount() (err error) {
