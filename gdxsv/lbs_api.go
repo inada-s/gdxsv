@@ -6,6 +6,7 @@ import (
 	"golang.org/x/sync/singleflight"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -202,9 +203,20 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 	http.HandleFunc("/ops/replay_uploaded", func(w http.ResponseWriter, r *http.Request) {
 		// Private API: Called when a replay is uploaded
 
-		battleCode := r.URL.Query().Get("battle_code")
-		url := r.URL.Query().Get("url")
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		battleCode := r.FormValue("battle_code")
+		url := r.FormValue("url")
 		if battleCode == "" || url == "" {
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		if !strings.Contains(url, "https://storage.googleapis.com/gdxsv/") {
+			logger.Warn("replay_uploaded invalid url", zap.String("url", url))
 			http.Error(w, "", http.StatusBadRequest)
 			return
 		}

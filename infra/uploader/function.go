@@ -79,6 +79,34 @@ func uploadFileToGCS(ctx context.Context, bucketName, objectName string, r io.Re
 	return nil
 }
 
+func notifyReplayUploadedToLobby(battleCode string, uploadedURL string) {
+	req, err := http.NewRequest("GET", "http://zdxsv.net:9880/ops/replay_uploaded", nil)
+	if err != nil {
+		log.Print("NewRequeset failure:", err)
+		return
+	}
+
+	q := req.URL.Query()
+	q.Add("battle_code", battleCode)
+	q.Add("url", uploadedURL)
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Print("DefaultClient.Do failure:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Print("error while reading response of replay_uploaded")
+		return
+	}
+
+	log.Print(string(body))
+}
+
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	const maxMemory = 10 * 1024 * 1024 // 10 megabytes.
 	ctx := context.Background()
@@ -129,6 +157,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Failed to upload file", http.StatusInternalServerError)
 				return
 			}
+
+			battleCode := strings.TrimSuffix(h.Filename, ".pb")
+			url := "https://storage.googleapis.com/" + bucketName + "/" + uploadBasePath + h.Filename
+			notifyReplayUploadedToLobby(battleCode, url)
 
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "File uploaded: %q (%v bytes)\n", h.Filename, h.Size)

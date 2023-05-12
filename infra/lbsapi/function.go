@@ -49,7 +49,7 @@ func lbsApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := http.Get("http://zdxsv.net:9880/lbs/" + r.URL.Path)
+	resp, err := http.Get("http://zdxsv.net:9880/lbs/" + r.URL.RequestURI())
 	if err != nil {
 		http.Error(w, "Unable to request lobby", http.StatusBadRequest)
 		return

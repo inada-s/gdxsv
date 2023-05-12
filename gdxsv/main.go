@@ -345,7 +345,16 @@ func main() {
 					if len(sp) == 2 && len(sp[1]) == BattleCodeLength {
 						battleCodes = append(battleCodes, sp[1])
 						urls = append(urls, url)
-						disks = append(disks, strings.TrimPrefix(sp[0], "disk"))
+
+						disk := "dc2"
+						if strings.HasPrefix(sp[0], "diskdc") {
+							// diskdc1, diskdc2
+							disk = strings.TrimPrefix(sp[0], "disk")
+						} else if strings.HasPrefix(sp[0], "disk") {
+							// disk1, disk2
+							disk = "dc" + strings.TrimPrefix(sp[0], "disk")
+						}
+						disks = append(disks, disk)
 					}
 				}
 			}
