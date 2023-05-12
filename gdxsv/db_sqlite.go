@@ -814,10 +814,8 @@ WHERE battle_code IN (
     AND (lobby_id = :lobby_id OR :lobby_id = -1)
     AND (players = :players OR :players = -1)
     AND (aggregate = :aggregate OR :aggregate = -1)
-  ORDER BY created `+order+`
-  LIMIT 100 OFFSET (:page) * 100)
-GROUP BY battle_code
-`, q)
+  ORDER BY created `+order+` LIMIT 100 OFFSET (:page) * 100)
+GROUP BY battle_code ORDER BY created `+order, q)
 	if err != nil {
 		return nil, err
 	}
@@ -852,7 +850,8 @@ GROUP BY battle_code
 		replay := FoundReplay{}
 		replay.Round = r.Round
 		replay.Disk = r.Disk
-		replay.StartAt = r.StartAt.Unix()
+		replay.StartUnix = r.StartAt.Unix()
+		replay.StartDate = r.StartAt
 		replay.ReplayURL = r.ReplayURL
 
 		posList := strings.SplitN(r.PosList, "/", n)

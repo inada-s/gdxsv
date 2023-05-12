@@ -145,7 +145,8 @@ type FoundReplay struct {
 	Round      int           `json:"round,omitempty"`
 	RenpoWin   int           `json:"renpo_win,omitempty"`
 	ZeonWin    int           `json:"zeon_win,omitempty"`
-	StartAt    int64         `json:"start_at,omitempty"`
+	StartUnix  int64         `json:"start_unix,omitempty"`
+	StartDate  time.Time     `json:"start_date,omitempty"`
 	ReplayURL  string        `json:"replay_url,omitempty"`
 }
 
