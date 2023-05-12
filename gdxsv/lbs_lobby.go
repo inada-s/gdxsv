@@ -777,11 +777,11 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	participants := l.pickLobbyBattleParticipants()
 
-	for _, q := range participants {
+	for i, q := range participants {
 		b.Add(q)
 		q.Battle = b
 		aggregate := 1
-		if force || l.Rule.NoRanking == 1 {
+		if force || l.Rule.NoRanking == 1 || len(participants) != 4 {
 			aggregate = 0
 		}
 		err := getDB().AddBattleRecord(&BattleRecord{
@@ -793,6 +793,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			Team:       int(q.Team),
 			Players:    len(participants),
 			Aggregate:  aggregate,
+			Pos:        i + 1,
 		})
 		if err != nil {
 			logger.Error("AddBattleRecord failed", zap.Error(err))
@@ -941,11 +942,11 @@ func (l *LbsLobby) checkRoomBattleStart() {
 		return
 	}
 
-	for _, q := range participants {
+	for i, q := range participants {
 		b.Add(q)
 		q.Battle = b
 		aggregate := 1
-		if l.Rule.NoRanking == 1 {
+		if l.Rule.NoRanking == 1 || len(participants) != 4 {
 			aggregate = 0
 		}
 		err := getDB().AddBattleRecord(&BattleRecord{
@@ -957,6 +958,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			Team:       int(q.Team),
 			Players:    len(participants),
 			Aggregate:  aggregate,
+			Pos:        i + 1,
 		})
 		if err != nil {
 			logger.Error("AddBattleRecord failed", zap.Error(err))

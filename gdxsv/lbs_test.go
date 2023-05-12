@@ -334,11 +334,13 @@ func forceEnterLobby(t *testing.T, lbs *Lbs, cli *TestLbsClient, lobbyID uint16,
 		p := lbs.FindPeer(cli.UserID)
 		if p == nil {
 			t.Fatal("user not found", cli.DBUser)
+			return
 		}
 
 		lobby := lbs.GetLobby(p.Platform, p.GameDisk, lobbyID)
 		if lobby == nil {
 			t.Fatal("lobby not found")
+			return
 		}
 
 		p.Team = team
@@ -440,6 +442,7 @@ func TestLbs_RegisterBattleResult(t *testing.T) {
 		p := lbs.FindPeer("TEST01")
 		if p == nil {
 			t.Fatal("peer not found")
+			return
 		}
 
 		lbs.RegisterBattleResult(p, &BattleResult{

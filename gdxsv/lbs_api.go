@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -35,6 +36,8 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 	}
 
 	http.HandleFunc("/lbs/status", func(w http.ResponseWriter, r *http.Request) {
+		// Public API: get lobby status
+
 		type onlineUser struct {
 			UserID     string `json:"user_id,omitempty"`
 			Name       string `json:"name,omitempty"`
@@ -130,7 +133,112 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		}
 	})
 
+	http.HandleFunc("/lbs/replay", func(w http.ResponseWriter, r *http.Request) {
+		// Public API: find replays
+
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		var err error
+		q := NewFindReplayQuery()
+		q.BattleCode = r.FormValue("battle_code")
+		q.Disk = r.FormValue("disk")
+		q.UserID = r.FormValue("user_id")
+		q.UserName = r.FormValue("user_name")
+		q.PilotName = r.FormValue("pilot_name")
+		if r.FormValue("lobby_id") != "" {
+			if q.LobbyID, err = strconv.Atoi(r.FormValue("lobby_id")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+		if r.FormValue("players") != "" {
+			if q.Players, err = strconv.Atoi(r.FormValue("players")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+		if r.FormValue("aggregate") != "" {
+			if q.Aggregate, err = strconv.Atoi(r.FormValue("aggregate")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+		if r.FormValue("reverse") != "" {
+			if reverse, err := strconv.Atoi(r.FormValue("reverse")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			} else {
+				q.Reverse = reverse == 1
+			}
+		}
+		if r.FormValue("page") != "" {
+			if q.Page, err = strconv.Atoi(r.FormValue("page")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
+
+		replays, err := getDB().FindReplay(q)
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+
+		if len(replays) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(replays)
+		if err != nil {
+			logger.Error("JSON encode failed", zap.Error(err))
+		}
+	})
+
+	http.HandleFunc("/ops/replay_uploaded", func(w http.ResponseWriter, r *http.Request) {
+		// Private API: Called when a replay is uploaded
+
+		battleCode := r.URL.Query().Get("battle_code")
+		url := r.URL.Query().Get("url")
+		if battleCode == "" || url == "" {
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		resp, err := http.Head(url)
+		if err != nil {
+			logger.Warn("replay_uploaded: Head failure", zap.Error(err))
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			logger.Warn("replay_uploaded: Head Invalid status code", zap.Int("status", resp.StatusCode))
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		if err := getDB().SetReplayURL(battleCode, url); err != nil {
+			logger.Warn("SetReplayURL failure", zap.Error(err))
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte("OK"))
+		if err != nil {
+			logger.Error("Write response failed", zap.Error(err))
+		}
+	})
+
 	http.HandleFunc("/ops/reload", func(w http.ResponseWriter, r *http.Request) {
+		// Private API: Reloads settings from database
+
 		lbs.Locked(func(lbs *Lbs) {
 			lbs.reload = true
 		})
