@@ -438,6 +438,25 @@ func (db SQLiteDB) GetUserList(loginKey string) ([]*DBUser, error) {
 	return users, nil
 }
 
+func (db SQLiteDB) GetUserListByMachineID(machineID string) ([]*DBUser, error) {
+	rows, err := db.Queryx(`SELECT * FROM user WHERE login_key IN (SELECT login_key FROM account WHERE last_login_machine_id = ?)`, machineID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*DBUser
+	for rows.Next() {
+		u := new(DBUser)
+		err = rows.StructScan(u)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
 func (db SQLiteDB) GetUser(userID string) (*DBUser, error) {
 	u := &DBUser{}
 	err := db.Get(u, `SELECT * FROM user WHERE user_id = ?`, userID)

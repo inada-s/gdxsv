@@ -200,6 +200,65 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		}
 	})
 
+	http.HandleFunc("/lbs/user", func(w http.ResponseWriter, r *http.Request) {
+		// Public API: find user
+
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// find user by login_key
+		loginKey := r.FormValue("login_key")
+		if loginKey != "" {
+			userList, err := getDB().GetUserList(loginKey)
+			if err != nil {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			for _, u := range userList {
+				// remove internal information
+				u.SessionID = ""
+				u.LoginKey = ""
+				u.System = 0
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			err = json.NewEncoder(w).Encode(userList)
+			if err != nil {
+				logger.Error("JSON encode failed", zap.Error(err))
+			}
+			return
+		}
+
+		// find user by machine_id
+		machineID := r.FormValue("machine_id")
+		if machineID != "" {
+			userList, err := getDB().GetUserListByMachineID(machineID)
+			if err != nil {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			for _, u := range userList {
+				// remove internal information
+				u.SessionID = ""
+				u.LoginKey = ""
+				u.System = 0
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			err = json.NewEncoder(w).Encode(userList)
+			if err != nil {
+				logger.Error("JSON encode failed", zap.Error(err))
+			}
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	http.HandleFunc("/ops/replay_uploaded", func(w http.ResponseWriter, r *http.Request) {
 		// Private API: Called when a replay is uploaded
 

@@ -234,6 +234,9 @@ type DB interface {
 	// GetUserList returns user list that the account holds.
 	GetUserList(loginKey string) ([]*DBUser, error)
 
+	// GetUserListByMachineID returns user list that related by the machine
+	GetUserListByMachineID(machineID string) ([]*DBUser, error)
+
 	// GetUser retrieves an account by user_id
 	GetUser(userID string) (*DBUser, error)
 
