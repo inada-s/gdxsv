@@ -35,7 +35,7 @@ func lbsApiHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	key := r.URL.Path
+	key := r.URL.RequestURI()
 	mtx.Lock()
 	clearOldCacheLocked()
 	v, ok := cache[key]
