@@ -824,7 +824,7 @@ WHERE battle_code IN (
   FROM
     battle_record
   WHERE
-    replay_url != ''
+    replay_url != '' AND ream != 0
     AND (disk = :disk OR :disk = '')
     AND (battle_code = :battle_code OR :battle_code = '')
     AND (user_id = :user_id OR :user_id = '')
