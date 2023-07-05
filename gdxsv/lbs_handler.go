@@ -629,8 +629,6 @@ var _ = register(lbsPostGameParameter, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsAskKDDICharges, func(p *LbsPeer, m *LbsMessage) {
 	// 課金予測情報 (円)
 	p.SendMessage(NewServerAnswer(m).Writer().Write32(0).Msg())
-	var mcsUsersCount uint32 = uint32(len(sharedData.mcsUsers))
-	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
 })
 
 var _ = register(lbsAskNewsTag, func(p *LbsPeer, m *LbsMessage) {
@@ -786,6 +784,8 @@ var _ = register(lbsDeviceData, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsServerMoney, func(p *LbsPeer, m *LbsMessage) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(0).Write16(0).Write16(0).Write16(0).Msg())
+	var mcsUsersCount uint32 = uint32(len(sharedData.GetMcsUsers()))
+	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
 })
 
 var _ = register(lbsStartLobby, func(p *LbsPeer, m *LbsMessage) {
