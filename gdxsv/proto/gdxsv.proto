@@ -83,6 +83,8 @@ message BattleLogFile {
 
   int64 start_at = 20;
   int64 end_at = 21;
+  string close_reason = 24;
+  int32 disconnect_user_index = 25;
 }
 
 enum MessageType {
