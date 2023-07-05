@@ -1679,7 +1679,8 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				zap.Int32("player_count", report.PlayerCount),
 				zap.Int32("peer_id", report.PeerId),
 				zap.Int32("frame_count", report.FrameCount),
-				zap.Strings("logs", report.Logs))
+				zap.Int32("disconnected_peer_id", report.DisconnectedPeerId),
+				zap.String("log", report.Log))
 		} else {
 			p.logger.Warn("P2PMatchingReport",
 				zap.String("close_reason", report.CloseReason),
@@ -1688,7 +1689,16 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				zap.Int32("player_count", report.PlayerCount),
 				zap.Int32("peer_id", report.PeerId),
 				zap.Int32("frame_count", report.FrameCount),
-				zap.Strings("logs", report.Logs))
+				zap.Int32("disconnected_peer_id", report.DisconnectedPeerId),
+				zap.String("log", report.Log))
+
+			if strings.HasPrefix(report.CloseReason, "player_disconnect") && report.PlayerCount == 4 {
+				WebhookPostSimpleText(fmt.Sprintf(":oncoming_police_car: battle_code:%v %v", report.BattleCode, report.CloseReason))
+			} else if strings.HasPrefix(report.CloseReason, "unreachable") ||
+				strings.HasPrefix(report.CloseReason, "ggpo_start_failure") ||
+				strings.HasPrefix(report.CloseReason, "ggpo_start_timeout") {
+				WebhookPostSimpleText(fmt.Sprintf(":warning: battle_code:%v %v peer_id:%v", report.BattleCode, report.CloseReason, report.PeerId))
+			}
 		}
 	}
 })

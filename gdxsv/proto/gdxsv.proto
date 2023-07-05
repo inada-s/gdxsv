@@ -10,7 +10,9 @@ message P2PMatchingReport {
   int32 peer_id = 4;
   string close_reason = 5;
   int32 frame_count = 6;
-  repeated string logs = 10;
+  int32 disconnected_peer_id = 7;
+  // repeated string logs = 10; // depreacated
+  string log = 11;
 }
 
 message P2PMatching {
