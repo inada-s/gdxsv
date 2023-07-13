@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 	"net"
 	"strings"
 	"sync"
@@ -188,6 +190,7 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 	}
 
 	go lbs.eventLoop()
+	go lbs.serveUDP(tcpAddr.Port)
 	for {
 		tcpConn, err := listener.AcceptTCP()
 		if err != nil {
@@ -197,6 +200,44 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 		logger.Info("a new connection open", zap.String("addr", tcpConn.RemoteAddr().String()))
 		peer := lbs.NewPeer(tcpConn)
 		go peer.serve()
+	}
+}
+
+func (lbs *Lbs) serveUDP(port int) {
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{Port: port})
+	if err != nil {
+		logger.Fatal("net.ListenUDP", zap.Error(err))
+	}
+
+	buf := make([]byte, 128)
+	pkt := new(proto.Packet)
+	for {
+		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
+		if err != nil {
+			logger.Error("udpConn.ReadFromUDP", zap.Error(err))
+			if err == net.ErrClosed {
+				go lbs.serveUDP(port)
+				return
+			}
+		}
+
+		pkt.Reset()
+		err = pb.Unmarshal(buf[:n], pkt)
+		if err != nil {
+			logger.Error("pb.Unmarshal", zap.Error(err))
+			continue
+		}
+
+		if pkt.HelloLbsData != nil {
+			lbs.Locked(func(lbs *Lbs) {
+				peer := lbs.FindPeer(pkt.HelloLbsData.UserId)
+				if peer != nil {
+					peer.udpAddr = *remoteAddr
+					logger.Info("set peer.udpAddr",
+						zap.String("user_id", peer.UserID), zap.String("addr", peer.udpAddr.String()))
+				}
+			})
+		}
 	}
 }
 
