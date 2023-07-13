@@ -151,6 +151,12 @@ func (s *SharedData) SyncLbsToMcs(status *LbsStatus) {
 	}
 }
 
+func (s *SharedData) GetMcsUserCount() int {
+	s.Lock()
+	defer s.Unlock()
+	return len(s.mcsUsers)
+}
+
 func (s *SharedData) GetMcsUsers() []*McsUser {
 	s.Lock()
 	defer s.Unlock()

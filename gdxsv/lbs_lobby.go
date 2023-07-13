@@ -695,8 +695,9 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 		ips["127.0.0.1"] = true
 		ips[p.IP()] = true
 		ips[p.PlatformInfo["local_ip"]] = true
+		ips[p.PlatformInfo["public_ipv4"]] = true
+		ips[p.PlatformInfo["public_ipv6"]] = true
 		ports[p.PlatformInfo["udp_port"]] = true
-		ports[fmt.Sprint(p.udpAddr.Port)] = true
 
 		for ip := range ips {
 			for port := range ports {
@@ -873,6 +874,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	l.app.BroadcastLobbyUserCount(l)
 	l.app.BroadcastLobbyMatchEntryUserCount(l)
+	l.app.BroadcastBattleUserCount()
 }
 
 func (l *LbsLobby) checkRoomBattleStart() {
@@ -1034,6 +1036,8 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	if mcsPeer != nil {
 		sharedData.NotifyLatestLbsStatus(mcsPeer)
 	}
+
+	l.app.BroadcastBattleUserCount()
 }
 
 func (l *LbsLobby) prepareMcs(mcsRegion string) (newMcsRegion string, mcsPeer *LbsPeer, mcsAddr string, canStart bool, alloc bool) {

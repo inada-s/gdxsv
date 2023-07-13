@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
-	pb "google.golang.org/protobuf/proto"
 	"net"
 	"strings"
 	"sync"
@@ -189,9 +187,7 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 		logger.Fatal("net.ListenTCP", zap.Error(err))
 	}
 
-	go lbs.serveUDP(addr)
 	go lbs.eventLoop()
-
 	for {
 		tcpConn, err := listener.AcceptTCP()
 		if err != nil {
@@ -201,50 +197,6 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 		logger.Info("a new connection open", zap.String("addr", tcpConn.RemoteAddr().String()))
 		peer := lbs.NewPeer(tcpConn)
 		go peer.serve()
-	}
-}
-
-func (lbs *Lbs) serveUDP(addr string) {
-	logger.Info("lbs.ServeUDP", zap.String("addr", addr))
-
-	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
-	if err != nil {
-		logger.Fatal("net.ResolveUDPAddr", zap.Error(err))
-	}
-	udpConn, err := net.ListenUDP("udp4", udpAddr)
-	if err != nil {
-		logger.Fatal("net.ListenUDP", zap.Error(err))
-	}
-
-	buf := make([]byte, 128)
-	pkt := new(proto.Packet)
-	for {
-		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
-		if err != nil {
-			logger.Error("udpConn.ReadFromUDP", zap.Error(err))
-			if err == net.ErrClosed {
-				go lbs.serveUDP(addr)
-				return
-			}
-		}
-
-		pkt.Reset()
-		err = pb.Unmarshal(buf[:n], pkt)
-		if err != nil {
-			logger.Error("pb.Unmarshal", zap.Error(err))
-			continue
-		}
-
-		if pkt.HelloLbsData != nil {
-			lbs.Locked(func(lbs *Lbs) {
-				peer := lbs.FindPeer(pkt.HelloLbsData.UserId)
-				if peer != nil {
-					peer.udpAddr = *remoteAddr
-					logger.Info("set peer.udpAddr",
-						zap.String("user_id", peer.UserID), zap.String("addr", peer.udpAddr.String()))
-				}
-			})
-		}
 	}
 }
 
@@ -354,11 +306,12 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 			if mcsAddr == McsAddrP2PGame {
 				if !isOldFlycastVersion(p.PlatformInfo["flycast"], "v1.2.0") {
 					sharedData.UpdateMcsGameState(p.Battle.BattleCode, McsGameStateClosed)
-					sharedData.UpdateMcsUserState(p.Battle.BattleCode, McsUserStateLeft)
+					sharedData.UpdateMcsUserState(p.SessionID, McsUserStateLeft)
 				}
 			}
 		}
 		if p.Battle != nil {
+			lbs.BroadcastBattleUserCount()
 			p.Battle = nil
 		}
 		delete(lbs.userPeers, p.UserID)
@@ -395,7 +348,6 @@ func (lbs *Lbs) eventLoop() {
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
-				lbs.BroadcastBattleUserCount()
 			case eventPeerMessage:
 				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
 					fmt.Println(args.msg)
@@ -423,7 +375,6 @@ func (lbs *Lbs) eventLoop() {
 				args.peer.logger.Info("eventPeerLeave")
 				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
-				lbs.BroadcastBattleUserCount()
 			case eventFunc:
 				func() {
 					defer func() {
@@ -644,10 +595,10 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 }
 
 func (lbs *Lbs) BroadcastBattleUserCount() {
+	cnt := sharedData.GetMcsUserCount()
 	for userID := range lbs.userPeers {
-		var mcsUsersCount uint32 = uint32(len(sharedData.mcsUsers))
 		if p := lbs.FindPeer(userID); p != nil {
-			p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
+			p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(cnt)).Msg())
 		}
 	}
 }

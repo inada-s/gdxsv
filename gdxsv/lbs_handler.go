@@ -188,7 +188,6 @@ var _ = register(lbsLogout, func(p *LbsPeer, m *LbsMessage) {
 		p.app.BroadcastLobbyUserCount(p.Lobby)
 		p.Lobby = nil
 	}
-
 	p.logout = true
 })
 
@@ -784,8 +783,7 @@ var _ = register(lbsDeviceData, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsServerMoney, func(p *LbsPeer, m *LbsMessage) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(0).Write16(0).Write16(0).Write16(0).Msg())
-	var mcsUsersCount uint32 = uint32(len(sharedData.GetMcsUsers()))
-	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
+	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(sharedData.GetMcsUserCount())).Msg())
 })
 
 var _ = register(lbsStartLobby, func(p *LbsPeer, m *LbsMessage) {
