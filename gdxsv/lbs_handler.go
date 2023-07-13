@@ -1598,10 +1598,20 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 	sharedData.SyncMcsToLbs(&mcsStatus)
 })
 
+func unzipIfCompressed(input []byte) []byte {
+	gr, err := zlib.NewReader(bytes.NewReader(input))
+	if err != nil {
+		return input
+	}
+	defer gr.Close()
+	unzipped, _ := io.ReadAll(gr)
+	return unzipped
+}
+
 var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 	// patched client sends client-platform information
 	r := m.Reader()
-	platformInfo := r.ReadString()
+	platformInfo := string(unzipIfCompressed(r.ReadBytes()))
 	isFirstTime := len(p.PlatformInfo) == 0
 
 	for _, line := range strings.Split(strings.TrimSuffix(platformInfo, "\n"), "\n") {
