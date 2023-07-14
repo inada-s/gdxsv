@@ -189,9 +189,8 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 		logger.Fatal("net.ListenTCP", zap.Error(err))
 	}
 
-	go lbs.serveUDP(addr)
 	go lbs.eventLoop()
-
+	go lbs.serveUDP(tcpAddr.Port)
 	for {
 		tcpConn, err := listener.AcceptTCP()
 		if err != nil {
@@ -204,14 +203,8 @@ func (lbs *Lbs) ListenAndServe(addr string) {
 	}
 }
 
-func (lbs *Lbs) serveUDP(addr string) {
-	logger.Info("lbs.ServeUDP", zap.String("addr", addr))
-
-	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
-	if err != nil {
-		logger.Fatal("net.ResolveUDPAddr", zap.Error(err))
-	}
-	udpConn, err := net.ListenUDP("udp4", udpAddr)
+func (lbs *Lbs) serveUDP(port int) {
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{Port: port})
 	if err != nil {
 		logger.Fatal("net.ListenUDP", zap.Error(err))
 	}
@@ -223,7 +216,7 @@ func (lbs *Lbs) serveUDP(addr string) {
 		if err != nil {
 			logger.Error("udpConn.ReadFromUDP", zap.Error(err))
 			if err == net.ErrClosed {
-				go lbs.serveUDP(addr)
+				go lbs.serveUDP(port)
 				return
 			}
 		}
@@ -354,11 +347,12 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 			if mcsAddr == McsAddrP2PGame {
 				if !isOldFlycastVersion(p.PlatformInfo["flycast"], "v1.2.0") {
 					sharedData.UpdateMcsGameState(p.Battle.BattleCode, McsGameStateClosed)
-					sharedData.UpdateMcsUserState(p.Battle.BattleCode, McsUserStateLeft)
+					sharedData.UpdateMcsUserState(p.SessionID, McsUserStateLeft)
 				}
 			}
 		}
 		if p.Battle != nil {
+			lbs.BroadcastBattleUserCount()
 			p.Battle = nil
 		}
 		delete(lbs.userPeers, p.UserID)
@@ -395,7 +389,6 @@ func (lbs *Lbs) eventLoop() {
 				args.peer.lastRecvTime = time.Now()
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
-				lbs.BroadcastBattleUserCount()
 			case eventPeerMessage:
 				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
 					fmt.Println(args.msg)
@@ -423,7 +416,6 @@ func (lbs *Lbs) eventLoop() {
 				args.peer.logger.Info("eventPeerLeave")
 				lbs.cleanPeer(args.peer)
 				delete(peers, args.peer.Address())
-				lbs.BroadcastBattleUserCount()
 			case eventFunc:
 				func() {
 					defer func() {
@@ -644,10 +636,10 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 }
 
 func (lbs *Lbs) BroadcastBattleUserCount() {
+	cnt := sharedData.GetMcsUserCount()
 	for userID := range lbs.userPeers {
-		var mcsUsersCount uint32 = uint32(len(sharedData.mcsUsers))
 		if p := lbs.FindPeer(userID); p != nil {
-			p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(mcsUsersCount).Msg())
+			p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(cnt)).Msg())
 		}
 	}
 }

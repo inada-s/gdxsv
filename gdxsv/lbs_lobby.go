@@ -658,8 +658,8 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 		SessionId:    int32(hash.Sum32()),
 		PlayerCount:  int32(len(participants)),
 		PeerId:       0,
-		TimeoutMinMs: 6500,
-		TimeoutMaxMs: 10000,
+		TimeoutMinMs: 7500,
+		TimeoutMaxMs: 7500,
 		Candidates:   nil,
 		RuleBin:      SerializeRule(b.Rule),
 		Users:        nil,
@@ -695,22 +695,29 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 		ips["127.0.0.1"] = true
 		ips[p.IP()] = true
 		ips[p.PlatformInfo["local_ip"]] = true
+		ips[p.PlatformInfo["public_ipv4"]] = true
+		ips[p.PlatformInfo["public_ipv6"]] = true
 		ports[p.PlatformInfo["udp_port"]] = true
-		ports[fmt.Sprint(p.udpAddr.Port)] = true
 
 		for ip := range ips {
 			for port := range ports {
 				if ip == "" || port == "" || port == "0" {
 					continue
 				}
-				addrs[ip+":"+port] = true
+				addrs[net.JoinHostPort(ip, port)] = true
 			}
 		}
+
+		if p.udpAddr.IP != nil {
+			addrs[p.udpAddr.String()] = true
+		}
+
+		p.udpAddr.IP.IsLoopback()
 
 		for addr := range addrs {
 			ip, port, err := net.SplitHostPort(addr)
 			if err != nil {
-				logger.Warn("SplitHostPort error", zap.Error(err))
+				logger.Warn("net.SplitHostPort error", zap.Error(err))
 				continue
 			}
 
@@ -873,6 +880,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	l.app.BroadcastLobbyUserCount(l)
 	l.app.BroadcastLobbyMatchEntryUserCount(l)
+	l.app.BroadcastBattleUserCount()
 }
 
 func (l *LbsLobby) checkRoomBattleStart() {
@@ -1034,6 +1042,8 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	if mcsPeer != nil {
 		sharedData.NotifyLatestLbsStatus(mcsPeer)
 	}
+
+	l.app.BroadcastBattleUserCount()
 }
 
 func (l *LbsLobby) prepareMcs(mcsRegion string) (newMcsRegion string, mcsPeer *LbsPeer, mcsAddr string, canStart bool, alloc bool) {
