@@ -28,4 +28,4 @@ if [[ ! -d $LATEST_TAG/bin ]]; then
   "$GDXSV_BIN" -prodlog migratedb >> /var/log/gdxsv-lbs.log 2>&1
 fi
 
-exec "$GDXSV_BIN" -notempban -prodlog -cprof=2 lbs >> /var/log/gdxsv-lbs.log 2>&1
+exec "$GDXSV_BIN" -prodlog -cprof=2 lbs >> /var/log/gdxsv-lbs.log 2>&1

@@ -18,6 +18,6 @@ export GDXSV_BATTLE_ADDR="localhost:9877"
 export GDXSV_GCP_PROJECT_ID=""
 export GDXSV_GCP_KEY_PATH=""
 export GDXSV_MCSFUNC_URL=""
+export GDXSV_WEBHOOK_URL=""
 
-exec ./bin/gdxsv -v=3 -noban -pprof=1 lbs
-# exec ./bin/gdxsv -v=0 -noban -pprof=3 lbs
+exec ./bin/gdxsv -v=3 -pprof=1 lbs

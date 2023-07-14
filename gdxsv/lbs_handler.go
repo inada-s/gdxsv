@@ -283,12 +283,6 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 	// 2 : 「登録情報変更」
 	// 3 : The user come back from battle server
 
-	if p.app.IsTempBan(p) {
-		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
-			WriteString("<LF=5><BODY><CENTER>TEMPORARY BANNED<END>").Msg())
-		return
-	}
-
 	if p.app.IsBannedEndpoint(p) {
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>YOU ARE BANNED<END>").Msg())

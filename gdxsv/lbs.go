@@ -44,12 +44,7 @@ type Lbs struct {
 	lobbies   map[string]map[uint16]*LbsLobby
 	chEvent   chan interface{}
 	chQuit    chan interface{}
-
-	noBan      bool
-	noTempBan  bool
-	reload     bool
-	banChecked map[string]bool
-	bannedIPs  map[string]time.Time
+	reload    bool
 }
 
 func NewLbs() *Lbs {
@@ -60,9 +55,6 @@ func NewLbs() *Lbs {
 		lobbies:   make(map[string]map[uint16]*LbsLobby),
 		chEvent:   make(chan interface{}, 64),
 		chQuit:    make(chan interface{}),
-
-		banChecked: make(map[string]bool),
-		bannedIPs:  make(map[string]time.Time),
 	}
 
 	for _, pf := range []string{PlatformConsole, PlatformEmuX8664} {
@@ -79,14 +71,6 @@ func NewLbs() *Lbs {
 	return app
 }
 
-func (lbs *Lbs) NoBan() {
-	lbs.noBan = true
-}
-
-func (lbs *Lbs) NoTempBan() {
-	lbs.noTempBan = true
-}
-
 func (lbs *Lbs) IsBannedEndpoint(p *LbsPeer) bool {
 	banned, err := getDB().IsBannedEndpoint(p.IP(), p.PlatformInfo["machine_id"])
 	if err == sql.ErrNoRows {
@@ -94,10 +78,6 @@ func (lbs *Lbs) IsBannedEndpoint(p *LbsPeer) bool {
 	}
 	if err != nil {
 		logger.Warn("GetBan returned err", zap.Error(err))
-		return false
-	}
-	if banned && lbs.noBan {
-		logger.Warn("passed banned user", zap.String("ip", p.IP()), zap.String("machine_id", p.PlatformInfo["machine_id"]))
 		return false
 	}
 	return banned
@@ -112,55 +92,7 @@ func (lbs *Lbs) IsBannedAccount(loginKey string) bool {
 		logger.Warn("IsBannedAccount returned err", zap.Error(err))
 		return false
 	}
-	if banned && lbs.noBan {
-		logger.Warn("passed banned user", zap.String("login_key", loginKey))
-		return false
-	}
 	return banned
-}
-
-func (lbs *Lbs) IsTempBan(p *LbsPeer) bool {
-	if t, ok := p.app.bannedIPs[p.IP()]; ok && time.Since(t).Minutes() <= 10 {
-		if lbs.noTempBan {
-			logger.Warn("passed temp banned user", zap.String("user_id", p.UserID), zap.String("name", p.Name))
-			return false
-		}
-		return true
-	}
-	return false
-}
-
-func (lbs *Lbs) TempBan(userID string) {
-	user, err := getDB().GetUser(userID)
-	if err != nil {
-		logger.Warn("failed to get banned user", zap.String("user_id", userID), zap.Error(err))
-		return
-	}
-
-	account, err := getDB().GetAccountByLoginKey(user.LoginKey)
-	if err != nil {
-		logger.Warn("failed to get banned user account", zap.String("user_id", userID), zap.Error(err))
-		return
-	}
-
-	if account.LastLoginIP == "" {
-		logger.Warn("last login ip is empty", zap.String("user_id", userID))
-		return
-	}
-
-	logger.Info("temporary ip banned",
-		zap.String("ip_addr", account.LastLoginIP),
-		zap.String("user_id", userID),
-		zap.String("name", user.Name))
-
-	lbs.bannedIPs[account.LastLoginIP] = time.Now()
-
-	for _, p := range lbs.userPeers {
-		if p.IP() == account.LastLoginIP {
-			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
-				WriteString("<LF=5><BODY><CENTER>TEMPORARY BANNED<END>").Msg())
-		}
-	}
 }
 
 func (lbs *Lbs) GetLobby(platform, disk string, lobbyID uint16) *LbsLobby {
@@ -433,57 +365,6 @@ func (lbs *Lbs) eventLoop() {
 					delete(peers, p.Address())
 				} else if 10 <= lastRecvSince.Seconds() {
 					RequestLineCheck(p)
-				}
-			}
-
-			// temp ban check
-			for _, g := range sharedData.GetMcsGames() {
-				if g.State != McsGameStateClosed {
-					continue
-				}
-
-				if lbs.banChecked[g.BattleCode] {
-					continue
-				}
-
-				lbs.banChecked[g.BattleCode] = true
-
-				if g.McsAddr == McsAddrP2PGame {
-					// temp ban is currently disabled on p2p game
-					logger.Info("p2p game ignored")
-					continue
-				}
-
-				var mcsUsers []*McsUser
-				stateCount := map[int]int{}
-				for _, u := range sharedData.GetMcsUsers() {
-					if g.BattleCode == u.BattleCode {
-						mcsUsers = append(mcsUsers, u)
-						stateCount[u.State]++
-					}
-				}
-
-				if len(mcsUsers) < 4 {
-					continue
-				}
-
-				// All players joined the game except for one player.
-				if stateCount[McsUserStateCreated] == 1 {
-					for _, u := range mcsUsers {
-						if u.State == McsUserStateCreated {
-							lbs.TempBan(u.UserID)
-						}
-					}
-				}
-
-				// All players joined the game, player disconnected during the game.
-				if stateCount[McsUserStateCreated] == 0 {
-					for _, u := range mcsUsers {
-						switch u.CloseReason {
-						case "cl_hard_reset", "cl_soft_reset", "cl_hard_quit":
-							lbs.TempBan(u.UserID)
-						}
-					}
 				}
 			}
 
