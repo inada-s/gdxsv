@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"io"
 	"math/rand"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -657,8 +658,8 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 		SessionId:    int32(hash.Sum32()),
 		PlayerCount:  int32(len(participants)),
 		PeerId:       0,
-		TimeoutMinMs: 6500,
-		TimeoutMaxMs: 10000,
+		TimeoutMinMs: 7500,
+		TimeoutMaxMs: 7500,
 		Candidates:   nil,
 		RuleBin:      SerializeRule(b.Rule),
 		Users:        nil,
@@ -689,6 +690,7 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 	for i, p := range participants {
 		ips := map[string]bool{}
 		ports := map[string]bool{}
+		addrs := map[string]bool{}
 
 		ips["127.0.0.1"] = true
 		ips[p.IP()] = true
@@ -696,28 +698,42 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 		ips[p.PlatformInfo["public_ipv4"]] = true
 		ips[p.PlatformInfo["public_ipv6"]] = true
 		ports[p.PlatformInfo["udp_port"]] = true
-		ports[fmt.Sprint(p.udpAddr.Port)] = true
 
 		for ip := range ips {
 			for port := range ports {
 				if ip == "" || port == "" || port == "0" {
 					continue
 				}
-
-				portInt, err := strconv.ParseInt(port, 10, 32)
-				if err != nil {
-					logger.Warn("ParseInt error", zap.Error(err))
-					continue
-				}
-
-				matching.Candidates = append(matching.Candidates, &proto.PlayerAddress{
-					UserId: p.UserID,
-					PeerId: int32(i),
-					Ip:     ip,
-					Port:   int32(portInt),
-					Team:   int32(p.Team),
-				})
+				addrs[net.JoinHostPort(ip, port)] = true
 			}
+		}
+
+		if p.udpAddr.IP != nil {
+			addrs[p.udpAddr.String()] = true
+		}
+
+		p.udpAddr.IP.IsLoopback()
+
+		for addr := range addrs {
+			ip, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				logger.Warn("net.SplitHostPort error", zap.Error(err))
+				continue
+			}
+
+			portInt, err := strconv.ParseInt(port, 10, 32)
+			if err != nil {
+				logger.Warn("ParseInt error", zap.Error(err))
+				continue
+			}
+
+			matching.Candidates = append(matching.Candidates, &proto.PlayerAddress{
+				UserId: p.UserID,
+				PeerId: int32(i),
+				Ip:     ip,
+				Port:   int32(portInt),
+				Team:   int32(p.Team),
+			})
 		}
 	}
 
