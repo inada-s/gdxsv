@@ -172,6 +172,11 @@ func RequestLineCheck(p *LbsPeer) {
 	p.SendMessage(NewServerQuestion(lbsLineCheck))
 }
 
+func NotifyBattleUserCount(p *LbsPeer) {
+	cnt := sharedData.GetMcsUserCount()
+	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(cnt)).Msg())
+}
+
 var _ = register(lbsLineCheck, func(p *LbsPeer, m *LbsMessage) {
 	// the client is alive
 })
@@ -777,7 +782,7 @@ var _ = register(lbsDeviceData, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsServerMoney, func(p *LbsPeer, m *LbsMessage) {
 	p.SendMessage(NewServerAnswer(m).Writer().
 		Write16(0).Write16(0).Write16(0).Write16(0).Msg())
-	p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(sharedData.GetMcsUserCount())).Msg())
+	NotifyBattleUserCount(p)
 })
 
 var _ = register(lbsStartLobby, func(p *LbsPeer, m *LbsMessage) {

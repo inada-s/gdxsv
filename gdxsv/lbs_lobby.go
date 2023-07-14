@@ -880,7 +880,6 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	l.app.BroadcastLobbyUserCount(l)
 	l.app.BroadcastLobbyMatchEntryUserCount(l)
-	l.app.BroadcastBattleUserCount()
 }
 
 func (l *LbsLobby) checkRoomBattleStart() {
@@ -1042,8 +1041,6 @@ func (l *LbsLobby) checkRoomBattleStart() {
 	if mcsPeer != nil {
 		sharedData.NotifyLatestLbsStatus(mcsPeer)
 	}
-
-	l.app.BroadcastBattleUserCount()
 }
 
 func (l *LbsLobby) prepareMcs(mcsRegion string) (newMcsRegion string, mcsPeer *LbsPeer, mcsAddr string, canStart bool, alloc bool) {

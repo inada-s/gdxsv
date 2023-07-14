@@ -284,7 +284,6 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 			}
 		}
 		if p.Battle != nil {
-			lbs.BroadcastBattleUserCount()
 			p.Battle = nil
 		}
 		delete(lbs.userPeers, p.UserID)
@@ -309,6 +308,7 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 func (lbs *Lbs) eventLoop() {
 	tick := time.Tick(1 * time.Second)
 	peers := map[string]*LbsPeer{}
+	battleUserCount := 0
 
 	for {
 		select {
@@ -381,6 +381,16 @@ func (lbs *Lbs) eventLoop() {
 						}
 					}
 					lobby.Update()
+				}
+			}
+
+			cnt := sharedData.GetMcsUserCount()
+			if cnt != battleUserCount {
+				battleUserCount = cnt
+				for userID := range lbs.userPeers {
+					if p := lbs.FindPeer(userID); p != nil {
+						p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(cnt)).Msg())
+					}
 				}
 			}
 		}
@@ -512,15 +522,6 @@ func (lbs *Lbs) BroadcastRoomState(room *LbsRoom) {
 				p.SendMessage(msg1)
 				p.SendMessage(msg2)
 			}
-		}
-	}
-}
-
-func (lbs *Lbs) BroadcastBattleUserCount() {
-	cnt := sharedData.GetMcsUserCount()
-	for userID := range lbs.userPeers {
-		if p := lbs.FindPeer(userID); p != nil {
-			p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(cnt)).Msg())
 		}
 	}
 }
