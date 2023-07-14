@@ -40,14 +40,12 @@ var (
 var (
 	conf Config
 
-	cpu       = flag.Int("cpu", 2, "setting GOMAXPROCS")
-	pprof     = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
-	cprof     = flag.Int("cprof", 0, "0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile")
-	prodlog   = flag.Bool("prodlog", false, "use production logging mode")
-	loglevel  = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
-	mcsdelay  = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
-	noban     = flag.Bool("noban", false, "disable user ban")
-	notempban = flag.Bool("notempban", false, "disable temporary ban")
+	cpu      = flag.Int("cpu", 2, "setting GOMAXPROCS")
+	pprof    = flag.Int("pprof", 1, "0: disable pprof, 1: enable http pprof, 2: enable blocking profile")
+	cprof    = flag.Int("cprof", 0, "0: disable cloud profiler, 1: enable cloud profiler, 2: also enable mtx profile")
+	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
+	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
+	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
 )
 
 var (
@@ -65,7 +63,6 @@ type Config struct {
 
 	GCPProjectID string `env:"GDXSV_GCP_PROJECT_ID" envDefault:""`
 	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`
-	McsFuncKey   string `env:"GDXSV_MCSFUNC_KEY" envDefault:""` // deprecated
 	McsFuncURL   string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
 	WebhookUrl   string `env:"GDXSV_WEBHOOK_URL" envDefault:""`
 
@@ -109,10 +106,6 @@ func loadConfig() {
 	var c Config
 	if err := env.Parse(&c); err != nil {
 		logger.Fatal("config load failed", zap.Error(err))
-	}
-
-	if c.GCPKeyPath == "" && c.McsFuncKey != "" {
-		c.GCPKeyPath = c.McsFuncKey
 	}
 
 	logger.Info("config loaded", zap.Any("config", c))
@@ -189,16 +182,11 @@ func mainLbs() {
 	defer stop()
 
 	lbs := NewLbs()
-	if *noban {
-		lbs.NoBan()
-	}
-	if *notempban {
-		lbs.NoTempBan()
-	}
 	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
 
 	mcs := NewMcs(*mcsdelay)
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
+
 	if conf.LobbyHttpAddr != "" {
 		lbs.RegisterHTTPHandlers()
 		go func() {
