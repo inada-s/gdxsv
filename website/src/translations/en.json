@@ -29,9 +29,27 @@
 
   "footer.copyright": "© gdxsv project 2020",
 
-  "status.user-id": "UserID",
-  "status.user-name": "Name",
-  "status.team": "Team",
+  "status.user": "User",
+  "status.user-place": "Place",
   "status.lobby": "Lobby {peopleCount} people",
-  "status.battle": "Battle {peopleCount} people"
+  "status.battle": "Battle {peopleCount} people",
+
+  "game.lobby0": "戦場選択",
+  "game.lobby2": "タクラマカン砂漠",
+  "game.lobby4": "黒海南岸森林地帯",
+  "game.lobby5": "オデッサ",
+  "game.lobby6": "ベルファスト",
+  "game.lobby9": "ニューヤーク",
+  "game.lobby10": "グレートキャニオン",
+  "game.lobby11": "ジャブロー",
+  "game.lobby12": "地下基地",
+  "game.lobby13": "ソロモン",
+  "game.lobby14": "ソロモン宙域",
+  "game.lobby15": "ア・バオア・クー宙域",
+  "game.lobby16": "ア・バオア・クー外部",
+  "game.lobby17": "ア・バオア・クー内部",
+  "game.lobby19": "衛星軌道1",
+  "game.lobby20": "衛星軌道2",
+  "game.lobby21": "サイド6宙域",
+  "game.lobby22": "サイド7内部"
 }

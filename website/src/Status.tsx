@@ -17,8 +17,14 @@ type OnlineUser = {
     user_id: string
     name: string
     team: string
-    battleCode: string
+    lobby_id: number
+    battle_code: string
+    battle_pos: number
     disk: string
+    flycast: string
+    platform: string
+
+    users_in_battle: number
 }
 
 type ActiveGame = {
@@ -26,6 +32,7 @@ type ActiveGame = {
     region: string
     disk: string
     state: string
+    lobby_id: number
     updated_at: Date
 }
 
@@ -60,8 +67,16 @@ export default class Status extends React.Component<Props, State> {
             if (a.user_id > b.user_id) return 1;
             return 0;
         };
+        const compByBattleCode = (a: OnlineUser, b: OnlineUser) => {
+            if (a.battle_code < b.battle_code) return -1;
+            if (a.battle_code > b.battle_code) return 1;
+            if (a.battle_pos < b.battle_pos) return -1;
+            if (a.battle_pos > b.battle_pos) return 1;
+            return 0;
+        };
         lobby_users.sort(compByUserId);
-        battle_users.sort(compByUserId);
+        battle_users.sort(compByBattleCode);
+
         this.setState({
             lobby_users,
             battle_users,
@@ -89,25 +104,43 @@ export default class Status extends React.Component<Props, State> {
         const dc2_lobby_users = this.state.lobby_users.filter((u: OnlineUser) => u.disk === "dc2");
         const dc2_battle_users = this.state.battle_users.filter((u: OnlineUser) => u.disk === "dc2");
 
+        const renderTeamIcon = (team: string) => <>
+            {team === "renpo" && (
+                <Image
+                    className={"ml-2 mr-2 mb-2"}
+                    src={renpoIcon}
+                    style={{backgroundColor: "CornflowerBlue"}}
+                    height="20" width="20"
+                    roundedCircle/>
+            )}
+            {team === "zeon" && (
+                <Image
+                    className={"ml-2 mr-2 mb-2"}
+                    src={zeonIcon}
+                    style={{backgroundColor: "mediumvioletred"}}
+                    height="20" width="20"
+                    roundedCircle/>
+            )}
+            {team === "" && (
+                <Image
+                    className={"ml-2 mr-2 mb-2"}
+                    src={renpoIcon}
+                    style={{backgroundColor: "CornflowerBlue", opacity: "0"}}
+                    height="20" width="20"
+                    roundedCircle/>
+            )}
+        </>
+
         const renderOnlineUser = (u: OnlineUser) =>
             <tr key={u.user_id}>
-                <td>{u.user_id}</td>
-                <td>{u.name}</td>
-                <td className={"text-center"}>
-                    {u.team === "renpo" && (
-                        <Image
-                            src={renpoIcon}
-                            style={{backgroundColor: "CornflowerBlue"}}
-                            height="26" width="26"
-                            roundedCircle/>
-                    )}
-                    {u.team === "zeon" && (
-                        <Image
-                            src={zeonIcon}
-                            style={{backgroundColor: "mediumvioletred"}}
-                            height="26" width="26"
-                            roundedCircle/>
-                    )}
+                <td>
+                    {renderTeamIcon(u.team)}
+                    <span className={"user-id m-2"}>{u.user_id}</span>
+                    <span className={"user-name m-2"}>{u.name}</span>
+                    <span className={"badge m-1 float-right"}>{u.flycast}</span>
+                </td>
+                <td className={"text-center align-middle"} >
+                    <FormattedMessage id={"game.lobby" + u.lobby_id} />
                 </td>
             </tr>
 
@@ -115,13 +148,44 @@ export default class Status extends React.Component<Props, State> {
             <Table striped bordered hover size="sm">
                 <thead>
                 <tr>
-                    <th><FormattedMessage id="status.user-id" /></th>
-                    <th><FormattedMessage id="status.user-name" /></th>
-                    <th><FormattedMessage id="status.team" /></th>
+                    <th className={"text-center"}><FormattedMessage id="status.user" /></th>
+                    <th className={"text-center"} style={{width: "20%"}}><FormattedMessage id="status.user-place" /></th>
                 </tr>
                 </thead>
                 <tbody>
                 {users.map(renderOnlineUser)}
+                </tbody>
+            </Table>
+
+        const renderBattleUser = (u: OnlineUser, idx: number, arr: OnlineUser[]) =>
+            <tr key={u.user_id}>
+                <td>
+                    {renderTeamIcon(u.team)}
+                    <span className={"user-id m-2"}>{u.user_id}</span>
+                    <span className={"user-name m-2"}>{u.name}</span>
+                    <span className={"badge m-1 float-right"}>{u.flycast}</span>
+                </td>
+                {u.battle_pos === 1 && (
+                    <td className={"text-center align-middle"} rowSpan={
+                        arr.filter(o => u.battle_code === o.battle_code)
+                           .map(o => o.battle_pos)
+                           .reduce((prev, curr) => prev < curr ? curr : prev)
+                    }>
+                        <FormattedMessage id={"game.lobby" + u.lobby_id} /> <br/>
+                    </td>
+                )}
+            </tr>
+
+        const renderBattleUserTable = (users: OnlineUser[]) =>
+            <Table striped bordered hover size="sm">
+                <thead>
+                <tr>
+                    <th className={"text-center"}><FormattedMessage id="status.user" /></th>
+                    <th className={"text-center"} style={{width: "20%"}}><FormattedMessage id="status.user-place" /></th>
+                </tr>
+                </thead>
+                <tbody>
+                {users.map(renderBattleUser)}
                 </tbody>
             </Table>
 
@@ -139,7 +203,7 @@ export default class Status extends React.Component<Props, State> {
                     <h3><FormattedMessage id="status.lobby" values={{ peopleCount: dc2_lobby_users.length }} /></h3>
                     {renderOnlineUserTable(dc2_lobby_users)}
                     <h3><FormattedMessage id="status.battle" values={{ peopleCount: dc2_battle_users.length }} /></h3>
-                    {renderOnlineUserTable(dc2_battle_users)}
+                    {renderBattleUserTable(dc2_battle_users)}
                 </Container>
 
                 <Container>
@@ -154,7 +218,7 @@ export default class Status extends React.Component<Props, State> {
                     <h3><FormattedMessage id="status.lobby" values={{ peopleCount: dc1_lobby_users.length }} /></h3>
                     {renderOnlineUserTable(dc1_lobby_users)}
                     <h3><FormattedMessage id="status.battle" values={{ peopleCount: dc1_battle_users.length }} /></h3>
-                    {renderOnlineUserTable(dc1_battle_users)}
+                    {renderBattleUserTable(dc1_battle_users)}
                 </Container>
             </Container>
         );

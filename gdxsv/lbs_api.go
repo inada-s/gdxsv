@@ -43,9 +43,12 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			UserID     string `json:"user_id,omitempty"`
 			Name       string `json:"name,omitempty"`
 			Team       string `json:"team,omitempty"`
+			LobbyID    uint16 `json:"lobby_id,omitempty"`
 			BattleCode string `json:"battle_code,omitempty"`
+			BattlePos  uint8  `json:"battle_pos,omitempty"`
 			Platform   string `json:"platform,omitempty"`
 			Disk       string `json:"disk,omitempty"`
+			Flycast    string `json:"flycast,omitempty"`
 		}
 
 		type activeGame struct {
@@ -53,6 +56,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			Region     string    `json:"region,omitempty"`
 			Disk       string    `json:"disk,omitempty"`
 			State      string    `json:"state,omitempty"`
+			LobbyID    uint16    `json:"lobby_id,omitempty"`
 			UpdatedAt  time.Time `json:"updated_at,omitempty"`
 		}
 
@@ -71,17 +75,24 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 				for _, u := range lbs.userPeers {
 					if !userAdded[u.UserID] {
 						userAdded[u.UserID] = true
+						lobbyID := uint16(0)
+						if u.Lobby != nil {
+							lobbyID = u.Lobby.ID
+						}
 						user := &onlineUser{
 							UserID:     u.UserID,
 							Name:       u.Name,
 							Team:       teamName(int(u.Team)),
+							LobbyID:    lobbyID,
 							BattleCode: "",
 							Platform:   u.Platform,
 							Disk:       u.GameDisk,
+							Flycast:    u.PlatformInfo["flycast"],
 						}
 
 						if u.logout && u.Battle != nil {
 							user.BattleCode = u.Battle.BattleCode
+							user.BattlePos = u.Battle.GetPosition(u.UserID)
 							resp.BattleUsers = append(resp.BattleUsers, user)
 						} else {
 							resp.LobbyUsers = append(resp.LobbyUsers, user)
@@ -91,12 +102,6 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			})
 
 			for _, u := range sharedData.GetMcsUsers() {
-				disk := "unknown"
-				b, ok := sharedData.GetBattleGameInfo(u.BattleCode)
-				if ok {
-					disk = b.GameDisk
-				}
-
 				if !userAdded[u.UserID] {
 					userAdded[u.UserID] = true
 					resp.BattleUsers = append(resp.BattleUsers, &onlineUser{
@@ -104,8 +109,10 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 						Name:       u.Name,
 						Team:       teamName(int(u.Team)),
 						BattleCode: u.BattleCode,
+						BattlePos:  uint8(u.Pos),
 						Platform:   u.Platform,
-						Disk:       disk,
+						Disk:       u.GameDisk,
+						Flycast:    "unknown",
 					})
 				}
 			}
@@ -115,8 +122,15 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 					BattleCode: g.BattleCode,
 					Disk:       g.GameDisk,
 					State:      gameStateName(g.State),
+					LobbyID:    g.LobbyID,
 					UpdatedAt:  g.UpdatedAt,
 				})
+
+				for _, u := range resp.BattleUsers {
+					if u.BattleCode == g.BattleCode {
+						u.LobbyID = g.LobbyID
+					}
+				}
 			}
 
 			return resp, nil
