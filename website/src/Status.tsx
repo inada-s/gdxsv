@@ -121,7 +121,7 @@ export default class Status extends React.Component<Props, State> {
                     height="20" width="20"
                     roundedCircle/>
             )}
-            {team === "" && (
+            {!team && (
                 <Image
                     className={"ml-2 mr-2 mb-2"}
                     src={renpoIcon}
@@ -140,7 +140,7 @@ export default class Status extends React.Component<Props, State> {
                     <span className={"badge m-1 float-right"}>{u.flycast}</span>
                 </td>
                 <td className={"text-center align-middle"} >
-                    <FormattedMessage id={"game.lobby" + u.lobby_id} />
+                    <FormattedMessage id={"game.lobby" + (u.lobby_id ?? 0)} />
                 </td>
             </tr>
 
