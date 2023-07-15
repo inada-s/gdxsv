@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/static/css/main.6f5bb387.css",
-    "main.js": "/static/js/main.577e24be.js",
+    "main.css": "/static/css/main.b81b3d7f.css",
+    "main.js": "/static/js/main.43513f6a.js",
     "static/media/world.jpg": "/static/media/world.adda8bad8a5050566a24.jpg",
     "static/media/title.png": "/static/media/title.e84836abb7e05ac576fa.png",
     "static/media/game.jpg": "/static/media/game.968bae36606591b37fab.jpg",
@@ -13,11 +13,11 @@
     "static/media/renpo.png": "/static/media/renpo.199701801567298a70d2.png",
     "static/media/renji1.png": "/static/media/renji1.cf4af5f616d8328431b5.png",
     "index.html": "/index.html",
-    "main.6f5bb387.css.map": "/static/css/main.6f5bb387.css.map",
-    "main.577e24be.js.map": "/static/js/main.577e24be.js.map"
+    "main.b81b3d7f.css.map": "/static/css/main.b81b3d7f.css.map",
+    "main.43513f6a.js.map": "/static/js/main.43513f6a.js.map"
   },
   "entrypoints": [
-    "static/css/main.6f5bb387.css",
-    "static/js/main.577e24be.js"
+    "static/css/main.b81b3d7f.css",
+    "static/js/main.43513f6a.js"
   ]
 }
