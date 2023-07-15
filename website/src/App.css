@@ -64,6 +64,16 @@ body {
     background-color: whitesmoke;
 }
 
+.user-id {
+    color: chocolate;
+    font-family: monospace;
+    font-weight: bolder;
+}
+
+.user-name {
+    font-weight: bolder;
+}
+
 .btn {
     border-radius: 0;
 }
