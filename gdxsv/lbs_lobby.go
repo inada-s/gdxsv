@@ -738,7 +738,7 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 	}
 
 	var msgs []*LbsMessage
-	for i, p := range participants {
+	for i := range participants {
 		matching.PeerId = int32(i)
 
 		bin, err := pb.Marshal(matching)
