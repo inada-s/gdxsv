@@ -162,6 +162,8 @@ func (lbs *Lbs) serveUDP(port int) {
 		}
 
 		if pkt.HelloLbsData != nil {
+			bindPort := 0
+
 			lbs.Locked(func(lbs *Lbs) {
 				peer := lbs.FindPeer(pkt.HelloLbsData.UserId)
 				if peer != nil {
@@ -169,19 +171,23 @@ func (lbs *Lbs) serveUDP(port int) {
 					peer.logger.Info("set peer.udpAddr",
 						zap.String("user_id", peer.UserID), zap.String("addr", peer.udpAddr.String()))
 					if bindPortStr, ok := peer.PlatformInfo["udp_port"]; ok {
-						bindPort, err := strconv.Atoi(bindPortStr)
-						if err == nil && bindPort != remoteAddr.Port {
+						bindPort, _ = strconv.Atoi(bindPortStr)
+						if bindPort != 0 && bindPort != remoteAddr.Port {
 							peer.logger.Info("Bind port and source port are different",
 								zap.Int("bind_port", bindPort), zap.Int("src_port", remoteAddr.Port))
-							var empty []byte
-							_, err = udpConn.WriteToUDP(empty, &net.UDPAddr{IP: remoteAddr.IP, Port: bindPort})
-							if err != nil {
-								peer.logger.Warn("error when sending empty message", zap.Error(err))
-							}
 						}
+						return
 					}
 				}
 			})
+
+			if bindPort != 0 && bindPort != remoteAddr.Port {
+				var empty []byte
+				_, err = udpConn.WriteToUDP(empty, &net.UDPAddr{IP: remoteAddr.IP, Port: bindPort})
+				if err != nil {
+					logger.Warn("error when sending empty message", zap.Error(err))
+				}
+			}
 		}
 	}
 }
