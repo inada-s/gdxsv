@@ -1620,13 +1620,13 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 		}
 	}
 
-	logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
 	if isFirstTime && len(p.PlatformInfo) != 0 {
 		p.logger = p.logger.With(
 			zap.String("flycast", p.PlatformInfo["flycast"]),
 			zap.String("os", p.PlatformInfo["os"]),
 			zap.String("cpu", p.PlatformInfo["cpu"]),
 		)
+		p.logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
 	}
 
 	if p.PlatformInfo["cpu"] == "x86/64" {
