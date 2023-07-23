@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	pb "google.golang.org/protobuf/proto"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -165,8 +166,20 @@ func (lbs *Lbs) serveUDP(port int) {
 				peer := lbs.FindPeer(pkt.HelloLbsData.UserId)
 				if peer != nil {
 					peer.udpAddr = *remoteAddr
-					logger.Info("set peer.udpAddr",
+					peer.logger.Info("set peer.udpAddr",
 						zap.String("user_id", peer.UserID), zap.String("addr", peer.udpAddr.String()))
+					if bindPortStr, ok := peer.PlatformInfo["udp_port"]; ok {
+						bindPort, err := strconv.Atoi(bindPortStr)
+						if err == nil && bindPort != remoteAddr.Port {
+							peer.logger.Info("Bind port and source port are different",
+								zap.Int("bind_port", bindPort), zap.Int("src_port", remoteAddr.Port))
+							var empty []byte
+							_, err = udpConn.WriteToUDP(empty, &net.UDPAddr{IP: remoteAddr.IP, Port: bindPort})
+							if err != nil {
+								peer.logger.Warn("error when sending empty message", zap.Error(err))
+							}
+						}
+					}
 				}
 			})
 		}
