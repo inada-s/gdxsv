@@ -31,7 +31,7 @@ var (
 	gdxsvRevision string
 
 	// Minimum required flycast version.
-	requiredFlycastVersion = "v1.0.5"
+	requiredFlycastVersion = "v1.2.0"
 
 	// Global random
 	gRand = rand.New(rand.NewSource(time.Now().UnixNano()))
