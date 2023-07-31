@@ -1687,7 +1687,13 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				zap.Int32("peer_id", report.PeerId),
 				zap.Int32("frame_count", report.FrameCount),
 				zap.Int32("disconnected_peer_id", report.DisconnectedPeerId),
-				zap.String("log", report.Log))
+				zap.Float32s("fps_history", report.FpsHistory),
+				zap.Int32("total_timesync", report.TotalTimesync),
+				zap.Int32("input_block_count_0", report.InputBlockCount_0),
+				zap.Int32("input_block_count_1", report.InputBlockCount_1),
+				zap.Int32("input_block_count_2", report.InputBlockCount_2),
+				zap.String("before_log", report.BeforeLog),
+				zap.String("after_log", report.AfterLog))
 		} else {
 			p.logger.Warn("P2PMatchingReport",
 				zap.String("close_reason", report.CloseReason),
@@ -1697,7 +1703,13 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				zap.Int32("peer_id", report.PeerId),
 				zap.Int32("frame_count", report.FrameCount),
 				zap.Int32("disconnected_peer_id", report.DisconnectedPeerId),
-				zap.String("log", report.Log))
+				zap.Float32s("fps_history", report.FpsHistory),
+				zap.Int32("total_timesync", report.TotalTimesync),
+				zap.Int32("input_block_count_0", report.InputBlockCount_0),
+				zap.Int32("input_block_count_1", report.InputBlockCount_1),
+				zap.Int32("input_block_count_2", report.InputBlockCount_2),
+				zap.String("before_log", report.BeforeLog),
+				zap.String("after_log", report.AfterLog))
 
 			if strings.HasPrefix(report.CloseReason, "player_disconnect") && report.PlayerCount == 4 {
 				WebhookPostSimpleText(fmt.Sprintf(":oncoming_police_car: battle_code:%v %v", report.BattleCode, report.CloseReason))

@@ -12,7 +12,13 @@ message P2PMatchingReport {
   int32 frame_count = 6;
   int32 disconnected_peer_id = 7;
   // repeated string logs = 10; // depreacated
-  string log = 11;
+  string after_log = 11;
+  string before_log = 12;
+  repeated float fps_history = 15;
+  int32 total_timesync = 16;
+  int32 input_block_count_0 = 17;
+  int32 input_block_count_1 = 18;
+  int32 input_block_count_2 = 19;
 }
 
 message P2PMatching {
@@ -80,6 +86,8 @@ message BattleLogFile {
   repeated BattleLogUser users = 11;
   repeated BattleMessage battle_data = 12;
   repeated fixed64 inputs = 15;
+  repeated int32 start_msg_indexes = 16;
+  repeated uint64 start_msg_randoms = 17;
 
   int64 start_at = 20;
   int64 end_at = 21;
