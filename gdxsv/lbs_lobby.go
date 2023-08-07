@@ -193,6 +193,11 @@ func (l *LbsLobby) buildLobbySettingMessages() []*LbsMessage {
 	if l.LobbySetting.EnableForceStart {
 		msgs = append(msgs, chatMsg("", "", fmt.Sprintf("%-12s: %v", "/f Allowed", boolToYesNo(l.LobbySetting.EnableForceStart))))
 	}
+	if l.isTrainingLobby() {
+		msgs = append(msgs, chatMsg("", "", "=== This is a training lobby ==="))
+		msgs = append(msgs, chatMsg("", "", "Send /f or あ to begin training"))
+		msgs = append(msgs, chatMsg("", "", "Press Start 4 seconds to go back lobby"))
+	}
 
 	return msgs
 }
@@ -310,7 +315,7 @@ func (l *LbsLobby) canStartBattle() bool {
 }
 
 func (l *LbsLobby) StartForceStartCountDown() {
-	l.forceStartCountDown = 10
+	l.forceStartCountDown = 5
 }
 
 func (l *LbsLobby) CancelForceStart() {
@@ -649,20 +654,25 @@ func (l *LbsLobby) makePatchList() *proto.GamePatchList {
 	return patchList
 }
 
+func (l *LbsLobby) isTrainingLobby() bool {
+	// TODO: Should add a flag in lobby_setting
+	return 4 <= l.Rule.Timer && 6000 <= l.Rule.RenpoVital && 6000 <= l.Rule.RenpoVital
+}
+
 func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]*LbsMessage, error) {
 	hash := fnv.New32()
 	hash.Write([]byte(b.BattleCode))
 
 	matching := &proto.P2PMatching{
-		BattleCode:   b.BattleCode,
-		SessionId:    int32(hash.Sum32()),
-		PlayerCount:  int32(len(participants)),
-		PeerId:       0,
-		TimeoutMinMs: 7500,
-		TimeoutMaxMs: 7500,
-		Candidates:   nil,
-		RuleBin:      SerializeRule(b.Rule),
-		Users:        nil,
+		BattleCode:       b.BattleCode,
+		SessionId:        int32(hash.Sum32()),
+		PlayerCount:      int32(len(participants)),
+		PeerId:           0,
+		PingTestDuration: 7500,
+		Candidates:       nil,
+		RuleBin:          SerializeRule(b.Rule),
+		Users:            nil,
+		IsTrainingGame:   l.isTrainingLobby(),
 	}
 
 	for i, q := range participants {

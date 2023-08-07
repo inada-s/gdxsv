@@ -1334,7 +1334,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 	}
 
 	// Additional actions.
-	if text == "／ｆ" || text == "／Ｆ" {
+	if text == "／ｆ" || text == "／Ｆ" || text == "あ" {
 		buildHintMsg := func(hint string) *LbsMessage {
 			return NewServerNotice(lbsChatMessage).Writer().
 				WriteString("").
@@ -1354,9 +1354,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				break
 			}
 		}
-		twoOrMorePlayers := len(p.Lobby.EntryUsers) >= 2
+		playerJoined := 2 <= len(p.Lobby.EntryUsers) || p.Lobby.isTrainingLobby() && 1 <= len(p.Lobby.EntryUsers)
 
-		if p.Lobby.LobbySetting.EnableForceStart && userHasJoinedForce && twoOrMorePlayers {
+		if p.Lobby.LobbySetting.EnableForceStart && userHasJoinedForce && playerJoined {
 			// Print induced action to all users (for clarity + educational purpose)
 			p.Lobby.StartForceStartCountDown()
 			p.Lobby.NotifyLobbyEvent("", fmt.Sprintf("%v starts battle countdown!", p.Name))
@@ -1366,7 +1366,7 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				p.SendMessage(buildHintMsg("/f is disabled in this lobby"))
 			} else if !userHasJoinedForce {
 				p.SendMessage(buildHintMsg("Join a force first! (自動選抜 -> 待機)"))
-			} else if !twoOrMorePlayers {
+			} else if !playerJoined {
 				p.SendMessage(buildHintMsg("Battle requires at least 2 players!"))
 			}
 
