@@ -523,6 +523,7 @@ var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 	p.DBUser = *u
 	p.app.userPeers[p.UserID] = p
 	p.logger = p.logger.With(zap.String("user_id", p.UserID), zap.String("handle_name", p.Name))
+	p.logger.Info("LoginUser", zap.Any("platform_info", p.PlatformInfo))
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
 	p.SendMessage(NewServerQuestion(lbsAskGameCode))
 })
@@ -1626,7 +1627,6 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 			zap.String("os", p.PlatformInfo["os"]),
 			zap.String("cpu", p.PlatformInfo["cpu"]),
 		)
-		p.logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
 	}
 
 	if p.PlatformInfo["cpu"] == "x86/64" {
