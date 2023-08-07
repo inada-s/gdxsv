@@ -26,8 +26,9 @@ message P2PMatching {
   int32 session_id = 2;
   int32 player_count = 3;
   int32 peer_id = 4;
-  int32 timeout_min_ms = 5;
-  int32 timeout_max_ms = 6;
+  // 5: deprecated
+  int32 ping_test_duration = 6;
+  bool is_training_game = 7;
 
   bytes rule_bin = 8;
   repeated BattleLogUser users = 9;
