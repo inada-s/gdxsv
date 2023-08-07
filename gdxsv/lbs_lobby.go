@@ -656,7 +656,7 @@ func (l *LbsLobby) makePatchList() *proto.GamePatchList {
 
 func (l *LbsLobby) isTrainingLobby() bool {
 	// TODO: Should add a flag in lobby_setting
-	return 4 <= l.Rule.Timer && 6000 <= l.Rule.RenpoVital && 6000 <= l.Rule.RenpoVital
+	return 4 <= l.Rule.Timer && 1000 <= l.Rule.RenpoVital && 1000 <= l.Rule.ZeonVital
 }
 
 func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]*LbsMessage, error) {
