@@ -553,6 +553,14 @@ func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*Battl
 	return b, err
 }
 
+func (db SQLiteDB) GetLastBattleRecords(userID string) ([]*BattleRecord, error) {
+	var results []*BattleRecord
+	err := db.Select(&results, `SELECT * FROM battle_record WHERE battle_code IN (
+		SELECT battle_code FROM battle_record WHERE user_id == ? ORDER BY ROWID DESC LIMIT 1
+	)`, userID)
+	return results, err
+}
+
 func (db SQLiteDB) SetReplayURL(battleCode string, url string) error {
 	_, err := db.Exec(`UPDATE battle_record SET replay_url = ? WHERE battle_code = ?`, url, battleCode)
 	return err

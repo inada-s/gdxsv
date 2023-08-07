@@ -5,9 +5,24 @@ import (
 )
 
 func Test_teamShuffle(t *testing.T) {
+	makePeer := func(userID string) *LbsPeer {
+		return &LbsPeer{
+			DBUser: DBUser{
+				UserID: userID,
+			},
+		}
+	}
+
+	makePeerWithRegion := func(userID string, region string) *LbsPeer {
+		p := makePeer(userID)
+		p.bestRegion = region
+		return p
+	}
+
 	type args struct {
-		seed  int64
-		peers []*LbsPeer
+		seed           int64
+		peers          []*LbsPeer
+		lastTeamUserID []string
 	}
 	tests := []struct {
 		name string
@@ -17,16 +32,40 @@ func Test_teamShuffle(t *testing.T) {
 		{
 			name: "random shuffle seed 1",
 			args: args{
-				seed:  1,
-				peers: []*LbsPeer{&LbsPeer{}, &LbsPeer{}, &LbsPeer{}, &LbsPeer{}},
+				seed: 1,
+				peers: []*LbsPeer{
+					makePeer("1"),
+					makePeer("2"),
+					makePeer("3"),
+					makePeer("4"),
+				},
 			},
 			want: []uint16{1, 1, 2, 2},
 		},
 		{
 			name: "random shuffle seed 2",
 			args: args{
-				seed:  2,
-				peers: []*LbsPeer{&LbsPeer{}, &LbsPeer{}, &LbsPeer{}, &LbsPeer{}},
+				seed: 2,
+				peers: []*LbsPeer{
+					makePeer("1"),
+					makePeer("2"),
+					makePeer("3"),
+					makePeer("4"),
+				},
+			},
+			want: []uint16{1, 2, 2, 1},
+		},
+		{
+			name: "random shuffle avoid same team",
+			args: args{
+				seed: 1,
+				peers: []*LbsPeer{
+					makePeer("1"),
+					makePeer("2"),
+					makePeer("3"),
+					makePeer("4"),
+				},
+				lastTeamUserID: []string{"2", "1", "", ""},
 			},
 			want: []uint16{1, 2, 2, 1},
 		},
@@ -35,8 +74,11 @@ func Test_teamShuffle(t *testing.T) {
 			args: args{
 				seed: 1,
 				peers: []*LbsPeer{
-					&LbsPeer{bestRegion: "us-east1"}, &LbsPeer{bestRegion: "us-east1"},
-					&LbsPeer{bestRegion: "us-west1"}, &LbsPeer{bestRegion: "us-west1"}},
+					makePeerWithRegion("1", "us-east1"),
+					makePeerWithRegion("2", "us-east1"),
+					makePeerWithRegion("3", "us-west1"),
+					makePeerWithRegion("4", "us-west1"),
+				},
 			},
 			want: []uint16{1, 1, 2, 2},
 		},
@@ -45,8 +87,11 @@ func Test_teamShuffle(t *testing.T) {
 			args: args{
 				seed: 2,
 				peers: []*LbsPeer{
-					&LbsPeer{bestRegion: "us-east1"}, &LbsPeer{bestRegion: "us-east1"},
-					&LbsPeer{bestRegion: "us-west1"}, &LbsPeer{bestRegion: "us-west1"}},
+					makePeerWithRegion("1", "us-east1"),
+					makePeerWithRegion("2", "us-east1"),
+					makePeerWithRegion("3", "us-west1"),
+					makePeerWithRegion("4", "us-west1"),
+				},
 			},
 			want: []uint16{2, 2, 1, 1},
 		},
@@ -55,38 +100,84 @@ func Test_teamShuffle(t *testing.T) {
 			args: args{
 				seed: 2,
 				peers: []*LbsPeer{
-					&LbsPeer{}, &LbsPeer{bestRegion: "us-east1"},
-					&LbsPeer{bestRegion: "us-west1"}, &LbsPeer{bestRegion: "us-west1"}},
+					makePeerWithRegion("1", "asia-east1"),
+					makePeerWithRegion("2", "us-east1"),
+					makePeerWithRegion("3", "us-west1"),
+					makePeerWithRegion("4", "us-west1"),
+				},
 			},
 			want: []uint16{1, 2, 2, 1},
 		},
 		{
 			name: "two players",
 			args: args{
-				seed:  9,
-				peers: []*LbsPeer{&LbsPeer{}, &LbsPeer{}},
+				seed: 9,
+				peers: []*LbsPeer{
+					makePeer("1"),
+					makePeer("2"),
+				},
 			},
 			want: []uint16{2, 1},
 		},
 		{
 			name: "three players",
 			args: args{
-				seed:  2,
-				peers: []*LbsPeer{&LbsPeer{}, &LbsPeer{}, &LbsPeer{}},
+				seed: 2,
+				peers: []*LbsPeer{
+					makePeer("1"),
+					makePeer("2"),
+					makePeer("3"),
+				},
 			},
 			want: []uint16{1, 2, 2},
 		},
 		{
 			name: "more than five players is not supported",
 			args: args{
-				seed:  1,
-				peers: []*LbsPeer{&LbsPeer{}, &LbsPeer{}, &LbsPeer{}, &LbsPeer{}, &LbsPeer{}},
+				seed: 1,
+				peers: []*LbsPeer{
+					makePeer("1"),
+					makePeer("2"),
+					makePeer("3"),
+					makePeer("4"),
+					makePeer("5"),
+				},
 			},
 			want: nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.args.lastTeamUserID != nil {
+				used := map[string]bool{}
+				for i, peer := range tt.args.peers {
+					if used[peer.UserID] {
+						continue
+					}
+
+					team := TeamRenpo
+					if 2 <= len(used) {
+						team = TeamZeon
+					}
+
+					used[peer.UserID] = true
+					mustInsertBattleRecord(BattleRecord{
+						BattleCode: "123456789",
+						UserID:     peer.UserID,
+						Team:       team,
+					})
+
+					teamUserID := tt.args.lastTeamUserID[i]
+					if teamUserID != "" {
+						used[teamUserID] = true
+						mustInsertBattleRecord(BattleRecord{
+							BattleCode: "123456789",
+							UserID:     teamUserID,
+							Team:       team,
+						})
+					}
+				}
+			}
 			teams := teamShuffle(tt.args.seed, tt.args.peers)
 			assertEq(t, tt.want, teams)
 		})

@@ -523,6 +523,7 @@ var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 	p.DBUser = *u
 	p.app.userPeers[p.UserID] = p
 	p.logger = p.logger.With(zap.String("user_id", p.UserID), zap.String("handle_name", p.Name))
+	p.logger.Info("LoginUser", zap.Any("platform_info", p.PlatformInfo))
 	p.SendMessage(NewServerAnswer(m).Writer().WriteString(p.UserID).Msg())
 	p.SendMessage(NewServerQuestion(lbsAskGameCode))
 })
@@ -762,20 +763,18 @@ var _ = register(lbsWinLose, func(p *LbsPeer, m *LbsMessage) {
 })
 
 var _ = register(lbsDeviceData, func(p *LbsPeer, m *LbsMessage) {
-	r := m.Reader()
-	data1 := r.Read16()
-	data2 := r.Read16()
-	data3 := r.Read16()
-	data4 := r.Read16()
-	data5 := r.Read16()
-	data6 := r.Read16()
-	data7 := r.Read16()
-	data8 := r.Read16()
-	p.logger.Sugar().Info("DeviceData", data1, data2, data3, data4, data5, data6, data7, data8)
+	// r := m.Reader()
+	// data1 := r.Read16()
+	// data2 := r.Read16()
+	// data3 := r.Read16()
+	// data4 := r.Read16()
+	// data5 := r.Read16()
+	// data6 := r.Read16()
+	// data7 := r.Read16()
+	// data8 := r.Read16()
 	// PS2: 0 0 0 999 1 0 0 0
 	// DC1: 0 0 0 0 1 0 0 0
 	// DC2: 0 0 0 0 1 0 0 0
-
 	p.SendMessage(NewServerAnswer(m))
 })
 
@@ -1591,7 +1590,7 @@ var _ = register(lbsExtSyncSharedData, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	p.logger.Info("update mcs status", zap.Any("mcs_status", mcsStatus))
+	p.logger.Debug("update mcs status", zap.Any("mcs_status", mcsStatus))
 	p.app.mcsPeers[mcsStatus.PublicAddr] = p
 	p.mcsStatus = &mcsStatus
 	sharedData.SyncMcsToLbs(&mcsStatus)
@@ -1626,7 +1625,6 @@ var _ = register(lbsPlatformInfo, func(p *LbsPeer, m *LbsMessage) {
 			zap.String("os", p.PlatformInfo["os"]),
 			zap.String("cpu", p.PlatformInfo["cpu"]),
 		)
-		p.logger.Info("PlatformInfo", zap.Any("platform_info", p.PlatformInfo))
 	}
 
 	if p.PlatformInfo["cpu"] == "x86/64" {
