@@ -250,8 +250,11 @@ type DB interface {
 	// This function is used when a battle starts.
 	AddBattleRecord(battle *BattleRecord) error
 
-	// GetBattleRecordUser load a battle record by battle_code and user_id.
+	// GetBattleRecordUser loads a battle record by battle_code and user_id.
 	GetBattleRecordUser(battleCode string, userID string) (*BattleRecord, error)
+
+	// GetLastBattleRecords finds BattleRecords for everyone who participated in the last match.
+	GetLastBattleRecords(userID string) ([]*BattleRecord, error)
 
 	// SetReplayURL updates battle_record to set replay_url.
 	SetReplayURL(battleCode string, url string) error

@@ -166,6 +166,7 @@ func getDB() DB {
 }
 
 func prepareDB() {
+	logger.Sugar().Info("using database %s", conf.DBName)
 	conn, err := sqlx.Open("sqlite3", conf.DBName)
 	if err != nil {
 		logger.Fatal("failed to open database", zap.Error(err))

@@ -374,7 +374,6 @@ func (l *LbsLobby) Enter(p *LbsPeer) {
 	// Send game patch for offline testing
 	if l.LobbySetting.PatchNames != "" {
 		patchList := l.makePatchList()
-		logger.Info("patchList", zap.Any("patchList", patchList))
 		patchBin, err := pb.Marshal(patchList)
 		if err != nil {
 			logger.Error("pb.Marshal patch", zap.Error(err))
@@ -557,6 +556,23 @@ func teamShuffle(seed int64, peers []*LbsPeer) []uint16 {
 		teams[i], teams[j] = teams[j], teams[i]
 	})
 
+	// Special case - Shuffle twice if the team is same of the previous match
+	sameTeam := false
+	for i, p := range peers {
+		for j, q := range peers {
+			if i != j && teams[i] == teams[j] {
+				if getLastTeamUserID(p.UserID) == q.UserID && getLastTeamUserID(q.UserID) == p.UserID {
+					sameTeam = true
+				}
+			}
+		}
+	}
+	if sameTeam {
+		r.Shuffle(len(teams), func(i, j int) {
+			teams[i], teams[j] = teams[j], teams[i]
+		})
+	}
+
 	// Special case - Region friendly team
 	// Pair with player in the same region group when the peer regions are like [A, A, B, B].
 	var groups []string
@@ -584,6 +600,27 @@ func teamShuffle(seed int64, peers []*LbsPeer) []uint16 {
 	}
 
 	return teams[:len(peers)]
+}
+
+func getLastTeamUserID(userID string) string {
+	records, err := getDB().GetLastBattleRecords(userID)
+	if err != nil {
+		return ""
+	}
+
+	userTeam := TeamNone
+	for _, r := range records {
+		if r.UserID == userID {
+			userTeam = r.Team
+		}
+	}
+	for _, r := range records {
+		if r.Team == userTeam && r.UserID != userID {
+			return r.UserID
+		}
+	}
+
+	return ""
 }
 
 func (l *LbsLobby) pickLobbyBattleParticipants() []*LbsPeer {
@@ -813,7 +850,6 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 	}
 
 	patchList := l.makePatchList()
-	logger.Info("patchList", zap.Any("patchList", patchList))
 	patchBin, err := pb.Marshal(patchList)
 	if err != nil {
 		logger.Error("pb.Marshal patch", zap.Error(err))
@@ -829,7 +865,6 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
 			return
 		}
-		logger.Info("p2pMatchingMsg", zap.Any("p2pMatchingMsg", p2pMatchingMsgs[0]))
 	}
 
 	sharedData.ShareMcsGame(&McsGame{
