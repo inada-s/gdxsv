@@ -21,7 +21,7 @@ This game has online mode, but the service ended in 2004. This project aims to k
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-9-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-10-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -30,19 +30,22 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
 <table>
-  <tr>
-    <td align="center"><a href="https://github.com/inada-s"><img src="https://avatars.githubusercontent.com/u/1726079?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Shingo INADA</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=inada-s" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt=""/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
-    <td align="center"><a href="https://github.com/htc001120"><img src="https://avatars.githubusercontent.com/u/6858053?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Ming Chan</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=htc001120" title="Code">💻</a> <a href="#financial-htc001120" title="Financial">💵</a></td>
-    <td align="center"><a href="https://github.com/Q-SJO-Q"><img src="https://avatars.githubusercontent.com/u/86608532?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Q-SJO-Q</b></sub></a><br /><a href="#financial-Q-SJO-Q" title="Financial">💵</a></td>
-    <td align="center"><a href="https://github.com/crazytaka3"><img src="https://avatars.githubusercontent.com/u/86925395?v=4?s=100" width="100px;" alt=""/><br /><sub><b>crazytaka3</b></sub></a><br /><a href="#financial-crazytaka3" title="Financial">💵</a></td>
-    <td align="center"><a href="https://www.facebook.com/Mobile.Suit.Gundam.DX/"><img src="https://avatars.githubusercontent.com/u/87101475?v=4?s=100" width="100px;" alt=""/><br /><sub><b>HK-DX-Players</b></sub></a><br /><a href="#financial-HK-DX-Players" title="Financial">💵</a></td>
-    <td align="center"><a href="https://github.com/SMGMpartner"><img src="https://avatars.githubusercontent.com/u/102720932?v=4?s=100" width="100px;" alt=""/><br /><sub><b>SMGMpartner</b></sub></a><br /><a href="#financial-SMGMpartner" title="Financial">💵</a></td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/MIGUSUKE"><img src="https://avatars.githubusercontent.com/u/88677965?v=4?s=100" width="100px;" alt=""/><br /><sub><b>migu</b></sub></a><br /><a href="#financial-MIGUSUKE" title="Financial">💵</a></td>
-    <td align="center"><a href="https://github.com/kyafun"><img src="https://avatars.githubusercontent.com/u/91416014?v=4?s=100" width="100px;" alt=""/><br /><sub><b>kyafun</b></sub></a><br /><a href="#financial-kyafun" title="Financial">💵</a></td>
-  </tr>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/inada-s"><img src="https://avatars.githubusercontent.com/u/1726079?v=4?s=100" width="100px;" alt="Shingo INADA"/><br /><sub><b>Shingo INADA</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=inada-s" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vkedwardli"><img src="https://avatars.githubusercontent.com/u/602245?v=4?s=100" width="100px;" alt="vkedwardli"/><br /><sub><b>vkedwardli</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=vkedwardli" title="Code">💻</a> <a href="#financial-vkedwardli" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/htc001120"><img src="https://avatars.githubusercontent.com/u/6858053?v=4?s=100" width="100px;" alt="Ming Chan"/><br /><sub><b>Ming Chan</b></sub></a><br /><a href="https://github.com/inada-s/gdxsv/commits?author=htc001120" title="Code">💻</a> <a href="#financial-htc001120" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Q-SJO-Q"><img src="https://avatars.githubusercontent.com/u/86608532?v=4?s=100" width="100px;" alt="Q-SJO-Q"/><br /><sub><b>Q-SJO-Q</b></sub></a><br /><a href="#financial-Q-SJO-Q" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/crazytaka3"><img src="https://avatars.githubusercontent.com/u/86925395?v=4?s=100" width="100px;" alt="crazytaka3"/><br /><sub><b>crazytaka3</b></sub></a><br /><a href="#financial-crazytaka3" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.facebook.com/Mobile.Suit.Gundam.DX/"><img src="https://avatars.githubusercontent.com/u/87101475?v=4?s=100" width="100px;" alt="HK-DX-Players"/><br /><sub><b>HK-DX-Players</b></sub></a><br /><a href="#financial-HK-DX-Players" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/SMGMpartner"><img src="https://avatars.githubusercontent.com/u/102720932?v=4?s=100" width="100px;" alt="SMGMpartner"/><br /><sub><b>SMGMpartner</b></sub></a><br /><a href="#financial-SMGMpartner" title="Financial">💵</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MIGUSUKE"><img src="https://avatars.githubusercontent.com/u/88677965?v=4?s=100" width="100px;" alt="migu"/><br /><sub><b>migu</b></sub></a><br /><a href="#financial-MIGUSUKE" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kyafun"><img src="https://avatars.githubusercontent.com/u/91416014?v=4?s=100" width="100px;" alt="kyafun"/><br /><sub><b>kyafun</b></sub></a><br /><a href="#financial-kyafun" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/shiotarosan"><img src="https://avatars.githubusercontent.com/u/142133668?v=4?s=100" width="100px;" alt="shiotarosan"/><br /><sub><b>shiotarosan</b></sub></a><br /><a href="#financial-shiotarosan" title="Financial">💵</a></td>
+    </tr>
+  </tbody>
 </table>
 
 <!-- markdownlint-restore -->
