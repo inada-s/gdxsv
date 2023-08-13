@@ -21,7 +21,7 @@ This game has online mode, but the service ended in 2004. This project aims to k
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-10-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -44,6 +44,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MIGUSUKE"><img src="https://avatars.githubusercontent.com/u/88677965?v=4?s=100" width="100px;" alt="migu"/><br /><sub><b>migu</b></sub></a><br /><a href="#financial-MIGUSUKE" title="Financial">💵</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kyafun"><img src="https://avatars.githubusercontent.com/u/91416014?v=4?s=100" width="100px;" alt="kyafun"/><br /><sub><b>kyafun</b></sub></a><br /><a href="#financial-kyafun" title="Financial">💵</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/shiotarosan"><img src="https://avatars.githubusercontent.com/u/142133668?v=4?s=100" width="100px;" alt="shiotarosan"/><br /><sub><b>shiotarosan</b></sub></a><br /><a href="#financial-shiotarosan" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/pantirarism"><img src="https://avatars.githubusercontent.com/u/121621351?v=4?s=100" width="100px;" alt="pantirarism"/><br /><sub><b>pantirarism</b></sub></a><br /><a href="#financial-pantirarism" title="Financial">💵</a></td>
     </tr>
   </tbody>
 </table>
