@@ -38,6 +38,11 @@ const (
 	TeamZeon  = 2
 )
 
+const (
+	TeamShuffleDefault        = 1
+	TeamShuffleRegionFriendly = 2
+)
+
 type Lbs struct {
 	handlers  map[CmdID]LbsHandler
 	userPeers map[string]*LbsPeer

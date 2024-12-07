@@ -160,7 +160,7 @@ type MLobbySetting struct {
 	Reminder         string `db:"reminder" json:"reminder"`
 	RuleID           string `db:"rule_id" json:"rule_id"`
 	EnableForceStart bool   `db:"enable_force_start" json:"enable_force_start"`
-	TeamShuffle      bool   `db:"team_shuffle" json:"team_shuffle"`
+	TeamShuffle      int    `db:"team_shuffle" json:"team_shuffle"`
 	PingLimit        int    `db:"ping_limit" json:"ping_limit"`
 	PingRegion       string `db:"ping_region" json:"ping_region"`
 	PatchNames       string `db:"patch_names" json:"patch_names"`
