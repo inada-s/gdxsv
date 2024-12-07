@@ -125,9 +125,9 @@ func chatMsg(userID, name, text string) *LbsMessage {
 		WriteString(userID).
 		WriteString(name).
 		WriteString(text).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 }
 
@@ -558,20 +558,24 @@ func teamShuffle(seed int64, peers []*LbsPeer, mode int) []uint16 {
 	})
 
 	// Special case - Shuffle twice if the team is same of the previous match
-	sameTeam := false
-	for i, p := range peers {
-		for j, q := range peers {
-			if i != j && teams[i] == teams[j] {
-				if getLastTeamUserID(p.UserID) == q.UserID && getLastTeamUserID(q.UserID) == p.UserID {
-					sameTeam = true
+	for t := 0; t < 2; t++ {
+		sameTeam := false
+		for i, p := range peers {
+			for j, q := range peers {
+				if i != j && teams[i] == teams[j] {
+					if getLastTeamUserID(p.UserID) == q.UserID && getLastTeamUserID(q.UserID) == p.UserID {
+						sameTeam = true
+					}
 				}
 			}
 		}
-	}
-	if sameTeam {
-		r.Shuffle(len(teams), func(i, j int) {
-			teams[i], teams[j] = teams[j], teams[i]
-		})
+		if sameTeam {
+			r.Shuffle(len(teams), func(i, j int) {
+				teams[i], teams[j] = teams[j], teams[i]
+			})
+		} else {
+			break
+		}
 	}
 
 	if mode == TeamShuffleRegionFriendly {
