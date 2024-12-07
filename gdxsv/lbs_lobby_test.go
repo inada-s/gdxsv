@@ -21,6 +21,7 @@ func Test_teamShuffle(t *testing.T) {
 
 	type args struct {
 		seed           int64
+		mode           int
 		peers          []*LbsPeer
 		lastTeamUserID []string
 	}
@@ -33,6 +34,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "random shuffle seed 1",
 			args: args{
 				seed: 1,
+				mode: TeamShuffleDefault,
 				peers: []*LbsPeer{
 					makePeer("1"),
 					makePeer("2"),
@@ -46,6 +48,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "random shuffle seed 2",
 			args: args{
 				seed: 2,
+				mode: TeamShuffleDefault,
 				peers: []*LbsPeer{
 					makePeer("1"),
 					makePeer("2"),
@@ -59,6 +62,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "random shuffle avoid same team",
 			args: args{
 				seed: 1,
+				mode: TeamShuffleDefault,
 				peers: []*LbsPeer{
 					makePeer("1"),
 					makePeer("2"),
@@ -73,6 +77,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "region friendly shuffle seed 1",
 			args: args{
 				seed: 1,
+				mode: TeamShuffleRegionFriendly,
 				peers: []*LbsPeer{
 					makePeerWithRegion("1", "us-east1"),
 					makePeerWithRegion("2", "us-east1"),
@@ -86,6 +91,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "region friendly shuffle seed 2",
 			args: args{
 				seed: 2,
+				mode: TeamShuffleRegionFriendly,
 				peers: []*LbsPeer{
 					makePeerWithRegion("1", "us-east1"),
 					makePeerWithRegion("2", "us-east1"),
@@ -99,6 +105,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "not region friendly shuffle",
 			args: args{
 				seed: 2,
+				mode: TeamShuffleRegionFriendly,
 				peers: []*LbsPeer{
 					makePeerWithRegion("1", "asia-east1"),
 					makePeerWithRegion("2", "us-east1"),
@@ -112,6 +119,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "two players",
 			args: args{
 				seed: 9,
+				mode: TeamShuffleDefault,
 				peers: []*LbsPeer{
 					makePeer("1"),
 					makePeer("2"),
@@ -123,6 +131,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "three players",
 			args: args{
 				seed: 2,
+				mode: TeamShuffleDefault,
 				peers: []*LbsPeer{
 					makePeer("1"),
 					makePeer("2"),
@@ -135,6 +144,7 @@ func Test_teamShuffle(t *testing.T) {
 			name: "more than five players is not supported",
 			args: args{
 				seed: 1,
+				mode: TeamShuffleDefault,
 				peers: []*LbsPeer{
 					makePeer("1"),
 					makePeer("2"),
@@ -178,7 +188,7 @@ func Test_teamShuffle(t *testing.T) {
 					}
 				}
 			}
-			teams := teamShuffle(tt.args.seed, tt.args.peers)
+			teams := teamShuffle(tt.args.seed, tt.args.peers, 2)
 			assertEq(t, tt.want, teams)
 		})
 	}

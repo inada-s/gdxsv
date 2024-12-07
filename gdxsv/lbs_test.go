@@ -1280,7 +1280,7 @@ func TestLbs_LobbyMatchingFlow(t *testing.T) {
 
 			lbs.Locked(func(*Lbs) {
 				lobby := lbs.GetLobby(tt.platform, tt.disk, lobbyID)
-				lobby.LobbySetting.TeamShuffle = false
+				lobby.LobbySetting.TeamShuffle = 0
 			})
 
 			clients := []*TestLbsClient{user1, user2, user3, user4}
