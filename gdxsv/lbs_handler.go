@@ -279,6 +279,13 @@ func isOldFlycastVersion(userVersion string, minVersion string) bool {
 	return false
 }
 
+func isBannedFlycastVersion(userVersion string) bool {
+	if strings.HasPrefix(userVersion, "gdxsv-") {
+		userVersion = "v" + strings.TrimPrefix(userVersion, "gdxsv-")
+	}
+	return bannedFlycastVersions[userVersion]
+}
+
 var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 	loginType := m.Reader().Read8()
 
@@ -296,7 +303,8 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 
 	switch loginType {
 	case 0:
-		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], requiredFlycastVersion) {
+		v := p.PlatformInfo["flycast"]
+		if v != "" && (isOldFlycastVersion(v, requiredFlycastVersion) || isBannedFlycastVersion(v)) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return
@@ -346,7 +354,8 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>UNSUPPORTED LOGIN TYPE<END>").Msg())
 	case 2:
-		if p.PlatformInfo["flycast"] != "" && isOldFlycastVersion(p.PlatformInfo["flycast"], requiredFlycastVersion) {
+		v := p.PlatformInfo["flycast"]
+		if v != "" && (isOldFlycastVersion(v, requiredFlycastVersion) || isBannedFlycastVersion(v)) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return
