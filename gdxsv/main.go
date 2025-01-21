@@ -31,7 +31,14 @@ var (
 	gdxsvRevision string
 
 	// Minimum required flycast version.
-	requiredFlycastVersion = "v1.2.0"
+	requiredFlycastVersion = "v1.6.2"
+
+	// Released but broken flycast versions.
+	bannedFlycastVersions = map[string]bool{
+		"v1.7.0": true,
+		"v1.7.1": true,
+		"v1.7.2": true,
+	}
 
 	// Global random
 	gRand = rand.New(rand.NewSource(time.Now().UnixNano()))
