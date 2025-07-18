@@ -1,6 +1,6 @@
 module gdxsv
 
-go 1.20
+go 1.23.0
 
 require (
 	cloud.google.com/go v0.83.0
@@ -11,7 +11,7 @@ require (
 	github.com/tommy351/zap-stackdriver v0.1.4
 	go.uber.org/zap v1.17.0
 	golang.org/x/mod v0.8.0
-	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/text v0.13.0
 	google.golang.org/api v0.47.0
@@ -21,7 +21,7 @@ require (
 require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/pprof v0.0.0-20210601050228-01bbb1931b22 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	go.opencensus.io v0.23.0 // indirect
