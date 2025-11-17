@@ -1,6 +1,6 @@
 module github.com/inada-s/gdxsv/infra/uploader
 
-go 1.20
+go 1.23.0
 
 require (
 	cloud.google.com/go/storage v1.28.1
@@ -9,8 +9,7 @@ require (
 
 require (
 	cloud.google.com/go v0.110.0 // indirect
-	cloud.google.com/go/compute v1.19.1 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/functions v1.13.0 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.6.1 // indirect
@@ -28,7 +27,7 @@ require (
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/oauth2 v0.7.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
