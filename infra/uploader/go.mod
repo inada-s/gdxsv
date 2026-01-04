@@ -13,7 +13,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/functions v1.13.0 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
-	github.com/cloudevents/sdk-go/v2 v2.6.1 // indirect
+	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
