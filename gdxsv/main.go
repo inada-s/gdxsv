@@ -38,6 +38,7 @@ var (
 		"v1.7.0": true,
 		"v1.7.1": true,
 		"v1.7.2": true,
+		"v1.8.0": true,
 	}
 
 	// Global random
