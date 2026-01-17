@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"gdxsv/gdxsv/proto"
-	pb "google.golang.org/protobuf/proto"
 	"hash/fnv"
 	"io"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+
+	pb "google.golang.org/protobuf/proto"
 
 	"go.uber.org/zap"
 	"golang.org/x/mod/semver"
@@ -364,6 +365,13 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		// Go to account registration flow.
 		p.SendMessage(NewServerQuestion(lbsUserInfo1))
 	case 3:
+		v := p.PlatformInfo["flycast"]
+		if v != "" && (isOldFlycastVersion(v, requiredFlycastVersion) || isBannedFlycastVersion(v)) {
+			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
+				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
+			return
+		}
+
 		// The user must have valid connection_id.
 		if p.lastSessionID == "" {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
@@ -1319,9 +1327,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0).      // chat_type
-		Write8(0).      // id color
-		Write8(0).      // handle color
+		Write8(0). // chat_type
+		Write8(0). // id color
+		Write8(0). // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1348,9 +1356,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0).      // chat_type
-				Write8(0).      // id color
-				Write8(0).      // handle color
+				Write8(0). // chat_type
+				Write8(0). // id color
+				Write8(0). // handle color
 				Write8(0).Msg() // msg color
 		}
 
