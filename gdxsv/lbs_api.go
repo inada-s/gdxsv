@@ -181,6 +181,12 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 				return
 			}
 		}
+		if r.FormValue("used_ms") != "" {
+			if q.UsedMs, err = strconv.Atoi(r.FormValue("used_ms")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
 		if r.FormValue("reverse") != "" {
 			if reverse, err := strconv.Atoi(r.FormValue("reverse")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)

@@ -90,10 +90,13 @@ type BattleRecord struct {
 	Frame  int    `db:"frame" json:"frame,omitempty"`
 	Result string `db:"result" json:"result,omitempty"`
 
-	Created   time.Time `db:"created" json:"created,omitempty"`
-	Updated   time.Time `db:"updated" json:"updated,omitempty"`
-	System    uint32    `db:"system" json:"system,omitempty"`
-	ReplayURL string    `db:"replay_url" json:"replay_url,omitempty"`
+	Created     time.Time `db:"created" json:"created,omitempty"`
+	Updated     time.Time `db:"updated" json:"updated,omitempty"`
+	System      uint32    `db:"system" json:"system,omitempty"`
+	ReplayURL   string    `db:"replay_url" json:"replay_url,omitempty"`
+	UsedMsMask  int       `db:"used_ms_mask" json:"used_ms_mask,omitempty"`
+	UsedMsList  string    `db:"used_ms_list" json:"used_ms_list,omitempty"`
+	RoundWin    string    `db:"round_win" json:"round_win,omitempty"`
 }
 
 type BattleCountResult struct {
@@ -118,6 +121,7 @@ type FindReplayQuery struct {
 	LobbyID    int    `db:"lobby_id" json:"lobby_id"`
 	Players    int    `db:"players" json:"players"`
 	Aggregate  int    `db:"aggregate" json:"aggregate"`
+	UsedMs     int    `db:"used_ms" json:"used_ms"`
 	Reverse    bool   `db:"reverse" json:"reverse"`
 	Page       int    `db:"page" json:"page"`
 }
@@ -127,15 +131,17 @@ func NewFindReplayQuery() *FindReplayQuery {
 		LobbyID:   -1,
 		Players:   -1,
 		Aggregate: -1,
+		UsedMs:    -1,
 	}
 }
 
 type ReplayUser struct {
-	UserID    string `json:"user_id"`
-	UserName  string `json:"user_name"`
-	PilotName string `json:"pilot_name"`
-	Team      int    `json:"team"`
-	Pos       int    `json:"pos"`
+	UserID     string `json:"user_id"`
+	UserName   string `json:"user_name"`
+	PilotName  string `json:"pilot_name"`
+	Team       int    `json:"team"`
+	Pos        int    `json:"pos"`
+	UsedMsList string `json:"used_ms_list,omitempty"`
 }
 
 type FoundReplay struct {
@@ -148,6 +154,7 @@ type FoundReplay struct {
 	StartUnix  int64         `json:"start_unix,omitempty"`
 	StartDate  time.Time     `json:"start_date,omitempty"`
 	ReplayURL  string        `json:"replay_url,omitempty"`
+	RoundWin   string        `json:"round_win,omitempty"`
 }
 
 type MLobbySetting struct {
@@ -298,6 +305,9 @@ type DB interface {
 
 	// GetPatch returns game patch.
 	GetPatch(platform, disk, name string) (*MPatch, error)
+
+	// SaveBattleRoundData updates battle_record to set used_ms_mask, used_ms_list, round_win.
+	SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error
 
 	// FindReplay returns list of FoundReplay filtered by Query.
 	FindReplay(q *FindReplayQuery) ([]*FoundReplay, error)

@@ -9,8 +9,7 @@ install-tools:
 .PHONY: protoc
 protoc:
 	protoc --proto_path=. --go_out=. gdxsv/proto/*.proto
-	cd ./flycast/core/gdxsv && protoc --proto_path=../../../gdxsv/proto --cpp_out=. gdxsv.proto
-	cd ./pcsx2/pcsx2/windows/VCprojects/gdxsv && protoc --proto_path=../../../../../gdxsv/proto --cpp_out=. gdxsv.proto
+	cd ../flycast/core/gdxsv && protoc --proto_path=../../../gdxsv/gdxsv/proto --cpp_out=. gdxsv.proto
 
 
 .PHONY: build

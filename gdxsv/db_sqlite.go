@@ -101,10 +101,13 @@ CREATE TABLE IF NOT EXISTS battle_record
     death       integer default 0,
     frame       integer default 0,
     result      text    default '',
-    replay_url  text    default '',
-    created     timestamp,
-    updated     timestamp,
-    system      integer default 0,
+    replay_url    text    default '',
+    used_ms_mask  integer default 0,
+    used_ms_list  text    default '',
+    round_win     text    default '',
+    created       timestamp,
+    updated       timestamp,
+    system        integer default 0,
     PRIMARY KEY (battle_code, user_id)
 );
 CREATE TABLE IF NOT EXISTS m_string
@@ -547,6 +550,18 @@ WHERE
 	return err
 }
 
+func (db SQLiteDB) SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error {
+	_, err := db.Exec(`
+UPDATE battle_record
+SET
+	used_ms_mask = ?,
+	used_ms_list = ?,
+	round_win = ?
+WHERE
+	battle_code = ? AND user_id = ?`, usedMsMask, usedMsList, roundWin, battleCode, userID)
+	return err
+}
+
 func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*BattleRecord, error) {
 	b := new(BattleRecord)
 	err := db.Get(b, `SELECT * FROM battle_record WHERE battle_code = ? AND user_id = ?`, battleCode, userID)
@@ -823,6 +838,8 @@ SELECT
   GROUP_CONCAT(user_id, '/') AS user_id_list,
   GROUP_CONCAT(user_name, '/') AS user_name_list,
   GROUP_CONCAT(pilot_name, '/') AS pilot_name_list,
+  GROUP_CONCAT(used_ms_list, '/') AS used_ms_list_list,
+  MAX(round_win) AS round_win,
   created AS start_at,
   replay_url
 FROM battle_record
@@ -841,6 +858,7 @@ WHERE battle_code IN (
     AND (lobby_id = :lobby_id OR :lobby_id = -1)
     AND (players = :players OR :players = -1)
     AND (aggregate = :aggregate OR :aggregate = -1)
+    AND (:used_ms = -1 OR (used_ms_mask & (1 << :used_ms)) != 0)
   ORDER BY created `+order+` LIMIT 100 OFFSET (:page) * 100)
 GROUP BY battle_code ORDER BY created `+order, q)
 	if err != nil {
@@ -849,19 +867,21 @@ GROUP BY battle_code ORDER BY created `+order, q)
 	defer rows.Close()
 
 	type sqlRow struct {
-		Disk          string    `db:"disk"`
-		BattleCode    string    `db:"battle_code"`
-		LobbyID       int       `db:"lobby_id"`
-		Players       int       `db:"players"`
-		Round         int       `db:"round"`
-		PosList       string    `db:"pos_list"`
-		TeamList      string    `db:"team_list"`
-		WinList       string    `db:"win_list"`
-		UserIDList    string    `db:"user_id_list"`
-		UserNameList  string    `db:"user_name_list"`
-		PilotNameList string    `db:"pilot_name_list"`
-		StartAt       time.Time `db:"start_at"`
-		ReplayURL     string    `db:"replay_url"`
+		Disk            string    `db:"disk"`
+		BattleCode      string    `db:"battle_code"`
+		LobbyID         int       `db:"lobby_id"`
+		Players         int       `db:"players"`
+		Round           int       `db:"round"`
+		PosList         string    `db:"pos_list"`
+		TeamList        string    `db:"team_list"`
+		WinList         string    `db:"win_list"`
+		UserIDList      string    `db:"user_id_list"`
+		UserNameList    string    `db:"user_name_list"`
+		PilotNameList   string    `db:"pilot_name_list"`
+		UsedMsListList  string    `db:"used_ms_list_list"`
+		RoundWin        string    `db:"round_win"`
+		StartAt         time.Time `db:"start_at"`
+		ReplayURL       string    `db:"replay_url"`
 	}
 
 	var result []*FoundReplay
@@ -880,6 +900,7 @@ GROUP BY battle_code ORDER BY created `+order, q)
 		replay.StartUnix = r.StartAt.Unix()
 		replay.StartDate = r.StartAt
 		replay.ReplayURL = r.ReplayURL
+		replay.RoundWin = r.RoundWin
 
 		posList := strings.SplitN(r.PosList, "/", n)
 		teamList := strings.SplitN(r.TeamList, "/", n)
@@ -887,6 +908,7 @@ GROUP BY battle_code ORDER BY created `+order, q)
 		userIDList := strings.SplitN(r.UserIDList, "/", n)
 		userNameList := strings.SplitN(r.UserNameList, "/", n)
 		pilotNameList := strings.SplitN(r.PilotNameList, "/", n)
+		usedMsListList := strings.SplitN(r.UsedMsListList, "/", n)
 
 		if len(teamList) != n ||
 			len(winList) != n ||
@@ -921,12 +943,18 @@ GROUP BY battle_code ORDER BY created `+order, q)
 				}
 			}
 
+			usedMsList := ""
+			if i < len(usedMsListList) {
+				usedMsList = usedMsListList[i]
+			}
+
 			replay.Users = append(replay.Users, &ReplayUser{
-				UserID:    userIDList[i],
-				UserName:  userNameList[i],
-				PilotName: pilotNameList[i],
-				Team:      team,
-				Pos:       pos,
+				UserID:     userIDList[i],
+				UserName:   userNameList[i],
+				PilotName:  pilotNameList[i],
+				Team:       team,
+				Pos:        pos,
+				UsedMsList: usedMsList,
 			})
 		}
 
