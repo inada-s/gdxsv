@@ -97,6 +97,7 @@ type BattleRecord struct {
 	UsedMsMask  int       `db:"used_ms_mask" json:"used_ms_mask,omitempty"`
 	UsedMsList  string    `db:"used_ms_list" json:"used_ms_list,omitempty"`
 	RoundWin    string    `db:"round_win" json:"round_win,omitempty"`
+	PlayCount   int       `db:"play_count" json:"play_count,omitempty"`
 }
 
 type BattleCountResult struct {
