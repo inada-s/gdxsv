@@ -155,6 +155,7 @@ type FoundReplay struct {
 	StartDate  time.Time     `json:"start_date,omitempty"`
 	ReplayURL  string        `json:"replay_url,omitempty"`
 	RoundWin   string        `json:"round_win,omitempty"`
+	PlayCount  int           `json:"play_count"`
 }
 
 type MLobbySetting struct {
@@ -311,4 +312,7 @@ type DB interface {
 
 	// FindReplay returns list of FoundReplay filtered by Query.
 	FindReplay(q *FindReplayQuery) ([]*FoundReplay, error)
+
+	// IncrementReplayPlayCount increments play_count of the battle_record.
+	IncrementReplayPlayCount(battleCode string) error
 }

@@ -220,6 +220,27 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		}
 	})
 
+	http.HandleFunc("/lbs/replay_played", func(w http.ResponseWriter, r *http.Request) {
+		// Public API: increment replay play count
+
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		battleCode := r.FormValue("battle_code")
+		if battleCode == "" {
+			http.Error(w, "missing battle_code", http.StatusBadRequest)
+			return
+		}
+
+		if err := getDB().IncrementReplayPlayCount(battleCode); err != nil {
+			logger.Warn("IncrementReplayPlayCount failure", zap.String("battle_code", battleCode), zap.Error(err))
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
 	http.HandleFunc("/lbs/user", func(w http.ResponseWriter, r *http.Request) {
 		// Public API: find user
 

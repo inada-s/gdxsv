@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS battle_record
     used_ms_mask  integer default 0,
     used_ms_list  text    default '',
     round_win     text    default '',
+    play_count    integer default 0,
     created       timestamp,
     updated       timestamp,
     system        integer default 0,
@@ -581,6 +582,11 @@ func (db SQLiteDB) SetReplayURL(battleCode string, url string) error {
 	return err
 }
 
+func (db SQLiteDB) IncrementReplayPlayCount(battleCode string) error {
+	_, err := db.Exec(`UPDATE battle_record SET play_count = play_count + 1 WHERE battle_code = ?`, battleCode)
+	return err
+}
+
 func (db SQLiteDB) SetReplayURLBulk(battleCodes, urls, disks []string) error {
 	if len(battleCodes) != len(urls) {
 		return errors.New("Invalid parameter length")
@@ -840,6 +846,7 @@ SELECT
   GROUP_CONCAT(pilot_name, '/') AS pilot_name_list,
   GROUP_CONCAT(used_ms_list, '/') AS used_ms_list_list,
   MAX(round_win) AS round_win,
+  MAX(play_count) AS play_count,
   created AS start_at,
   replay_url
 FROM battle_record
@@ -880,6 +887,7 @@ GROUP BY battle_code ORDER BY created `+order, q)
 		PilotNameList   string    `db:"pilot_name_list"`
 		UsedMsListList  string    `db:"used_ms_list_list"`
 		RoundWin        string    `db:"round_win"`
+		PlayCount       int       `db:"play_count"`
 		StartAt         time.Time `db:"start_at"`
 		ReplayURL       string    `db:"replay_url"`
 	}
@@ -901,6 +909,7 @@ GROUP BY battle_code ORDER BY created `+order, q)
 		replay.StartDate = r.StartAt
 		replay.ReplayURL = r.ReplayURL
 		replay.RoundWin = r.RoundWin
+		replay.PlayCount = r.PlayCount
 
 		posList := strings.SplitN(r.PosList, "/", n)
 		teamList := strings.SplitN(r.TeamList, "/", n)
