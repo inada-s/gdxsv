@@ -19,6 +19,7 @@ message P2PMatchingReport {
   int32 input_block_count_0 = 17;
   int32 input_block_count_1 = 18;
   int32 input_block_count_2 = 19;
+  repeated BattleLogRound round_data = 20;
 }
 
 message P2PMatching {
@@ -76,6 +77,11 @@ message BattleLogUser {
   int32 pos = 12;
 }
 
+message BattleLogRound {
+  int32 win_team = 1;
+  repeated int32 used_ms = 2;
+}
+
 message BattleLogFile {
   string game_disk = 5;
   string gdxsv_version_deprecated = 2;
@@ -89,6 +95,7 @@ message BattleLogFile {
   repeated fixed64 inputs = 15;
   repeated int32 start_msg_indexes = 16;
   repeated uint64 start_msg_randoms = 17;
+  repeated BattleLogRound round_data = 18;
 
   int64 start_at = 20;
   int64 end_at = 21;

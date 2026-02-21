@@ -942,15 +942,16 @@ func TestLbs_LobbyEnterFlow(t *testing.T) {
 			// In lobby chat
 			cli.MustWriteMessage(
 				&LbsMessage{Command: lbsLobbyJoin, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 2, Body: hexbytes("0001")})
-			if tt.disk == GameDiskPS2 {
+			switch tt.disk {
+			case GameDiskPS2:
 				AssertMsg(t,
 					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 4, Body: hexbytes("00010001")},
 					cli.MustReadMessageSkipNotice())
-			} else if tt.disk == GameDiskDC1 {
+			case GameDiskDC1:
 				AssertMsg(t,
 					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000100010000")},
 					cli.MustReadMessageSkipNotice())
-			} else if tt.disk == GameDiskDC2 {
+			case GameDiskDC2:
 				AssertMsg(t,
 					&LbsMessage{Command: lbsLobbyJoin, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess, BodySize: 6, Body: hexbytes("000100000001")},
 					cli.MustReadMessageSkipNotice())
@@ -1468,7 +1469,7 @@ func TestLbs_RankingListFlow(t *testing.T) {
 			_, err := getDB().(SQLiteDB).Exec(`DELETE FROM user`)
 			must(t, err)
 
-			getDB().(SQLiteDB).SQLiteCache.deleteRankingCache()
+			getDB().(SQLiteDB).deleteRankingCache()
 
 			mustInsertDBUser(DBUser{UserID: "RANK01", Name: "USER01", WinCount: 1000})
 			mustInsertDBUser(DBUser{UserID: "RANK02", Name: "USER02", WinCount: 900})

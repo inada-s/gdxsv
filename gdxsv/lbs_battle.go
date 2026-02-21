@@ -93,9 +93,10 @@ func (b *LbsBattle) Add(p *LbsPeer) {
 	b.Users = append(b.Users, &p.DBUser)
 	b.GameParams = append(b.GameParams, p.GameParam)
 	b.UserRanks = append(b.UserRanks, p.Rank)
-	if p.Team == TeamRenpo {
+	switch p.Team {
+	case TeamRenpo:
 		b.RenpoIDs = append(b.RenpoIDs, p.UserID)
-	} else if p.Team == TeamZeon {
+	case TeamZeon:
 		b.ZeonIDs = append(b.ZeonIDs, p.UserID)
 	}
 }

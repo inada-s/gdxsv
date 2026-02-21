@@ -427,7 +427,8 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	}
 
 	// To lobby select scene.
-	if lobby.GameDisk == GameDiskPS2 {
+	switch lobby.GameDisk {
+	case GameDiskPS2:
 		ps2msg := NewServerNotice(lbsPlazaJoin).Writer().
 			Write16(lobby.ID).Write16(uint16(len(lobby.Users))).Msg()
 		for _, u := range lbs.userPeers {
@@ -435,7 +436,7 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 				u.SendMessage(ps2msg)
 			}
 		}
-	} else if lobby.GameDisk == GameDiskDC1 || lobby.GameDisk == GameDiskDC2 {
+	case GameDiskDC1, GameDiskDC2:
 		lobby1 := lbs.GetLobby(lobby.Platform, GameDiskDC1, lobby.ID)
 		lobby2 := lbs.GetLobby(lobby.Platform, GameDiskDC2, lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
@@ -453,7 +454,8 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 	}
 
 	// To lobby scene.
-	if lobby.GameDisk == GameDiskPS2 {
+	switch lobby.GameDisk {
+	case GameDiskPS2:
 		renpo, zeon := lobby.GetUserCountByTeam()
 		msgSum1 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamRenpo).Write16(renpo + zeon).Msg()
 		msgSum2 := NewServerNotice(lbsLobbyJoin).Writer().Write16(TeamZeon).Write16(renpo + zeon).Msg()
@@ -470,7 +472,7 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 				}
 			}
 		}
-	} else if lobby.GameDisk == GameDiskDC1 || lobby.GameDisk == GameDiskDC2 {
+	case GameDiskDC1, GameDiskDC2:
 		lobby1 := lbs.GetLobby(lobby.Platform, GameDiskDC1, lobby.ID)
 		lobby2 := lbs.GetLobby(lobby.Platform, GameDiskDC2, lobby.ID)
 		if lobby1 == nil || lobby2 == nil {
@@ -588,32 +590,32 @@ func (lbs *Lbs) RegisterBattleResult(p *LbsPeer, result *BattleResult) {
 
 	if record.Players == 4 {
 		if record.Aggregate != 0 {
-			p.DBUser.BattleCount += record.Round
-			p.DBUser.WinCount += record.Win
-			p.DBUser.LoseCount += record.Lose
-			p.DBUser.KillCount += record.Kill
-			p.DBUser.DeathCount += record.Death
+			p.BattleCount += record.Round
+			p.WinCount += record.Win
+			p.LoseCount += record.Lose
+			p.KillCount += record.Kill
+			p.DeathCount += record.Death
 
 			if record.Team == TeamRenpo {
-				p.DBUser.RenpoBattleCount += record.Round
-				p.DBUser.RenpoWinCount += record.Win
-				p.DBUser.RenpoLoseCount += record.Lose
-				p.DBUser.RenpoKillCount += record.Kill
-				p.DBUser.RenpoDeathCount += record.Death
+				p.RenpoBattleCount += record.Round
+				p.RenpoWinCount += record.Win
+				p.RenpoLoseCount += record.Lose
+				p.RenpoKillCount += record.Kill
+				p.RenpoDeathCount += record.Death
 			}
 
 			if record.Team == TeamZeon {
-				p.DBUser.ZeonBattleCount += record.Round
-				p.DBUser.ZeonWinCount += record.Win
-				p.DBUser.ZeonLoseCount += record.Lose
-				p.DBUser.ZeonKillCount += record.Kill
-				p.DBUser.ZeonDeathCount += record.Death
+				p.ZeonBattleCount += record.Round
+				p.ZeonWinCount += record.Win
+				p.ZeonLoseCount += record.Lose
+				p.ZeonKillCount += record.Kill
+				p.ZeonDeathCount += record.Death
 			}
 		}
 
-		p.DBUser.DailyBattleCount += record.Round
-		p.DBUser.DailyWinCount += record.Win
-		p.DBUser.DailyLoseCount += record.Lose
+		p.DailyBattleCount += record.Round
+		p.DailyWinCount += record.Win
+		p.DailyLoseCount += record.Lose
 	}
 
 	err = getDB().UpdateUser(&p.DBUser)

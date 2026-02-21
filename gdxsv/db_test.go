@@ -442,6 +442,7 @@ func Test400Replay(t *testing.T) {
 		Aggregate:  -1,
 		LobbyID:    -1,
 		Players:    -1,
+		UsedMs:     -1,
 		Reverse:    false,
 		Page:       0,
 	})
@@ -455,6 +456,7 @@ func Test400Replay(t *testing.T) {
 		Aggregate:  -1,
 		LobbyID:    -1,
 		Players:    -1,
+		UsedMs:     -1,
 		Reverse:    false,
 		Page:       0,
 	})
@@ -563,6 +565,9 @@ VALUES (:user_id,
 func mustInsertBattleRecord(record BattleRecord) {
 	db := getDB().(SQLiteDB)
 	_, err := db.NamedExec(`INSERT INTO battle_record
+(battle_code, user_id, user_name, pilot_name, disk, lobby_id, players, aggregate,
+ pos, team, round, win, lose, kill, death, frame, result, replay_url,
+ created, updated, system)
 VALUES (:battle_code,
         :user_id,
         :user_name,

@@ -181,6 +181,12 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 				return
 			}
 		}
+		if r.FormValue("used_ms") != "" {
+			if q.UsedMs, err = strconv.Atoi(r.FormValue("used_ms")); err != nil {
+				http.Error(w, "invalid query", http.StatusBadRequest)
+				return
+			}
+		}
 		if r.FormValue("reverse") != "" {
 			if reverse, err := strconv.Atoi(r.FormValue("reverse")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
@@ -212,6 +218,27 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		if err != nil {
 			logger.Error("JSON encode failed", zap.Error(err))
 		}
+	})
+
+	http.HandleFunc("/lbs/replay_played", func(w http.ResponseWriter, r *http.Request) {
+		// Public API: increment replay play count
+
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		battleCode := r.FormValue("battle_code")
+		if battleCode == "" {
+			http.Error(w, "missing battle_code", http.StatusBadRequest)
+			return
+		}
+
+		if err := getDB().IncrementReplayPlayCount(battleCode); err != nil {
+			logger.Warn("IncrementReplayPlayCount failure", zap.String("battle_code", battleCode), zap.Error(err))
+		}
+
+		w.WriteHeader(http.StatusOK)
 	})
 
 	http.HandleFunc("/lbs/user", func(w http.ResponseWriter, r *http.Request) {

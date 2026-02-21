@@ -1734,5 +1734,49 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				WebhookPostSimpleText(fmt.Sprintf(":warning: battle_code:%v %v peer_id:%v", report.BattleCode, report.CloseReason, report.PeerId))
 			}
 		}
+
+		if len(report.RoundData) > 0 && report.BattleCode != "" {
+			records, err := getDB().GetLastBattleRecords(p.UserID)
+			if err != nil {
+				p.logger.Warn("GetLastBattleRecords for round_data", zap.Error(err))
+			} else if len(records) > 0 && records[0].BattleCode == report.BattleCode {
+				// Build round_win string (common for all players)
+				var roundWinParts []string
+				for _, rd := range report.RoundData {
+					roundWinParts = append(roundWinParts, strconv.Itoa(int(rd.WinTeam)))
+				}
+				roundWin := strings.Join(roundWinParts, ",")
+
+				// Sort records by pos
+				sort.Slice(records, func(i, j int) bool {
+					return records[i].Pos < records[j].Pos
+				})
+
+				for posIdx, rec := range records {
+					var usedMsMask int
+					var usedMsParts []string
+					for _, rd := range report.RoundData {
+						msID := 0
+						if posIdx < len(rd.UsedMs) {
+							msID = int(rd.UsedMs[posIdx])
+						}
+						usedMsParts = append(usedMsParts, strconv.Itoa(msID))
+						if msID > 0 {
+							usedMsMask |= 1 << msID
+						}
+					}
+					usedMsList := strings.Join(usedMsParts, ",")
+
+					err := getDB().SaveBattleRoundData(rec.BattleCode, rec.UserID, usedMsMask, usedMsList, roundWin)
+					if err != nil {
+						p.logger.Warn("SaveBattleRoundData", zap.Error(err), zap.String("user_id", rec.UserID))
+					}
+				}
+				p.logger.Info("SaveBattleRoundData done",
+					zap.String("battle_code", report.BattleCode),
+					zap.Int("rounds", len(report.RoundData)),
+					zap.Int("players", len(records)))
+			}
+		}
 	}
 })
