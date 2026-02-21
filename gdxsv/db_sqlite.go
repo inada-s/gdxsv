@@ -673,9 +673,10 @@ func (db SQLiteDB) GetWinCountRanking(team byte) ([]*RankingRecord, error) {
 	var err error
 
 	target := "win_count"
-	if team == 1 {
+	switch team {
+	case 1:
 		target = "renpo_win_count"
-	} else if team == 2 {
+	case 2:
 		target = "zeon_win_count"
 	}
 
@@ -727,9 +728,10 @@ func (db SQLiteDB) GetKillCountRanking(team byte) ([]*RankingRecord, error) {
 	var err error
 
 	target := "kill_count"
-	if team == 1 {
+	switch team {
+	case 1:
 		target = "renpo_kill_count"
-	} else if team == 2 {
+	case 2:
 		target = "zeon_kill_count"
 	}
 

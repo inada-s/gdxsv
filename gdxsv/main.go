@@ -160,7 +160,7 @@ func prepareOption(command string) {
 		if 2 <= *cprof {
 			cfg.MutexProfiling = true
 		}
-		if err := profiler.Start(cfg, option.WithCredentialsFile(conf.GCPKeyPath)); err != nil {
+		if err := profiler.Start(cfg, option.WithAuthCredentialsFile(option.ServiceAccount, conf.GCPKeyPath)); err != nil {
 			logger.Error("failed to start cloud profiler", zap.Error(err), zap.Any("cfg", cfg))
 		}
 		logger.Info("profiler started")

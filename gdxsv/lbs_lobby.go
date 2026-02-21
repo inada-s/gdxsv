@@ -247,13 +247,14 @@ func (l *LbsLobby) printSameLobbyUsers(peer *LbsPeer) {
 				continue
 			}
 
-			if p.Team == TeamRenpo {
+			switch p.Team {
+			case TeamRenpo:
 				if p.Room == nil {
 					peer.SendMessage(chatMsg(p.UserID, p.Name, ">連邦"))
 				} else {
 					peer.SendMessage(chatMsg(p.UserID, p.Name, ">連邦>パートナー募集"))
 				}
-			} else if p.Team == TeamZeon {
+			case TeamZeon:
 				if p.Room == nil {
 					peer.SendMessage(chatMsg(p.UserID, p.Name, ">ジオン"))
 				} else {
@@ -272,9 +273,10 @@ func (l *LbsLobby) printSameLobbyUsers(peer *LbsPeer) {
 			continue
 		}
 
-		if p.Team == TeamRenpo {
+		switch p.Team {
+		case TeamRenpo:
 			peer.SendMessage(chatMsg(p.UserID, p.Name, ">連邦>自動選抜"))
-		} else if p.Team == TeamZeon {
+		case TeamZeon:
 			peer.SendMessage(chatMsg(p.UserID, p.Name, ">ジオン>自動選抜"))
 		}
 	}
@@ -340,20 +342,22 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 }
 
 func (l *LbsLobby) FindRoom(team, roomID uint16) *LbsRoom {
-	if team == TeamRenpo {
+	switch team {
+	case TeamRenpo:
 		r, ok := l.RenpoRooms[roomID]
 		if !ok {
 			return nil
 		}
 		return r
-	} else if team == TeamZeon {
+	case TeamZeon:
 		r, ok := l.ZeonRooms[roomID]
 		if !ok {
 			return nil
 		}
 		return r
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (l *LbsLobby) printLobbySetting(p *LbsPeer) {
@@ -402,10 +406,11 @@ func (l *LbsLobby) Entry(p *LbsPeer) {
 	l.CancelForceStart()
 	l.EntryUsers = append(l.EntryUsers, p.UserID)
 	a, b := l.GetLobbyMatchEntryUserCount()
-	if p.Team == TeamRenpo {
+	switch p.Team {
+	case TeamRenpo:
 		l.sendLobbyChat(p.UserID, p.Name, ">連邦>自動選抜")
 		l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
-	} else if p.Team == TeamZeon {
+	case TeamZeon:
 		l.sendLobbyChat(p.UserID, p.Name, ">ジオン>自動選抜")
 		l.NotifyLobbyEvent("", fmt.Sprintf("【自動選抜】連邦×%d  ジオン×%d", a, b))
 	}
@@ -418,9 +423,10 @@ func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 		}
 	}
-	if p.Team == TeamRenpo {
+	switch p.Team {
+	case TeamRenpo:
 		l.sendLobbyChat(p.UserID, p.Name, ">連邦")
-	} else if p.Team == TeamZeon {
+	case TeamZeon:
 		l.sendLobbyChat(p.UserID, p.Name, ">ジオン")
 	}
 
@@ -810,7 +816,7 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 }
 
 func (l *LbsLobby) checkLobbyBattleStart(force bool) {
-	if !(force || l.canStartBattle()) {
+	if !force && !l.canStartBattle() {
 		return
 	}
 
