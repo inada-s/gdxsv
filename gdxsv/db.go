@@ -80,24 +80,24 @@ type BattleRecord struct {
 	Players    int    `db:"players" json:"players,omitempty"`
 	Aggregate  int    `db:"aggregate" json:"aggregate,omitempty"`
 
-	Pos    int    `db:"pos" json:"pos,omitempty"`
-	Team   int    `db:"team" json:"team,omitempty"`
-	Round  int    `db:"round" json:"round,omitempty"`
-	Win    int    `db:"win" json:"win,omitempty"`
-	Lose   int    `db:"lose" json:"lose,omitempty"`
-	Kill   int    `db:"kill" json:"kill,omitempty"`
-	Death  int    `db:"death" json:"death,omitempty"`
-	Frame  int    `db:"frame" json:"frame,omitempty"`
-	Result string `db:"result" json:"result,omitempty"`
+	Pos   int `db:"pos" json:"pos,omitempty"`
+	Team  int `db:"team" json:"team,omitempty"`
+	Round int `db:"round" json:"round,omitempty"`
+	Win   int `db:"win" json:"win,omitempty"`
+	Lose  int `db:"lose" json:"lose,omitempty"`
+	Kill  int `db:"kill" json:"kill,omitempty"`
+	Death int `db:"death" json:"death,omitempty"`
+	Frame int `db:"frame" json:"frame,omitempty"`
 
-	Created     time.Time `db:"created" json:"created,omitempty"`
-	Updated     time.Time `db:"updated" json:"updated,omitempty"`
-	System      uint32    `db:"system" json:"system,omitempty"`
-	ReplayURL   string    `db:"replay_url" json:"replay_url,omitempty"`
-	UsedMsMask  int       `db:"used_ms_mask" json:"used_ms_mask,omitempty"`
-	UsedMsList  string    `db:"used_ms_list" json:"used_ms_list,omitempty"`
-	RoundWin    string    `db:"round_win" json:"round_win,omitempty"`
-	PlayCount   int       `db:"play_count" json:"play_count,omitempty"`
+	ReplayURL  string `db:"replay_url" json:"replay_url,omitempty"`
+	UsedMsMask int    `db:"used_ms_mask" json:"used_ms_mask,omitempty"`
+	UsedMsList string `db:"used_ms_list" json:"used_ms_list,omitempty"`
+	RoundWin   string `db:"round_win" json:"round_win,omitempty"`
+	PlayCount  int    `db:"play_count" json:"play_count,omitempty"`
+
+	Created time.Time `db:"created" json:"created,omitempty"`
+	Updated time.Time `db:"updated" json:"updated,omitempty"`
+	System  uint32    `db:"system" json:"system,omitempty"`
 }
 
 type BattleCountResult struct {
@@ -274,6 +274,9 @@ type DB interface {
 	// SetReplayURLBulk updates battle_record to set replay_url.
 	SetReplayURLBulk(battleCodes, urls, disks []string) error
 
+	// SaveBattleRoundData updates battle_record to set used_ms_mask, used_ms_list, round_win.
+	SaveBattleRoundData(battleCode string, usedMsMask int, usedMsList string, roundWin string) error
+
 	// ResetDailyBattleCount clears daily battle count of all users.
 	ResetDailyBattleCount() (err error)
 
@@ -310,9 +313,6 @@ type DB interface {
 
 	// GetPatch returns game patch.
 	GetPatch(platform, disk, name string) (*MPatch, error)
-
-	// SaveBattleRoundData updates battle_record to set used_ms_mask, used_ms_list, round_win.
-	SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error
 
 	// FindReplay returns list of FoundReplay filtered by Query.
 	FindReplay(q *FindReplayQuery) ([]*FoundReplay, error)

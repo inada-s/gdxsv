@@ -1327,9 +1327,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 		WriteString(p.UserID).
 		WriteString(p.Name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 
 	// broadcast chat message to users in the same place.
@@ -1356,9 +1356,9 @@ var _ = register(lbsPostChatMessage, func(p *LbsPeer, m *LbsMessage) {
 				WriteString("").
 				WriteString("").
 				WriteString(hint).
-				Write8(0). // chat_type
-				Write8(0). // id color
-				Write8(0). // handle color
+				Write8(0).      // chat_type
+				Write8(0).      // id color
+				Write8(0).      // handle color
 				Write8(0).Msg() // msg color
 		}
 
@@ -1767,7 +1767,7 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 					}
 					usedMsList := strings.Join(usedMsParts, ",")
 
-					err := getDB().SaveBattleRoundData(rec.BattleCode, rec.UserID, usedMsMask, usedMsList, roundWin)
+					err := getDB().SaveBattleRoundData(rec.BattleCode, usedMsMask, usedMsList, roundWin)
 					if err != nil {
 						p.logger.Warn("SaveBattleRoundData", zap.Error(err), zap.String("user_id", rec.UserID))
 					}

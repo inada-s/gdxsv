@@ -100,7 +100,6 @@ CREATE TABLE IF NOT EXISTS battle_record
     kill        integer default 0,
     death       integer default 0,
     frame       integer default 0,
-    result      text    default '',
     replay_url    text    default '',
     used_ms_mask  integer default 0,
     used_ms_list  text    default '',
@@ -537,7 +536,6 @@ SET
 	kill = :kill,
 	death = :death,
 	frame = :frame,
-	result = :result,
 	updated = :updated,
 	system = :system,
 	replay_url = :replay_url
@@ -551,7 +549,7 @@ WHERE
 	return err
 }
 
-func (db SQLiteDB) SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error {
+func (db SQLiteDB) SaveBattleRoundData(battleCode string, usedMsMask int, usedMsList string, roundWin string) error {
 	_, err := db.Exec(`
 UPDATE battle_record
 SET
@@ -559,7 +557,7 @@ SET
 	used_ms_list = ?,
 	round_win = ?
 WHERE
-	battle_code = ? AND user_id = ?`, usedMsMask, usedMsList, roundWin, battleCode, userID)
+	battle_code = ?`, usedMsMask, usedMsList, roundWin, battleCode)
 	return err
 }
 
@@ -882,22 +880,22 @@ GROUP BY battle_code ORDER BY created `+order, q)
 	defer rows.Close()
 
 	type sqlRow struct {
-		Disk            string    `db:"disk"`
-		BattleCode      string    `db:"battle_code"`
-		LobbyID         int       `db:"lobby_id"`
-		Players         int       `db:"players"`
-		Round           int       `db:"round"`
-		PosList         string    `db:"pos_list"`
-		TeamList        string    `db:"team_list"`
-		WinList         string    `db:"win_list"`
-		UserIDList      string    `db:"user_id_list"`
-		UserNameList    string    `db:"user_name_list"`
-		PilotNameList   string    `db:"pilot_name_list"`
-		UsedMsListList  string    `db:"used_ms_list_list"`
-		RoundWin        string    `db:"round_win"`
-		PlayCount       int       `db:"play_count"`
-		StartAt         time.Time `db:"start_at"`
-		ReplayURL       string    `db:"replay_url"`
+		Disk           string    `db:"disk"`
+		BattleCode     string    `db:"battle_code"`
+		LobbyID        int       `db:"lobby_id"`
+		Players        int       `db:"players"`
+		Round          int       `db:"round"`
+		PosList        string    `db:"pos_list"`
+		TeamList       string    `db:"team_list"`
+		WinList        string    `db:"win_list"`
+		UserIDList     string    `db:"user_id_list"`
+		UserNameList   string    `db:"user_name_list"`
+		PilotNameList  string    `db:"pilot_name_list"`
+		UsedMsListList string    `db:"used_ms_list_list"`
+		RoundWin       string    `db:"round_win"`
+		PlayCount      int       `db:"play_count"`
+		StartAt        time.Time `db:"start_at"`
+		ReplayURL      string    `db:"replay_url"`
 	}
 
 	var result []*FoundReplay
