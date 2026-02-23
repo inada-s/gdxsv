@@ -830,12 +830,18 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	l.NotifyLobbyEvent("", "START LOBBY BATTLE")
 
+	tBattleStart := time.Now()
+
 	b := NewBattle(l.app, l.ID, &l.Rule, mcsRegion, mcsAddr)
 	if b == nil {
 		return
 	}
 
 	participants := l.pickLobbyBattleParticipants()
+	logger.Info("checkLobbyBattleStart phase",
+		zap.String("phase", "participants picked"),
+		zap.String("battle_code", b.BattleCode),
+		zap.Duration("elapsed", time.Since(tBattleStart)))
 
 	for i, q := range participants {
 		b.Add(q)
@@ -861,6 +867,10 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			return
 		}
 	}
+	logger.Info("checkLobbyBattleStart phase",
+		zap.String("phase", "AddBattleRecord done"),
+		zap.String("battle_code", b.BattleCode),
+		zap.Duration("elapsed", time.Since(tBattleStart)))
 
 	patchList := l.makePatchList()
 	patchBin, err := pb.Marshal(patchList)
@@ -879,6 +889,10 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			return
 		}
 	}
+	logger.Info("checkLobbyBattleStart phase",
+		zap.String("phase", "patch/p2p prepared"),
+		zap.String("battle_code", b.BattleCode),
+		zap.Duration("elapsed", time.Since(tBattleStart)))
 
 	sharedData.ShareMcsGame(&McsGame{
 		BattleCode: b.BattleCode,
@@ -925,6 +939,10 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 			q.SendMessage(p2pMatchingMsgs[i])
 		}
 	}
+	logger.Info("checkLobbyBattleStart phase",
+		zap.String("phase", "messages sent"),
+		zap.String("battle_code", b.BattleCode),
+		zap.Duration("elapsed", time.Since(tBattleStart)))
 
 	if mcsPeer != nil {
 		sharedData.NotifyLatestLbsStatus(mcsPeer)
@@ -932,6 +950,11 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	l.app.BroadcastLobbyUserCount(l)
 	l.app.BroadcastLobbyMatchEntryUserCount(l)
+
+	logger.Info("checkLobbyBattleStart phase",
+		zap.String("phase", "complete"),
+		zap.String("battle_code", b.BattleCode),
+		zap.Duration("elapsed", time.Since(tBattleStart)))
 }
 
 func (l *LbsLobby) checkRoomBattleStart() {

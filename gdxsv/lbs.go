@@ -381,6 +381,8 @@ func (lbs *Lbs) eventLoop() {
 				}()
 			}
 		case <-tick:
+			tickStart := time.Now()
+
 			for _, p := range peers {
 				lastRecvSince := time.Since(p.lastRecvTime)
 				if 1 <= lastRecvSince.Minutes() {
@@ -416,6 +418,10 @@ func (lbs *Lbs) eventLoop() {
 						p.SendMessage(NewServerNotice(lbsBattleUserCount).Writer().Write32(uint32(cnt)).Msg())
 					}
 				}
+			}
+
+			if d := time.Since(tickStart); d > 100*time.Millisecond {
+				logger.Warn("slow tick", zap.Duration("duration", d))
 			}
 		}
 	}

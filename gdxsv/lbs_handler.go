@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	pb "google.golang.org/protobuf/proto"
 
@@ -1736,6 +1737,7 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 		}
 
 		if len(report.RoundData) > 0 && report.BattleCode != "" {
+			tRoundData := time.Now()
 			records, err := getDB().GetBattleRecordsByCode(report.BattleCode)
 			if err != nil {
 				p.logger.Warn("GetBattleRecordsByCode for round_data", zap.Error(err))
@@ -1775,7 +1777,8 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				p.logger.Info("SaveBattleRoundData done",
 					zap.String("battle_code", report.BattleCode),
 					zap.Int("rounds", len(report.RoundData)),
-					zap.Int("players", len(records)))
+					zap.Int("players", len(records)),
+					zap.Duration("elapsed", time.Since(tRoundData)))
 			}
 		}
 	}
