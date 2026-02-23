@@ -569,6 +569,12 @@ func (db SQLiteDB) GetBattleRecordUser(battleCode string, userID string) (*Battl
 	return b, err
 }
 
+func (db SQLiteDB) GetBattleRecordsByCode(battleCode string) ([]*BattleRecord, error) {
+	var results []*BattleRecord
+	err := db.Select(&results, `SELECT * FROM battle_record WHERE battle_code = ?`, battleCode)
+	return results, err
+}
+
 func (db SQLiteDB) GetLastBattleRecords(userID string) ([]*BattleRecord, error) {
 	var results []*BattleRecord
 	err := db.Select(&results, `SELECT * FROM battle_record WHERE battle_code IN (

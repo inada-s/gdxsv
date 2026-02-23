@@ -262,6 +262,9 @@ type DB interface {
 	// GetBattleRecordUser loads a battle record by battle_code and user_id.
 	GetBattleRecordUser(battleCode string, userID string) (*BattleRecord, error)
 
+	// GetBattleRecordsByCode returns all BattleRecords for a given battle_code.
+	GetBattleRecordsByCode(battleCode string) ([]*BattleRecord, error)
+
 	// GetLastBattleRecords finds BattleRecords for everyone who participated in the last match.
 	GetLastBattleRecords(userID string) ([]*BattleRecord, error)
 
