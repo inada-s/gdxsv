@@ -753,13 +753,15 @@ func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 
 		n, err := p.conn.Read(buf)
 		if err != nil {
-			logger.Info("tcp read error", zap.Error(err))
+			p.logger.Info("tcp read error", zap.Error(err))
 			return
 		}
 
+		p.logger.Info("tcp read", zap.Int("bytes", n))
+
 		if n == 0 {
 			if _, ok := p.conn.(*net.TCPConn); ok {
-				logger.Info("tcp read zero")
+				p.logger.Info("tcp read zero")
 				return
 			}
 			// FIXME: Pipe sock may read zero byte
@@ -796,20 +798,22 @@ func (p *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 
 			sum := 0
 			size := len(buf)
+			tWrite := time.Now()
 			for sum < size {
 				err := p.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
 				if err != nil {
-					logger.Warn("SetReadDeadline failed", zap.Error(err))
+					logger.Warn("SetWriteDeadline failed", zap.Error(err))
 				}
 
 				n, err := p.conn.Write(buf[sum:])
 				if err != nil {
-					p.logger.Info("tcp write error", zap.Error(err))
+					p.logger.Info("tcp write error", zap.Error(err), zap.Int("written", sum), zap.Int("total", size))
 					break
 				}
 
 				sum += n
 			}
+			p.logger.Info("tcp write done", zap.Int("bytes", sum), zap.Duration("elapsed", time.Since(tWrite)))
 			buf = buf[:0]
 		}
 	}
