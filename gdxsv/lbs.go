@@ -746,6 +746,8 @@ func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 		default:
 		}
 
+		p.logger.Info("readLoop: waiting read")
+
 		err := p.conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 		if err != nil {
 			logger.Warn("SetReadDeadline failed", zap.Error(err))
@@ -767,7 +769,9 @@ func (p *LbsPeer) readLoop(ctx context.Context, cancel func()) {
 			// FIXME: Pipe sock may read zero byte
 		}
 
+		p.logger.Info("readLoop: before mInbuf lock")
 		p.mInbuf.Lock()
+		p.logger.Info("readLoop: acquired mInbuf lock")
 		p.inbuf = append(p.inbuf, buf[:n]...)
 		p.mInbuf.Unlock()
 
@@ -827,7 +831,9 @@ func (p *LbsPeer) dispatchLoop(ctx context.Context, cancel func()) {
 		case <-ctx.Done():
 			return
 		case <-p.chDispatch:
+			p.logger.Info("dispatchLoop: before mInbuf lock")
 			p.mInbuf.Lock()
+			p.logger.Info("dispatchLoop: acquired mInbuf lock", zap.Int("inbuf_len", len(p.inbuf)))
 			for len(p.inbuf) >= HeaderSize {
 				n, msg := Deserialize(p.inbuf)
 				if n == 0 {
@@ -837,7 +843,9 @@ func (p *LbsPeer) dispatchLoop(ctx context.Context, cancel func()) {
 
 				p.inbuf = p.inbuf[n:]
 				if msg != nil {
+					p.logger.Info("dispatchLoop: before chEvent send", zap.String("cmd", msg.Command.String()))
 					p.app.chEvent <- eventPeerMessage{peer: p, msg: msg}
+					p.logger.Info("dispatchLoop: after chEvent send", zap.String("cmd", msg.Command.String()))
 				}
 			}
 			p.mInbuf.Unlock()
