@@ -175,10 +175,12 @@ func getDB() DB {
 
 func prepareDB() {
 	logger.Sugar().Info("using database %s", conf.DBName)
-	conn, err := sqlx.Open("sqlite3", conf.DBName)
+	dsn := conf.DBName + "?_journal_mode=WAL&_busy_timeout=10000"
+	conn, err := sqlx.Open("sqlite3", dsn)
 	if err != nil {
 		logger.Fatal("failed to open database", zap.Error(err))
 	}
+	conn.SetMaxOpenConns(1)
 
 	defaultdb = SQLiteDB{
 		DB:          conn,

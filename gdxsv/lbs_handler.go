@@ -1736,10 +1736,10 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 		}
 
 		if len(report.RoundData) > 0 && report.BattleCode != "" {
-			records, err := getDB().GetLastBattleRecords(p.UserID)
+			records, err := getDB().GetBattleRecordsByCode(report.BattleCode)
 			if err != nil {
-				p.logger.Warn("GetLastBattleRecords for round_data", zap.Error(err))
-			} else if len(records) > 0 && records[0].BattleCode == report.BattleCode {
+				p.logger.Warn("GetBattleRecordsByCode for round_data", zap.Error(err))
+			} else if len(records) > 0 {
 				// Build round_win string (common for all players)
 				var roundWinParts []string
 				for _, rd := range report.RoundData {
