@@ -12,7 +12,7 @@ var testLoginKey string
 var testUserID string
 
 func prepareTestDB() {
-	conn, err := sqlx.Open("sqlite3", "file::memory:")
+	conn, err := sqlx.Open(sqliteDriverName, "file::memory:")
 	if err != nil {
 		log.Fatalln("Cannot open test db. err:", err)
 	}
