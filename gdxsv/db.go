@@ -274,8 +274,11 @@ type DB interface {
 	// SetReplayURLBulk updates battle_record to set replay_url.
 	SetReplayURLBulk(battleCodes, urls, disks []string) error
 
-	// SaveBattleRoundData updates battle_record to set used_ms_mask, used_ms_list, round_win.
-	SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error
+	// SaveBattleRoundWin updates battle_record to set round_win for all participants.
+	SaveBattleRoundWin(battleCode string, roundWin string) error
+
+	// SaveUserUsedMs updates battle_record to set used_ms_mask and used_ms_list for a specific user.
+	SaveUserUsedMs(battleCode string, userID string, usedMsMask int, usedMsList string) error
 
 	// ResetDailyBattleCount clears daily battle count of all users.
 	ResetDailyBattleCount() (err error)

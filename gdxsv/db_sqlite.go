@@ -249,37 +249,46 @@ func (db SQLiteDB) Migrate() error {
 		}
 		_ = rows.Close()
 
-		// Filter out columns that do not exist in the new table and handle renames
-		var destColumns []string
-		var sourceColumns []string
-		for _, col := range columns {
-			sourceCol := col
-			destCol := col
-
-			// side -> team
-			if col == "side" {
-				destCol = "team"
-			}
-			// last_login_cpuid -> last_login_machine_id
-			if col == "last_login_cpuid" {
-				destCol = "last_login_machine_id"
-			}
-
-			var count int
-			err = tx.QueryRow(`SELECT count(*) FROM pragma_table_info('`+table+`') WHERE name = ?`, destCol).Scan(&count)
-			if err != nil {
-				_ = tx.Rollback()
-				return errors.Wrap(err, "pragma_table_info failed")
-			}
-			if count > 0 {
-				destColumns = append(destColumns, destCol)
-				sourceColumns = append(sourceColumns, sourceCol)
-			}
-		}
-
-		if len(destColumns) > 0 {
-			_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(destColumns, ",") + `) SELECT ` + strings.Join(sourceColumns, ",") + ` FROM ` + tmp)
-			if err != nil {
+		_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
+		if err != nil {
+			if err.Error() == "table battle_record has no column named side" {
+				// NOTE: A column renamed. battle_record.side -> battle_record.team
+				for i := 0; i < len(columns); i++ {
+					if columns[i] == "side" {
+						columns[i] = "team"
+					}
+				}
+				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
+				if err != nil {
+					_ = tx.Rollback()
+					return errors.Wrap(err, "2021-02 INSERT failed")
+				}
+			} else if err.Error() == "table account has no column named last_login_cpuid" {
+				// NOTE: A column renamed. account.last_login_cpuid -> account.last_login_machine_id
+				for i := 0; i < len(columns); i++ {
+					if columns[i] == "last_login_cpuid" {
+						columns[i] = "last_login_machine_id"
+					}
+				}
+				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
+				if err != nil {
+					_ = tx.Rollback()
+					return errors.Wrap(err, "2021-06 INSERT failed")
+				}
+			} else if err.Error() == "table battle_record has no column named result" {
+				// NOTE: A column removed. battle_record.result
+				var validColumns []string
+				for _, col := range columns {
+					if col != "result" {
+						validColumns = append(validColumns, col)
+					}
+				}
+				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(validColumns, ",") + `) SELECT ` + strings.Join(validColumns, ",") + ` FROM ` + tmp)
+				if err != nil {
+					_ = tx.Rollback()
+					return errors.Wrap(err, "2026-02 result removal INSERT failed")
+				}
+			} else {
 				_ = tx.Rollback()
 				return errors.Wrap(err, "INSERT failed")
 			}
@@ -553,15 +562,24 @@ WHERE
 	return err
 }
 
-func (db SQLiteDB) SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error {
+func (db SQLiteDB) SaveBattleRoundWin(battleCode string, roundWin string) error {
+	_, err := db.Exec(`
+UPDATE battle_record
+SET
+	round_win = ?
+WHERE
+	battle_code = ?`, roundWin, battleCode)
+	return err
+}
+
+func (db SQLiteDB) SaveUserUsedMs(battleCode string, userID string, usedMsMask int, usedMsList string) error {
 	_, err := db.Exec(`
 UPDATE battle_record
 SET
 	used_ms_mask = ?,
-	used_ms_list = ?,
-	round_win = ?
+	used_ms_list = ?
 WHERE
-	battle_code = ? AND user_id = ?`, usedMsMask, usedMsList, roundWin, battleCode, userID)
+	battle_code = ? AND user_id = ?`, usedMsMask, usedMsList, battleCode, userID)
 	return err
 }
 

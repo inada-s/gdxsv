@@ -1753,6 +1753,11 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 				})
 
 				if len(roundWin) > 0 {
+					err := getDB().SaveBattleRoundWin(report.BattleCode, roundWin)
+					if err != nil {
+						p.logger.Warn("SaveBattleRoundWin", zap.Error(err))
+					}
+
 					for posIdx, rec := range records {
 						var usedMsMask int
 						var usedMsParts []string
@@ -1768,9 +1773,9 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 						}
 						usedMsList := strings.Join(usedMsParts, ",")
 
-						err := getDB().SaveBattleRoundData(rec.BattleCode, rec.UserID, usedMsMask, usedMsList, roundWin)
+						err := getDB().SaveUserUsedMs(rec.BattleCode, rec.UserID, usedMsMask, usedMsList)
 						if err != nil {
-							p.logger.Warn("SaveBattleRoundData", zap.Error(err), zap.String("user_id", rec.UserID))
+							p.logger.Warn("SaveUserUsedMs", zap.Error(err), zap.String("user_id", rec.UserID))
 						}
 					}
 				}
