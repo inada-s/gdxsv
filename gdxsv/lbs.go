@@ -346,8 +346,8 @@ func (lbs *Lbs) eventLoop() {
 				peers[args.peer.Address()] = args.peer
 				StartLoginFlow(args.peer)
 			case eventPeerMessage:
-				if ce := args.peer.logger.Check(zap.DebugLevel, "LbsMessage"); ce != nil {
-					ce.Write(zap.Stringer("msg", args.msg))
+				if ce := args.peer.logger.Check(zap.DebugLevel, ""); ce != nil {
+					fmt.Println(time.Now().Format("15:04:05.000"), args.msg)
 				}
 				if args.peer.cleaned {
 					args.peer.logger.Warn("got message after cleaned", zap.Any("msg", args.msg))
@@ -704,8 +704,8 @@ func (p *LbsPeer) serve() {
 }
 
 func (p *LbsPeer) SendMessage(msg *LbsMessage) {
-	if ce := p.logger.Check(zap.DebugLevel, "LbsMessage"); ce != nil {
-		ce.Write(zap.Stringer("msg", msg))
+	if ce := p.logger.Check(zap.DebugLevel, ""); ce != nil {
+		fmt.Println(time.Now().Format("15:04:05.000"), msg)
 	}
 
 	p.mOutbuf.Lock()
