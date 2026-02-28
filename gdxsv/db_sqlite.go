@@ -249,33 +249,37 @@ func (db SQLiteDB) Migrate() error {
 		}
 		_ = rows.Close()
 
-		_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
-		if err != nil {
-			if err.Error() == "table battle_record has no column named side" {
-				// NOTE: A column renamed. battle_record.side -> battle_record.team
-				for i := 0; i < len(columns); i++ {
-					if columns[i] == "side" {
-						columns[i] = "team"
-					}
-				}
-				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
-				if err != nil {
-					_ = tx.Rollback()
-					return errors.Wrap(err, "2021-02 INSERT failed")
-				}
-			} else if err.Error() == "table account has no column named last_login_cpuid" {
-				// NOTE: A column renamed. account.last_login_cpuid -> account.last_login_machine_id
-				for i := 0; i < len(columns); i++ {
-					if columns[i] == "last_login_cpuid" {
-						columns[i] = "last_login_machine_id"
-					}
-				}
-				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(columns, ",") + `) SELECT * FROM ` + tmp)
-				if err != nil {
-					_ = tx.Rollback()
-					return errors.Wrap(err, "2021-06 INSERT failed")
-				}
-			} else {
+		// Filter out columns that do not exist in the new table and handle renames
+		var destColumns []string
+		var sourceColumns []string
+		for _, col := range columns {
+			sourceCol := col
+			destCol := col
+
+			// side -> team
+			if col == "side" {
+				destCol = "team"
+			}
+			// last_login_cpuid -> last_login_machine_id
+			if col == "last_login_cpuid" {
+				destCol = "last_login_machine_id"
+			}
+
+			var count int
+			err = tx.QueryRow(`SELECT count(*) FROM pragma_table_info('`+table+`') WHERE name = ?`, destCol).Scan(&count)
+			if err != nil {
+				_ = tx.Rollback()
+				return errors.Wrap(err, "pragma_table_info failed")
+			}
+			if count > 0 {
+				destColumns = append(destColumns, destCol)
+				sourceColumns = append(sourceColumns, sourceCol)
+			}
+		}
+
+		if len(destColumns) > 0 {
+			_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(destColumns, ",") + `) SELECT ` + strings.Join(sourceColumns, ",") + ` FROM ` + tmp)
+			if err != nil {
 				_ = tx.Rollback()
 				return errors.Wrap(err, "INSERT failed")
 			}
@@ -549,7 +553,7 @@ WHERE
 	return err
 }
 
-func (db SQLiteDB) SaveBattleRoundData(battleCode string, usedMsMask int, usedMsList string, roundWin string) error {
+func (db SQLiteDB) SaveBattleRoundData(battleCode string, userID string, usedMsMask int, usedMsList string, roundWin string) error {
 	_, err := db.Exec(`
 UPDATE battle_record
 SET
@@ -557,7 +561,7 @@ SET
 	used_ms_list = ?,
 	round_win = ?
 WHERE
-	battle_code = ?`, usedMsMask, usedMsList, roundWin, battleCode)
+	battle_code = ? AND user_id = ?`, usedMsMask, usedMsList, roundWin, battleCode, userID)
 	return err
 }
 
@@ -933,6 +937,31 @@ GROUP BY battle_code ORDER BY created `+order, q)
 			continue
 		}
 
+		// Calculate wins from winList first
+		for i := 0; i < n; i++ {
+			team, _ := strconv.Atoi(teamList[i])
+			win, _ := strconv.Atoi(winList[i])
+			if team == TeamRenpo && replay.RenpoWin < win {
+				replay.RenpoWin = win
+			}
+			if team == TeamZeon && replay.ZeonWin < win {
+				replay.ZeonWin = win
+			}
+		}
+
+		// If winList was all 0, try to use RoundWin ("1,2,1" etc)
+		if replay.RenpoWin == 0 && replay.ZeonWin == 0 && r.RoundWin != "" {
+			rounds := strings.Split(r.RoundWin, ",")
+			for _, roundWinStr := range rounds {
+				winTeam, _ := strconv.Atoi(roundWinStr)
+				if winTeam == TeamRenpo {
+					replay.RenpoWin++
+				} else if winTeam == TeamZeon {
+					replay.ZeonWin++
+				}
+			}
+		}
+
 		for i := 0; i < n; i++ {
 			team, err := strconv.Atoi(teamList[i])
 			if err != nil {
@@ -942,20 +971,6 @@ GROUP BY battle_code ORDER BY created `+order, q)
 			pos, err := strconv.Atoi(posList[i])
 			if err != nil {
 				return nil, err
-			}
-
-			if team == TeamRenpo && replay.RenpoWin == 0 {
-				replay.RenpoWin, err = strconv.Atoi(winList[i])
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if team == TeamZeon && replay.ZeonWin == 0 {
-				replay.ZeonWin, err = strconv.Atoi(winList[i])
-				if err != nil {
-					return nil, err
-				}
 			}
 
 			usedMsList := ""
