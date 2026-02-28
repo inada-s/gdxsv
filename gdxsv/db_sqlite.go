@@ -275,6 +275,19 @@ func (db SQLiteDB) Migrate() error {
 					_ = tx.Rollback()
 					return errors.Wrap(err, "2021-06 INSERT failed")
 				}
+			} else if err.Error() == "table battle_record has no column named result" {
+				// NOTE: A column removed. battle_record.result
+				var validColumns []string
+				for _, col := range columns {
+					if col != "result" {
+						validColumns = append(validColumns, col)
+					}
+				}
+				_, err = tx.Exec(`INSERT INTO ` + table + `(` + strings.Join(validColumns, ",") + `) SELECT ` + strings.Join(validColumns, ",") + ` FROM ` + tmp)
+				if err != nil {
+					_ = tx.Rollback()
+					return errors.Wrap(err, "2026-02 result removal INSERT failed")
+				}
 			} else {
 				_ = tx.Rollback()
 				return errors.Wrap(err, "INSERT failed")
@@ -549,15 +562,24 @@ WHERE
 	return err
 }
 
-func (db SQLiteDB) SaveBattleRoundData(battleCode string, usedMsMask int, usedMsList string, roundWin string) error {
+func (db SQLiteDB) SaveBattleRoundWin(battleCode string, roundWin string) error {
+	_, err := db.Exec(`
+UPDATE battle_record
+SET
+	round_win = ?
+WHERE
+	battle_code = ?`, roundWin, battleCode)
+	return err
+}
+
+func (db SQLiteDB) SaveUserUsedMs(battleCode string, userID string, usedMsMask int, usedMsList string) error {
 	_, err := db.Exec(`
 UPDATE battle_record
 SET
 	used_ms_mask = ?,
-	used_ms_list = ?,
-	round_win = ?
+	used_ms_list = ?
 WHERE
-	battle_code = ?`, usedMsMask, usedMsList, roundWin, battleCode)
+	battle_code = ? AND user_id = ?`, usedMsMask, usedMsList, battleCode, userID)
 	return err
 }
 
@@ -933,6 +955,32 @@ GROUP BY battle_code ORDER BY created `+order, q)
 			continue
 		}
 
+		// Calculate wins from winList first
+		for i := 0; i < n; i++ {
+			team, _ := strconv.Atoi(teamList[i])
+			win, _ := strconv.Atoi(winList[i])
+			if team == TeamRenpo && replay.RenpoWin < win {
+				replay.RenpoWin = win
+			}
+			if team == TeamZeon && replay.ZeonWin < win {
+				replay.ZeonWin = win
+			}
+		}
+
+		// If winList was all 0, try to use RoundWin ("1,2,1" etc)
+		if replay.RenpoWin == 0 && replay.ZeonWin == 0 && r.RoundWin != "" {
+			rounds := strings.Split(r.RoundWin, ",")
+			for _, roundWinStr := range rounds {
+				winTeam, _ := strconv.Atoi(roundWinStr)
+				switch winTeam {
+				case TeamRenpo:
+					replay.RenpoWin++
+				case TeamZeon:
+					replay.ZeonWin++
+				}
+			}
+		}
+
 		for i := 0; i < n; i++ {
 			team, err := strconv.Atoi(teamList[i])
 			if err != nil {
@@ -942,20 +990,6 @@ GROUP BY battle_code ORDER BY created `+order, q)
 			pos, err := strconv.Atoi(posList[i])
 			if err != nil {
 				return nil, err
-			}
-
-			if team == TeamRenpo && replay.RenpoWin == 0 {
-				replay.RenpoWin, err = strconv.Atoi(winList[i])
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if team == TeamZeon && replay.ZeonWin == 0 {
-				replay.ZeonWin, err = strconv.Atoi(winList[i])
-				if err != nil {
-					return nil, err
-				}
 			}
 
 			usedMsList := ""
