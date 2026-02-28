@@ -108,7 +108,8 @@ func TestLbs_P2PMatchingReport(t *testing.T) {
 	bin, _ := proto.Marshal(report)
 	var buf bytes.Buffer
 	zw := zlib.NewWriter(&buf)
-	zw.Write(bin)
+	_, err := zw.Write(bin)
+	must(t, err)
 	zw.Close()
 
 	user1.MustWriteMessage(&LbsMessage{

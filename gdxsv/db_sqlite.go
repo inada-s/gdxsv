@@ -954,9 +954,10 @@ GROUP BY battle_code ORDER BY created `+order, q)
 			rounds := strings.Split(r.RoundWin, ",")
 			for _, roundWinStr := range rounds {
 				winTeam, _ := strconv.Atoi(roundWinStr)
-				if winTeam == TeamRenpo {
+				switch winTeam {
+				case TeamRenpo:
 					replay.RenpoWin++
-				} else if winTeam == TeamZeon {
+				case TeamZeon:
 					replay.ZeonWin++
 				}
 			}
