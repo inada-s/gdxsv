@@ -3,15 +3,17 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"gdxsv/gdxsv/proto"
-	"go.uber.org/zap"
-	pb "google.golang.org/protobuf/proto"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
+	pb "google.golang.org/protobuf/proto"
 )
 
 const (
@@ -780,31 +782,45 @@ func (p *LbsPeer) writeLoop(ctx context.Context, cancel func()) {
 			return
 		case <-p.chWrite:
 			p.mOutbuf.Lock()
-			if len(p.outbuf) == 0 {
-				p.mOutbuf.Unlock()
-				continue
-			}
 			buf = append(buf, p.outbuf...)
 			p.outbuf = p.outbuf[:0]
 			p.mOutbuf.Unlock()
 
+			if len(buf) == 0 {
+				continue
+			}
+
 			sum := 0
 			size := len(buf)
 			for sum < size {
-				err := p.conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+				err := p.conn.SetWriteDeadline(time.Now().Add(time.Second))
 				if err != nil {
-					logger.Warn("SetReadDeadline failed", zap.Error(err))
+					logger.Warn("SetWriteDeadline failed", zap.Error(err))
 				}
 
 				n, err := p.conn.Write(buf[sum:])
-				if err != nil {
-					p.logger.Info("tcp write error", zap.Error(err))
-					break
-				}
-
 				sum += n
+				if err != nil {
+					var ne net.Error
+					if errors.As(err, &ne) && ne.Timeout() {
+						p.logger.Warn("tcp write timeout, will retry")
+						break
+					}
+					p.logger.Info("tcp write error", zap.Error(err))
+					return
+				}
 			}
-			buf = buf[:0]
+
+			if sum < size {
+				copy(buf, buf[sum:])
+				buf = buf[:size-sum]
+				select {
+				case p.chWrite <- true:
+				default:
+				}
+			} else {
+				buf = buf[:0]
+			}
 		}
 	}
 }
