@@ -572,7 +572,7 @@ WHERE
 	return err
 }
 
-func (db SQLiteDB) SaveUserUsedMs(battleCode string, userID string, usedMsMask int, usedMsList string) error {
+func (db SQLiteDB) SaveUserUsedMs(battleCode string, userID string, usedMsMask uint64, usedMsList string) error {
 	_, err := db.Exec(`
 UPDATE battle_record
 SET
