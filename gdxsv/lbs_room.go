@@ -139,7 +139,7 @@ func (r *LbsRoom) NotifyRoomEvent(kind string, text string) {
 		Write8(0).Msg() // msg color
 	for _, u := range r.Users {
 		peer := r.app.FindPeer(u.UserID)
-		if peer.Room == nil {
+		if peer == nil || peer.Room == nil {
 			continue
 		}
 		if peer.Room.ID != r.ID {

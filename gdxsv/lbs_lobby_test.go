@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"testing"
+
+	"go.uber.org/zap"
 )
 
 func Test_teamShuffle(t *testing.T) {
@@ -360,6 +362,133 @@ func TestLbsLobby_findBestGCPRegion(t *testing.T) {
 			t.Error("expected error when no regions available")
 		}
 	})
+}
+
+func TestLbsLobby_sendLobbyChat_NilPeer(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	lobby := &LbsLobby{
+		app:        lbs,
+		Users:      make(map[string]*DBUser),
+		RenpoRooms: make(map[uint16]*LbsRoom),
+		ZeonRooms:  make(map[uint16]*LbsRoom),
+		EntryUsers: make([]string, 0),
+	}
+
+	// Add a user to lobby.Users but NOT to lbs.userPeers,
+	// so FindPeer returns nil.
+	lobby.Users["GHOST_USER"] = &DBUser{UserID: "GHOST_USER"}
+
+	// This should not panic.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("sendLobbyChat panicked with nil peer: %v", r)
+			}
+		}()
+		lobby.sendLobbyChat("SENDER", "SenderName", "hello")
+	}()
+}
+
+func TestLbsLobby_NotifyLobbyEvent_NilPeer(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	lobby := &LbsLobby{
+		app:        lbs,
+		Users:      make(map[string]*DBUser),
+		RenpoRooms: make(map[uint16]*LbsRoom),
+		ZeonRooms:  make(map[uint16]*LbsRoom),
+		EntryUsers: make([]string, 0),
+	}
+
+	// Add a user to lobby.Users but NOT to lbs.userPeers.
+	lobby.Users["GHOST_USER"] = &DBUser{UserID: "GHOST_USER"}
+
+	// This should not panic.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("NotifyLobbyEvent panicked with nil peer: %v", r)
+			}
+		}()
+		lobby.NotifyLobbyEvent("TEST", "test message")
+	}()
+}
+
+func TestLbsLobby_Exit_RemovesEntryUser(t *testing.T) {
+	lobby := &LbsLobby{
+		Users:      make(map[string]*DBUser),
+		EntryUsers: []string{"A", "B", "C"},
+	}
+	lobby.Users["B"] = &DBUser{UserID: "B"}
+
+	lobby.Exit("B")
+
+	assertEq(t, []string{"A", "C"}, lobby.EntryUsers)
+	if _, ok := lobby.Users["B"]; ok {
+		t.Error("expected user B to be removed from Users map")
+	}
+}
+
+func TestLbsLobby_Exit_NonEntryUser(t *testing.T) {
+	lobby := &LbsLobby{
+		Users:      make(map[string]*DBUser),
+		EntryUsers: []string{"A", "C"},
+	}
+	lobby.Users["B"] = &DBUser{UserID: "B"}
+
+	lobby.Exit("B")
+
+	assertEq(t, []string{"A", "C"}, lobby.EntryUsers)
+}
+
+func TestLbsLobby_EntryCancel(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	lobby := &LbsLobby{
+		app:        lbs,
+		Users:      make(map[string]*DBUser),
+		RenpoRooms: make(map[uint16]*LbsRoom),
+		ZeonRooms:  make(map[uint16]*LbsRoom),
+		EntryUsers: []string{"A", "B", "C"},
+	}
+
+	peer := &LbsPeer{
+		DBUser:       DBUser{UserID: "B"},
+		Team:         TeamRenpo,
+		app:          lbs,
+		PlatformInfo: map[string]string{},
+		logger:       zap.NewNop(),
+		chWrite:      make(chan bool, 1),
+	}
+	lbs.Locked(func(l *Lbs) {
+		l.userPeers["B"] = peer
+	})
+	defer lbs.Locked(func(l *Lbs) {
+		delete(l.userPeers, "B")
+	})
+	lobby.Users["B"] = &peer.DBUser
+
+	lobby.EntryCancel(peer)
+
+	assertEq(t, []string{"A", "C"}, lobby.EntryUsers)
+}
+
+func TestLbsLobby_EntryPicked(t *testing.T) {
+	lobby := &LbsLobby{
+		EntryUsers: []string{"A", "B", "C"},
+	}
+
+	peer := &LbsPeer{DBUser: DBUser{UserID: "B"}}
+	lobby.EntryPicked(peer)
+
+	assertEq(t, []string{"A", "C"}, lobby.EntryUsers)
 }
 
 func TestLbsLobby_canStartBattle(t *testing.T) {

@@ -1499,3 +1499,19 @@ func TestLbs_RankingListFlow(t *testing.T) {
 		})
 	}
 }
+
+func TestBroadcastLobbyMatchEntryUserCount_NilLobby(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	// Passing nil lobby should not panic.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("BroadcastLobbyMatchEntryUserCount panicked with nil lobby: %v", r)
+			}
+		}()
+		lbs.BroadcastLobbyMatchEntryUserCount(nil)
+	}()
+}
