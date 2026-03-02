@@ -207,9 +207,7 @@ func Test203CalculateUserBattleCount(t *testing.T) {
 }
 
 func Test300Ranking(t *testing.T) {
-	// ugly...
-	_, err := getDB().(SQLiteDB).Exec("DELETE FROM user")
-	must(t, err)
+	cleanTables(t, "user")
 
 	var users []*DBUser
 	for i := 0; i < 3; i++ {
@@ -338,10 +336,7 @@ func Test300Ranking(t *testing.T) {
 }
 
 func Test400Replay(t *testing.T) {
-	_, err := getDB().(SQLiteDB).Exec("DELETE FROM user")
-	must(t, err)
-	_, err = getDB().(SQLiteDB).Exec("DELETE FROM battle_record")
-	must(t, err)
+	cleanTables(t, "user", "battle_record")
 
 	var users []*DBUser
 	for i := 0; i < 4; i++ {

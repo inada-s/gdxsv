@@ -18,6 +18,10 @@ func Test_toIPPort(t *testing.T) {
 	}{
 		{"tcp4 addr", args{"192.168.1.10:1234"}, net.IPv4(192, 168, 1, 10), 1234, false},
 		{"localhost", args{"localhost:1234"}, net.IPv4(127, 0, 0, 1), 1234, false},
+		{"missing port", args{"192.168.1.10"}, nil, 0, true},
+		{"bad port", args{"192.168.1.10:badport"}, nil, 0, true},
+		{"empty string", args{""}, nil, 0, true},
+		{"port out of range", args{"192.168.1.10:99999"}, nil, 0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -50,6 +50,41 @@ func Test_convertGamePatch(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "invalid size",
+			args:    args{patch: &MPatch{Disk: GameDiskDC2, Name: "bad-size", Codes: "7,0,0,0"}},
+			wantErr: true,
+		},
+		{
+			name:    "non-numeric size",
+			args:    args{patch: &MPatch{Disk: GameDiskDC2, Name: "bad-size", Codes: "abc,0,0,0"}},
+			wantErr: true,
+		},
+		{
+			name:    "invalid address",
+			args:    args{patch: &MPatch{Disk: GameDiskDC2, Name: "bad-addr", Codes: "8,zzzz,0,0"}},
+			wantErr: true,
+		},
+		{
+			name:    "invalid original value",
+			args:    args{patch: &MPatch{Disk: GameDiskDC2, Name: "bad-orig", Codes: "8,0,not_a_number,0"}},
+			wantErr: true,
+		},
+		{
+			name:    "invalid changed value",
+			args:    args{patch: &MPatch{Disk: GameDiskDC2, Name: "bad-changed", Codes: "8,0,0,not_a_number"}},
+			wantErr: true,
+		},
+		{
+			name: "empty codes",
+			args: args{patch: &MPatch{Disk: GameDiskDC2, Name: "empty", Codes: ""}},
+			want: &proto.GamePatch{GameDisk: GameDiskDC2, Name: "empty"},
+		},
+		{
+			name: "comment only",
+			args: args{patch: &MPatch{Disk: GameDiskDC2, Name: "comment-only", Codes: "# just a comment\n# another comment"}},
+			want: &proto.GamePatch{GameDisk: GameDiskDC2, Name: "comment-only"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
