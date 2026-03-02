@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -147,65 +146,31 @@ type TestLbsClient struct {
 var errTimeout = fmt.Errorf("timeout")
 
 func writeMessageWithTimeout(writer io.Writer, message *LbsMessage, duration time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-
-	var err error
+	errCh := make(chan error, 1)
 	go func() {
-		defer cancel()
-		err = WriteLbsMessage(writer, message)
+		errCh <- WriteLbsMessage(writer, message)
 	}()
 
-	<-ctx.Done()
-
-	if err != nil {
+	select {
+	case err := <-errCh:
 		return err
-	}
-
-	if ctx.Err() == nil {
-		return nil
-	}
-
-	if ctx.Err() == context.Canceled {
-		return nil
-	}
-
-	if ctx.Err() == context.DeadlineExceeded {
+	case <-time.After(duration):
 		return errTimeout
 	}
-
-	return ctx.Err()
 }
 
 func readMessageWithTimeout(reader io.Reader, message *LbsMessage, duration time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-
-	var err error
+	errCh := make(chan error, 1)
 	go func() {
-		defer cancel()
-		err = ReadLbsMessage(reader, message)
+		errCh <- ReadLbsMessage(reader, message)
 	}()
 
-	<-ctx.Done()
-
-	if err != nil {
+	select {
+	case err := <-errCh:
 		return err
-	}
-
-	if ctx.Err() == nil {
-		return nil
-	}
-
-	if ctx.Err() == context.Canceled {
-		return nil
-	}
-
-	if ctx.Err() == context.DeadlineExceeded {
+	case <-time.After(duration):
 		return errTimeout
 	}
-
-	return ctx.Err()
 }
 
 func (c *TestLbsClient) MustWriteMessage(message *LbsMessage) {
@@ -249,6 +214,7 @@ func (c *TestLbsClient) MustReadMessageSkipNoticeUntil(cmd CmdID) *LbsMessage {
 }
 
 func AssertMsg(t *testing.T, expected *LbsMessage, actual *LbsMessage) {
+	t.Helper()
 	if 0 < expected.Direction {
 		if expected.Direction != actual.Direction {
 			t.Error("Direction")

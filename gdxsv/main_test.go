@@ -4,21 +4,21 @@ import (
 	"flag"
 	"os"
 	"reflect"
-	"runtime/debug"
 	"testing"
 	"time"
 )
 
 func must(tb testing.TB, err error) {
+	tb.Helper()
 	if err != nil {
-		tb.Fatal("err:", err, string(debug.Stack()))
+		tb.Fatal("err:", err)
 	}
 }
 
 func assertEq(tb testing.TB, expected, actual interface{}) {
-	ok := reflect.DeepEqual(expected, actual)
-	if !ok {
-		tb.Fatalf("assertEq failed.\n expected: %#v\n actual:  %#v\n%s", expected, actual, string(debug.Stack()))
+	tb.Helper()
+	if !reflect.DeepEqual(expected, actual) {
+		tb.Fatalf("assertEq failed.\n expected: %#v\n actual:  %#v", expected, actual)
 	}
 }
 
