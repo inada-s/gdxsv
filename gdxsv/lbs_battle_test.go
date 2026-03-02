@@ -142,18 +142,9 @@ func TestLbsBattle_GetUserByPos(t *testing.T) {
 	u = b.GetUserByPos(0)
 	assertEq(t, (*DBUser)(nil), u)
 
-	// pos=3 with 2 users: after decrement pos=2, len(Users)=2
-	// Boundary bug: len(b.Users) < int(pos) uses < instead of <=
-	// When pos=2 and len=2, 2 < 2 is false, so it tries b.Users[2] which panics.
-	// This documents the off-by-one bug in GetUserByPos.
-	func() {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("expected panic for pos=3 with 2 users due to boundary bug, but got none")
-			}
-		}()
-		b.GetUserByPos(3)
-	}()
+	// pos=3 with 2 users: after decrement pos=2, len(Users)=2, out of bounds → nil
+	u = b.GetUserByPos(3)
+	assertEq(t, (*DBUser)(nil), u)
 }
 
 func TestLbsBattle_GetGameParamByPos(t *testing.T) {
@@ -164,15 +155,8 @@ func TestLbsBattle_GetGameParamByPos(t *testing.T) {
 	assertEq(t, []byte{0xAA}, b.GetGameParamByPos(1))
 	assertEq(t, []byte{0xBB}, b.GetGameParamByPos(2))
 
-	// Same boundary bug as GetUserByPos
-	func() {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("expected panic for pos=3 with 2 params due to boundary bug, but got none")
-			}
-		}()
-		b.GetGameParamByPos(3)
-	}()
+	// pos=3 with 2 params: out of bounds → nil
+	assertEq(t, ([]byte)(nil), b.GetGameParamByPos(3))
 }
 
 func TestLbsBattle_GetUserRankByPos(t *testing.T) {
@@ -183,15 +167,8 @@ func TestLbsBattle_GetUserRankByPos(t *testing.T) {
 	assertEq(t, 5, b.GetUserRankByPos(1))
 	assertEq(t, 15, b.GetUserRankByPos(2))
 
-	// Same boundary bug as GetUserByPos
-	func() {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("expected panic for pos=3 with 2 ranks due to boundary bug, but got none")
-			}
-		}()
-		b.GetUserRankByPos(3)
-	}()
+	// pos=3 with 2 ranks: out of bounds → 0
+	assertEq(t, 0, b.GetUserRankByPos(3))
 }
 
 func Test_genBattleCode(t *testing.T) {

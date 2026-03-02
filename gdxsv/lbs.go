@@ -525,6 +525,9 @@ func (lbs *Lbs) BroadcastLobbyUserCount(lobby *LbsLobby) {
 }
 
 func (lbs *Lbs) BroadcastLobbyMatchEntryUserCount(lobby *LbsLobby) {
+	if lobby == nil {
+		return
+	}
 	renpo, zeon := lobby.GetLobbyMatchEntryUserCount()
 	msg1 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(TeamRenpo).Write16(renpo).Msg()
 	msg2 := NewServerNotice(lbsLobbyMatchingJoin).Writer().Write16(TeamZeon).Write16(zeon).Msg()

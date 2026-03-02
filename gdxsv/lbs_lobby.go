@@ -135,7 +135,7 @@ func (l *LbsLobby) sendLobbyChat(userID, name, text string) {
 	msg := chatMsg(userID, name, text)
 	for user := range l.Users {
 		peer := l.app.FindPeer(user)
-		if peer.Room != nil {
+		if peer == nil || peer.Room != nil {
 			continue
 		}
 		peer.SendMessage(msg)
@@ -334,7 +334,7 @@ func (l *LbsLobby) NotifyLobbyEvent(kind string, text string) {
 
 	for userID := range l.Users {
 		peer := l.app.FindPeer(userID)
-		if peer.Room != nil {
+		if peer == nil || peer.Room != nil {
 			continue
 		}
 		peer.SendMessage(msg)
@@ -397,6 +397,7 @@ func (l *LbsLobby) Exit(userID string) {
 			if id == userID {
 				l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
 				l.CancelForceStart()
+				break
 			}
 		}
 	}
@@ -421,6 +422,7 @@ func (l *LbsLobby) EntryCancel(p *LbsPeer) {
 	for i, id := range l.EntryUsers {
 		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
+			break
 		}
 	}
 	switch p.Team {
@@ -438,6 +440,7 @@ func (l *LbsLobby) EntryPicked(p *LbsPeer) {
 	for i, id := range l.EntryUsers {
 		if id == p.UserID {
 			l.EntryUsers = append(l.EntryUsers[:i], l.EntryUsers[i+1:]...)
+			break
 		}
 	}
 }
@@ -772,8 +775,6 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 			addrs[p.udpAddr.String()] = true
 		}
 
-		p.udpAddr.IP.IsLoopback()
-
 		for addr := range addrs {
 			ip, port, err := net.SplitHostPort(addr)
 			if err != nil {
@@ -947,11 +948,11 @@ func (l *LbsLobby) checkRoomBattleStart() {
 			allOk := true
 			for _, u := range room.Users {
 				p := l.app.FindPeer(u.UserID)
-				peers = append(peers, p)
 				if p == nil {
 					allOk = false
 					break
 				}
+				peers = append(peers, p)
 			}
 			if allOk {
 				renpoRoom = room
