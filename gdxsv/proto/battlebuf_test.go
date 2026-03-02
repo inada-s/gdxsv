@@ -1,108 +1,85 @@
 package proto
 
 import (
-	"fmt"
+	"bytes"
 	"testing"
 )
 
-func assert(f bool) {
+func assertT(t *testing.T, f bool, msg string) {
+	t.Helper()
 	if !f {
-		panic("assertion failed.")
+		t.Fatal(msg)
 	}
-}
-
-func testEq(a, b []byte) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func TestMessageSeq(t *testing.T) {
 	f := NewMessageFilter([]string{"hoge"})
 	msg := f.GenerateMessage("hoge", []byte("hoge"))
-	assert(msg.GetSeq() == 1)
+	assertT(t, msg.GetSeq() == 1, "expected seq 1")
 	msg = f.GenerateMessage("hoge", []byte("hoge"))
-	assert(msg.GetSeq() == 2)
+	assertT(t, msg.GetSeq() == 2, "expected seq 2")
 	msg = f.GenerateMessage("hoge", []byte("hoge"))
-	assert(msg.GetSeq() == 3)
+	assertT(t, msg.GetSeq() == 3, "expected seq 3")
 }
 
 func TestProtoRUDP(t *testing.T) {
-	t.Log("hoge")
-
 	a := NewBattleBuffer("a")
 	af := NewMessageFilter([]string{"b"})
 
 	b := NewBattleBuffer("b")
 	bf := NewMessageFilter([]string{"a"})
 
-	/*
-		var recvdata []byte
-		var err error
-	*/
-	assert(a.begin == 1)
-	assert(a.end == 1)
-	assert(af.seq == 1)
+	assertT(t, a.begin == 1, "a.begin should be 1")
+	assertT(t, a.end == 1, "a.end should be 1")
+	assertT(t, af.seq == 1, "af.seq should be 1")
 
 	a.PushBattleMessage(af.GenerateMessage(a.GetID(), []byte("abc")))
 
-	assert(a.end == 2)
+	assertT(t, a.end == 2, "a.end should be 2 after push")
 	senddata, seq, ack := a.GetSendData()
 	t.Log(senddata, seq, ack)
 
-	assert(b.ack == 0)
+	assertT(t, b.ack == 0, "b.ack should be 0")
 	b.ApplySeqAck(seq, ack)
-	assert(bf.Filter(senddata[0]) == true)
+	assertT(t, bf.Filter(senddata[0]) == true, "bf.Filter should return true")
 	recvdata := senddata[0]
 	t.Log("recv data", senddata[0])
-	assert(string(recvdata.GetBody()) == "abc")
-	assert(recvdata.GetUserId() == "a")
-	assert(recvdata.GetSeq() == 1)
-	assert(b.ack == 1)
+	assertT(t, string(recvdata.GetBody()) == "abc", "body should be abc")
+	assertT(t, recvdata.GetUserId() == "a", "user_id should be a")
+	assertT(t, recvdata.GetSeq() == 1, "seq should be 1")
+	assertT(t, b.ack == 1, "b.ack should be 1")
 	t.Log("A send data before", b.begin, b.end)
 
-	assert(a.end == 2)
+	assertT(t, a.end == 2, "a.end should still be 2")
 	a.PushBattleMessage(af.GenerateMessage(a.GetID(), []byte("def")))
-	assert(a.end == 3)
+	assertT(t, a.end == 3, "a.end should be 3")
 	a.PushBattleMessage(af.GenerateMessage(a.GetID(), []byte("ghi")))
-	assert(a.end == 4)
+	assertT(t, a.end == 4, "a.end should be 4")
 	senddata, seq, ack = a.GetSendData()
 	t.Log("B send data before", b.begin, b.end)
 
-	assert(b.ack == 1)
+	assertT(t, b.ack == 1, "b.ack should still be 1")
 	buf := make([]byte, 0)
 	for _, msg := range senddata {
 		if bf.Filter(msg) {
 			buf = append(buf, msg.GetBody()...)
 		}
 	}
-	assert(testEq(buf, []byte("defghi")))
+	assertT(t, bytes.Equal(buf, []byte("defghi")), "buf should be defghi")
 	buf = buf[:0]
 	b.ApplySeqAck(seq, ack)
-	assert(b.ack == 3)
+	assertT(t, b.ack == 3, "b.ack should be 3")
 	t.Log("C send data before", b.begin, b.end)
 
-	assert(a.ack == 0)
+	assertT(t, a.ack == 0, "a.ack should be 0")
 	senddata, _, _ = a.GetSendData()
 	for _, msg := range senddata {
 		if bf.Filter(msg) {
 			buf = append(buf, msg.GetBody()...)
 		}
 	}
-	assert(testEq(buf, []byte("")))
-	assert(a.ack == 0)
+	assertT(t, bytes.Equal(buf, []byte("")), "buf should be empty")
+	assertT(t, a.ack == 0, "a.ack should still be 0")
 
 	t.Log("D send data before", b.begin, b.end)
 
@@ -134,8 +111,6 @@ func TestProtoRUDP(t *testing.T) {
 		}
 	}
 	t.Log(buf)
-	assert(testEq(buf, []byte("hogepiyo")))
-	assert(a.ack == 2)
-
-	fmt.Println("ok")
+	assertT(t, bytes.Equal(buf, []byte("hogepiyo")), "buf should be hogepiyo")
+	assertT(t, a.ack == 2, "a.ack should be 2")
 }

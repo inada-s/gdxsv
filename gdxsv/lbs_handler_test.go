@@ -118,8 +118,11 @@ func TestLbs_P2PMatchingReport(t *testing.T) {
 		Body:     buf.Bytes(),
 	})
 
-	// Wait for processing
-	time.Sleep(100 * time.Millisecond)
+	// Wait for async processing to complete
+	waitFor(t, 2*time.Second, func() bool {
+		rec, err := getDB().GetBattleRecordUser(battleCode, "U1")
+		return err == nil && rec.RoundWin != ""
+	})
 
 	// Verify database
 	for _, uid := range []string{"U1", "U2"} {
