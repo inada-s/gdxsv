@@ -22,6 +22,18 @@ func assertEq(tb testing.TB, expected, actual interface{}) {
 	}
 }
 
+func waitFor(tb testing.TB, timeout time.Duration, fn func() bool) {
+	tb.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	tb.Fatal("waitFor timed out")
+}
+
 func TestMain(m *testing.M) {
 	_ = flag.Set("logtostderr", "true")
 	flag.Parse()

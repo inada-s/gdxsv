@@ -8,9 +8,6 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-var testLoginKey string
-var testUserID string
-
 func prepareTestDB() {
 	conn, err := sqlx.Open("sqlite3", "file::memory:")
 	if err != nil {
@@ -27,34 +24,36 @@ func prepareTestDB() {
 	defaultdb = db
 }
 
-func Test001RegisterAccount(t *testing.T) {
+func TestAccountCRUD(t *testing.T) {
 	a, err := getDB().RegisterAccount("1.2.3.4")
 	must(t, err)
 	assertEq(t, "1.2.3.4", a.CreatedIP)
 	assertEq(t, 10, len(a.LoginKey))
-	testLoginKey = a.LoginKey
+
+	t.Run("GetAccount", func(t *testing.T) {
+		got, err := getDB().GetAccountByLoginKey(a.LoginKey)
+		must(t, err)
+		assertEq(t, a.LoginKey, got.LoginKey)
+	})
+
+	t.Run("GetInvalidAccount", func(t *testing.T) {
+		got, err := getDB().GetAccountByLoginKey("hogehoge01")
+		if err == nil {
+			t.Fatal("expected error for invalid login key")
+		}
+		if got != nil {
+			t.Fatal("expected nil account for invalid login key")
+		}
+	})
 }
 
-func Test002GetAccount(t *testing.T) {
-	a, err := getDB().GetAccountByLoginKey(testLoginKey)
+func TestUserCRUD(t *testing.T) {
+	a, err := getDB().RegisterAccount("5.6.7.8")
 	must(t, err)
-	assertEq(t, testLoginKey, a.LoginKey)
-}
 
-func Test002GetInvalidAccount(t *testing.T) {
-	a, err := getDB().GetAccountByLoginKey("hogehoge01")
-	if err == nil {
-		t.FailNow()
-	}
-	if a != nil {
-		t.FailNow()
-	}
-}
-
-func Test101RegisterUser(t *testing.T) {
-	u, err := getDB().RegisterUser(testLoginKey)
+	u, err := getDB().RegisterUser(a.LoginKey)
 	must(t, err)
-	assertEq(t, testLoginKey, u.LoginKey)
+	assertEq(t, a.LoginKey, u.LoginKey)
 	assertEq(t, 6, len(u.UserID))
 	assertEq(t, 0, u.BattleCount)
 	assertEq(t, 0, u.WinCount)
@@ -62,56 +61,56 @@ func Test101RegisterUser(t *testing.T) {
 	assertEq(t, 0, u.DailyBattleCount)
 	assertEq(t, 0, u.DailyWinCount)
 	assertEq(t, 0, u.DailyLoseCount)
-	testUserID = u.UserID
-}
 
-func Test102GetUser(t *testing.T) {
-	u, err := getDB().GetUser(testUserID)
-	must(t, err)
-	assertEq(t, testUserID, u.UserID)
-	assertEq(t, 0, u.BattleCount)
-	assertEq(t, 0, u.WinCount)
-	assertEq(t, 0, u.LoseCount)
-	assertEq(t, 0, u.DailyBattleCount)
-	assertEq(t, 0, u.DailyWinCount)
-	assertEq(t, 0, u.DailyLoseCount)
-}
+	t.Run("GetUser", func(t *testing.T) {
+		got, err := getDB().GetUser(u.UserID)
+		must(t, err)
+		assertEq(t, u.UserID, got.UserID)
+		assertEq(t, 0, got.BattleCount)
+		assertEq(t, 0, got.WinCount)
+		assertEq(t, 0, got.LoseCount)
+		assertEq(t, 0, got.DailyBattleCount)
+		assertEq(t, 0, got.DailyWinCount)
+		assertEq(t, 0, got.DailyLoseCount)
+	})
 
-func Test103GetInvalidUser(t *testing.T) {
-	_, err := getDB().GetUser("HOGE01")
-	if err == nil {
-		t.FailNow()
-	}
-}
+	t.Run("GetInvalidUser", func(t *testing.T) {
+		_, err := getDB().GetUser("HOGE01")
+		if err == nil {
+			t.Fatal("expected error for invalid user ID")
+		}
+	})
 
-func Test104UpdateUser(t *testing.T) {
-	u, err := getDB().GetUser(testUserID)
-	must(t, err)
-	u.Name = "テストユーザ"
-	u.Team = "テストチーム"
-	u.BattleCount = 100
-	u.WinCount = 99
-	u.LoseCount = 1
-	u.DailyBattleCount = 10
-	u.DailyWinCount = 9
-	u.DailyLoseCount = 1
-	err = getDB().UpdateUser(u)
-	must(t, err)
-	v, err := getDB().GetUser(testUserID)
-	must(t, err)
-	assertEq(t, u, v)
-}
+	t.Run("UpdateUser", func(t *testing.T) {
+		// Re-fetch from DB to normalize timezone metadata before comparison
+		u, err := getDB().GetUser(u.UserID)
+		must(t, err)
+		u.Name = "テストユーザ"
+		u.Team = "テストチーム"
+		u.BattleCount = 100
+		u.WinCount = 99
+		u.LoseCount = 1
+		u.DailyBattleCount = 10
+		u.DailyWinCount = 9
+		u.DailyLoseCount = 1
+		err = getDB().UpdateUser(u)
+		must(t, err)
+		v, err := getDB().GetUser(u.UserID)
+		must(t, err)
+		assertEq(t, u, v)
+	})
 
-func Test105GetUserList(t *testing.T) {
-	users, err := getDB().GetUserList(testLoginKey)
-	must(t, err)
-	assertEq(t, 1, len(users))
-}
+	t.Run("GetUserList", func(t *testing.T) {
+		users, err := getDB().GetUserList(a.LoginKey)
+		must(t, err)
+		assertEq(t, 1, len(users))
+	})
 
-func Test106GetUserListNone(t *testing.T) {
-	users, err := getDB().GetUserList("hogehoge01")
-	must(t, err)
-	assertEq(t, 0, len(users))
+	t.Run("GetUserListNone", func(t *testing.T) {
+		users, err := getDB().GetUserList("hogehoge01")
+		must(t, err)
+		assertEq(t, 0, len(users))
+	})
 }
 
 func Test200AddBattleRecord(t *testing.T) {
