@@ -22,6 +22,15 @@ func assertEq(tb testing.TB, expected, actual interface{}) {
 	}
 }
 
+func cleanTables(tb testing.TB, tables ...string) {
+	tb.Helper()
+	db := getDB().(SQLiteDB)
+	for _, table := range tables {
+		_, err := db.Exec("DELETE FROM " + table)
+		must(tb, err)
+	}
+}
+
 func waitFor(tb testing.TB, timeout time.Duration, fn func() bool) {
 	tb.Helper()
 	deadline := time.Now().Add(timeout)

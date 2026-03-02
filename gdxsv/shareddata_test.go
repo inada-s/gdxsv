@@ -2,7 +2,6 @@ package main
 
 import (
 	"gdxsv/gdxsv/proto"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -64,12 +63,8 @@ func TestSharedData_Sync(t *testing.T) {
 		McsGames: sd1.GetMcsGames(),
 	})
 
-	if !reflect.DeepEqual(sd1.GetMcsUsers(), sd2.GetMcsUsers()) {
-		t.Error("GetMcsUsers is different")
-	}
-	if !reflect.DeepEqual(sd1.GetMcsGames(), sd2.GetMcsGames()) {
-		t.Error("GetMcsGames is different")
-	}
+	assertEq(t, sd1.GetMcsUsers(), sd2.GetMcsUsers())
+	assertEq(t, sd1.GetMcsGames(), sd2.GetMcsGames())
 
 	sd2.UpdateMcsGameState(battleCode, McsGameStateOpened)
 	sd2.UpdateMcsUserState(sessionID, McsUserStateJoined)
@@ -82,13 +77,8 @@ func TestSharedData_Sync(t *testing.T) {
 		UpdatedAt:  time.Unix(1, 0),
 	})
 
-	if !reflect.DeepEqual(sd1.GetMcsUsers(), sd2.GetMcsUsers()) {
-		t.Error("GetMcsUsers is different")
-	}
-
-	if !reflect.DeepEqual(sd1.GetMcsGames(), sd2.GetMcsGames()) {
-		t.Error("GetMcsGames is different")
-	}
+	assertEq(t, sd1.GetMcsUsers(), sd2.GetMcsUsers())
+	assertEq(t, sd1.GetMcsGames(), sd2.GetMcsGames())
 
 	sd2.SetMcsUserCloseReason(sessionID, "timeout")
 	sd2.UpdateMcsUserState(sessionID, McsUserStateLeft)

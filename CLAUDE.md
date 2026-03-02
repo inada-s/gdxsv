@@ -130,7 +130,7 @@ See `.golangci.yml`.
 - **Branch naming**: Use prefixed format: `feature/xxx`, `fix/xxx`, `refactor/xxx`.
 - **PR target**: Always `master`.
 - **PR title**: English, under 70 characters.
-- **PR description**: English, include summary and test plan.
+- **PR description**: English, include summary and test plan. Do not include auto-generated credit lines (e.g. "Generated with Claude Code").
 - When asked to commit or create a PR, create a branch, commit, push, and open the PR via `gh pr create`.
 
 ## Cross-Repository: flycast
