@@ -405,6 +405,11 @@ func (l *LbsLobby) Exit(userID string) {
 
 func (l *LbsLobby) Entry(p *LbsPeer) {
 	l.CancelForceStart()
+	for _, id := range l.EntryUsers {
+		if id == p.UserID {
+			return
+		}
+	}
 	l.EntryUsers = append(l.EntryUsers, p.UserID)
 	a, b := l.GetLobbyMatchEntryUserCount()
 	switch p.Team {
