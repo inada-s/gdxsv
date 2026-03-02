@@ -446,6 +446,43 @@ func TestLbsLobby_Exit_NonEntryUser(t *testing.T) {
 	assertEq(t, []string{"A", "C"}, lobby.EntryUsers)
 }
 
+func TestLbsLobby_Entry_NoDuplicate(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	lobby := &LbsLobby{
+		app:        lbs,
+		Users:      make(map[string]*DBUser),
+		RenpoRooms: make(map[uint16]*LbsRoom),
+		ZeonRooms:  make(map[uint16]*LbsRoom),
+		EntryUsers: make([]string, 0),
+	}
+
+	peer := &LbsPeer{
+		DBUser:       DBUser{UserID: "U1"},
+		Team:         TeamRenpo,
+		app:          lbs,
+		PlatformInfo: map[string]string{},
+		logger:       zap.NewNop(),
+		chWrite:      make(chan bool, 1),
+	}
+	lbs.Locked(func(l *Lbs) {
+		l.userPeers["U1"] = peer
+	})
+	defer lbs.Locked(func(l *Lbs) {
+		delete(l.userPeers, "U1")
+	})
+	lobby.Users["U1"] = &peer.DBUser
+
+	// Call Entry twice with the same user
+	lobby.Entry(peer)
+	lobby.Entry(peer)
+
+	// Should only have one entry, not two
+	assertEq(t, []string{"U1"}, lobby.EntryUsers)
+}
+
 func TestLbsLobby_EntryCancel(t *testing.T) {
 	lbs := NewLbs()
 	defer lbs.Quit()
