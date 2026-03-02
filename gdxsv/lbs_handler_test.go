@@ -128,10 +128,10 @@ func TestLbs_P2PMatchingReport(t *testing.T) {
 		assertEq(t, "1,1", rec.RoundWin)
 		if uid == "U1" {
 			assertEq(t, "10,11", rec.UsedMsList)
-			assertEq(t, (1<<10)|(1<<11), rec.UsedMsMask)
+			assertEq(t, uint64((1<<10)|(1<<11)), rec.UsedMsMask)
 		} else {
 			assertEq(t, "20,21", rec.UsedMsList)
-			assertEq(t, (1<<20)|(1<<21), rec.UsedMsMask)
+			assertEq(t, uint64((1<<20)|(1<<21)), rec.UsedMsMask)
 		}
 	}
 

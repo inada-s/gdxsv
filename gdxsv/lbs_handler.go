@@ -1759,7 +1759,7 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 					}
 
 					for posIdx, rec := range records {
-						var usedMsMask int
+						var usedMsMask uint64
 						var usedMsParts []string
 						for _, rd := range report.RoundData {
 							msID := 0
@@ -1768,7 +1768,7 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 							}
 							usedMsParts = append(usedMsParts, strconv.Itoa(msID))
 							if msID > 0 {
-								usedMsMask |= 1 << msID
+								usedMsMask |= 1 << uint(msID)
 							}
 						}
 						usedMsList := strings.Join(usedMsParts, ",")

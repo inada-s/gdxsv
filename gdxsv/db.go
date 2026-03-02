@@ -90,7 +90,7 @@ type BattleRecord struct {
 	Frame int `db:"frame" json:"frame,omitempty"`
 
 	ReplayURL  string `db:"replay_url" json:"replay_url,omitempty"`
-	UsedMsMask int    `db:"used_ms_mask" json:"used_ms_mask,omitempty"`
+	UsedMsMask uint64 `db:"used_ms_mask" json:"used_ms_mask,omitempty"`
 	UsedMsList string `db:"used_ms_list" json:"used_ms_list,omitempty"`
 	RoundWin   string `db:"round_win" json:"round_win,omitempty"`
 	PlayCount  int    `db:"play_count" json:"play_count,omitempty"`
@@ -278,7 +278,7 @@ type DB interface {
 	SaveBattleRoundWin(battleCode string, roundWin string) error
 
 	// SaveUserUsedMs updates battle_record to set used_ms_mask and used_ms_list for a specific user.
-	SaveUserUsedMs(battleCode string, userID string, usedMsMask int, usedMsList string) error
+	SaveUserUsedMs(battleCode string, userID string, usedMsMask uint64, usedMsList string) error
 
 	// ResetDailyBattleCount clears daily battle count of all users.
 	ResetDailyBattleCount() (err error)
