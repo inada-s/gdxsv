@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
+	"math"
 	"testing"
 	"time"
 
@@ -10,6 +11,63 @@ import (
 
 	"google.golang.org/protobuf/proto"
 )
+
+func Test_decideGrade(t *testing.T) {
+	tests := []struct {
+		name     string
+		winCount int
+		rank     int
+		want     uint8
+	}{
+		{"rank=0 returns 0", 1000, 0, 0},
+		{"winCount=0 returns 0", 0, 1, 0},
+		{"winCount=99 returns 0", 99, 1, 0},
+		{"winCount=100 returns 1", 100, 1, 1},
+		{"winCount=500 returns 5", 500, 50, 5},
+		{"winCount=1099 returns 10", 1099, 1, 10},
+		{"winCount=1100 returns 11 (grade<12 no rank check)", 1100, 100, 11},
+		{"winCount=1199 returns 11", 1199, 100, 11},
+		{"winCount=1200 rank=1 returns 14 (大将)", 1200, 1, 14},
+		{"winCount=1200 rank=5 returns 14 (大将)", 1200, 5, 14},
+		{"winCount=1200 rank=6 returns 13 (中将)", 1200, 6, 13},
+		{"winCount=1200 rank=10 returns 13 (中将)", 1200, 10, 13},
+		{"winCount=1200 rank=20 returns 13 (中将)", 1200, 20, 13},
+		{"winCount=1200 rank=21 returns 12 (少将)", 1200, 21, 12},
+		{"winCount=1200 rank=30 returns 12 (少将)", 1200, 30, 12},
+		{"winCount=1200 rank=50 returns 12 (少将)", 1200, 50, 12},
+		{"winCount=1200 rank=51 returns 11 (大佐)", 1200, 51, 11},
+		{"winCount=1200 rank=100 returns 11 (大佐)", 1200, 100, 11},
+		{"winCount=1500 rank=1 returns 14 (capped)", 1500, 1, 14},
+		{"winCount=2000 rank=1 returns 14 (capped)", 2000, 1, 14},
+		{"winCount=1500 rank=999 returns 11 (大佐)", 1500, 999, 11},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := decideGrade(tt.winCount, tt.rank)
+			assertEq(t, tt.want, got)
+		})
+	}
+}
+
+func Test_r16(t *testing.T) {
+	tests := []struct {
+		name string
+		a    int
+		want uint16
+	}{
+		{"zero", 0, 0},
+		{"normal value", 1000, 1000},
+		{"max uint16", math.MaxUint16, math.MaxUint16},
+		{"max uint16 + 1 clamps", math.MaxUint16 + 1, math.MaxUint16},
+		{"large value clamps", 100000, math.MaxUint16},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := r16(tt.a)
+			assertEq(t, tt.want, got)
+		})
+	}
+}
 
 func Test_isOldFlycastVersion(t *testing.T) {
 	type args struct {

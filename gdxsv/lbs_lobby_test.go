@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -246,6 +247,242 @@ func TestLbsLobby_buildLobbyReminderMessages(t *testing.T) {
 				chats = append(chats, r.ReadString())
 			}
 			assertEq(t, tt.want, chats)
+		})
+	}
+}
+
+func TestLbsLobby_findBestGCPRegion(t *testing.T) {
+	// Save and restore gcpLocationName
+	origLocationName := gcpLocationName
+	defer func() { gcpLocationName = origLocationName }()
+
+	// Use a small set of regions for testing
+	gcpLocationName = map[string]string{
+		"asia-northeast1": "Tokyo",
+		"us-west1":        "Oregon",
+		"europe-west1":    "Belgium",
+	}
+
+	l := &LbsLobby{}
+
+	t.Run("selects region with minimum max RTT", func(t *testing.T) {
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{
+				"asia-northeast1": "50",
+				"us-west1":        "150",
+				"europe-west1":    "200",
+			}},
+			{PlatformInfo: map[string]string{
+				"asia-northeast1": "60",
+				"us-west1":        "120",
+				"europe-west1":    "180",
+			}},
+		}
+		region, err := l.findBestGCPRegion(peers)
+		must(t, err)
+		// asia-northeast1: max(50,60)=60, us-west1: max(150,120)=150, europe-west1: max(200,180)=200
+		assertEq(t, "asia-northeast1", region)
+	})
+
+	t.Run("all regions RTT=999 returns error", func(t *testing.T) {
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{
+				"asia-northeast1": "999",
+				"us-west1":        "999",
+				"europe-west1":    "999",
+			}},
+		}
+		_, err := l.findBestGCPRegion(peers)
+		if err == nil {
+			t.Error("expected error when all regions have RTT=999")
+		}
+	})
+
+	t.Run("RTT=0 treated as 999", func(t *testing.T) {
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{
+				"asia-northeast1": "0",
+				"us-west1":        "100",
+				"europe-west1":    "200",
+			}},
+		}
+		region, err := l.findBestGCPRegion(peers)
+		must(t, err)
+		// asia-northeast1: 0 → 999, us-west1: 100, europe-west1: 200
+		assertEq(t, "us-west1", region)
+	})
+
+	t.Run("unparseable RTT treated as 999", func(t *testing.T) {
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{
+				"asia-northeast1": "bad",
+				"us-west1":        "80",
+				"europe-west1":    "200",
+			}},
+		}
+		region, err := l.findBestGCPRegion(peers)
+		must(t, err)
+		assertEq(t, "us-west1", region)
+	})
+
+	t.Run("missing region key treated as 999", func(t *testing.T) {
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{
+				"us-west1": "50",
+			}},
+		}
+		region, err := l.findBestGCPRegion(peers)
+		must(t, err)
+		assertEq(t, "us-west1", region)
+	})
+
+	t.Run("all regions RTT=0 returns error", func(t *testing.T) {
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{
+				"asia-northeast1": "0",
+				"us-west1":        "0",
+				"europe-west1":    "0",
+			}},
+		}
+		_, err := l.findBestGCPRegion(peers)
+		if err == nil {
+			t.Error("expected error when all regions have RTT=0")
+		}
+	})
+
+	t.Run("no regions returns error", func(t *testing.T) {
+		gcpLocationName = map[string]string{}
+		peers := []*LbsPeer{
+			{PlatformInfo: map[string]string{}},
+		}
+		_, err := l.findBestGCPRegion(peers)
+		if err == nil {
+			t.Error("expected error when no regions available")
+		}
+	})
+}
+
+func TestLbsLobby_canStartBattle(t *testing.T) {
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.eventLoop()
+
+	makePeer := func(userID string, team uint16) *LbsPeer {
+		p := &LbsPeer{
+			DBUser:       DBUser{UserID: userID},
+			Team:         team,
+			PlatformInfo: map[string]string{},
+		}
+		return p
+	}
+
+	tests := []struct {
+		name         string
+		teamShuffle  int
+		entryPeers   []*LbsPeer
+		wantCanStart bool
+	}{
+		{
+			name:        "no shuffle: 2R+2Z can start",
+			teamShuffle: 0,
+			entryPeers: []*LbsPeer{
+				makePeer("R1", TeamRenpo),
+				makePeer("R2", TeamRenpo),
+				makePeer("Z1", TeamZeon),
+				makePeer("Z2", TeamZeon),
+			},
+			wantCanStart: true,
+		},
+		{
+			name:        "no shuffle: 1R+2Z cannot start",
+			teamShuffle: 0,
+			entryPeers: []*LbsPeer{
+				makePeer("R1", TeamRenpo),
+				makePeer("Z1", TeamZeon),
+				makePeer("Z2", TeamZeon),
+			},
+			wantCanStart: false,
+		},
+		{
+			name:        "no shuffle: 2R+1Z cannot start",
+			teamShuffle: 0,
+			entryPeers: []*LbsPeer{
+				makePeer("R1", TeamRenpo),
+				makePeer("R2", TeamRenpo),
+				makePeer("Z1", TeamZeon),
+			},
+			wantCanStart: false,
+		},
+		{
+			name:        "no shuffle: 0 users cannot start",
+			teamShuffle: 0,
+			entryPeers:  []*LbsPeer{},
+			wantCanStart: false,
+		},
+		{
+			name:        "shuffle: 4 users can start",
+			teamShuffle: 1,
+			entryPeers: []*LbsPeer{
+				makePeer("A1", TeamRenpo),
+				makePeer("A2", TeamRenpo),
+				makePeer("A3", TeamZeon),
+				makePeer("A4", TeamZeon),
+			},
+			wantCanStart: true,
+		},
+		{
+			name:        "shuffle: 3 users cannot start",
+			teamShuffle: 1,
+			entryPeers: []*LbsPeer{
+				makePeer("A1", TeamRenpo),
+				makePeer("A2", TeamRenpo),
+				makePeer("A3", TeamZeon),
+			},
+			wantCanStart: false,
+		},
+		{
+			name:        "shuffle: 4 same team can start",
+			teamShuffle: 1,
+			entryPeers: []*LbsPeer{
+				makePeer("B1", TeamRenpo),
+				makePeer("B2", TeamRenpo),
+				makePeer("B3", TeamRenpo),
+				makePeer("B4", TeamRenpo),
+			},
+			wantCanStart: true,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lobbyID := uint16(100 + i)
+
+			lobby := &LbsLobby{
+				app:          lbs,
+				ID:           lobbyID,
+				Users:        make(map[string]*DBUser),
+				RenpoRooms:   make(map[uint16]*LbsRoom),
+				ZeonRooms:    make(map[uint16]*LbsRoom),
+				EntryUsers:   make([]string, 0),
+				LobbySetting: LobbySetting{TeamShuffle: tt.teamShuffle},
+			}
+
+			for _, p := range tt.entryPeers {
+				p.app = lbs
+				userID := fmt.Sprintf("CSB_%d_%s", i, p.UserID)
+				p.UserID = userID
+				lbs.Locked(func(l *Lbs) {
+					l.userPeers[userID] = p
+				})
+				defer lbs.Locked(func(l *Lbs) {
+					delete(l.userPeers, userID)
+				})
+				lobby.Users[userID] = &p.DBUser
+				lobby.EntryUsers = append(lobby.EntryUsers, userID)
+			}
+
+			got := lobby.canStartBattle()
+			assertEq(t, tt.wantCanStart, got)
 		})
 	}
 }
