@@ -147,7 +147,10 @@ func (lbs *Lbs) serveUDP(port int) {
 		logger.Fatal("net.ListenUDP", zap.Error(err))
 	}
 
-	buf := make([]byte, 128)
+	// 1400 comfortably covers a SpectatorInputPush carrying
+	// maxSpectatorPushFrames (128) frames (~1KB); existing small messages
+	// (HelloLbs etc.) are unaffected by the larger read buffer.
+	buf := make([]byte, 1400)
 	pkt := new(proto.Packet)
 	for {
 		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
@@ -193,6 +196,20 @@ func (lbs *Lbs) serveUDP(port int) {
 					logger.Warn("error when sending empty message", zap.Error(err))
 				}
 			}
+		}
+
+		// Live spectator capture channel (see lbs_spectator.go). Handled
+		// directly here rather than via lbs.Locked: pushes arrive at up
+		// to 60/sec per streaming peer and must not queue behind
+		// unrelated lobby/matchmaking event-loop work.
+		if pkt.SpectatorInputPushData != nil {
+			handleSpectatorInputPush(udpConn, remoteAddr, pkt.SpectatorInputPushData)
+		}
+		if pkt.SpectatorRoundEventData != nil {
+			handleSpectatorRoundEvent(pkt.SpectatorRoundEventData)
+		}
+		if pkt.SpectatorRoundResultData != nil {
+			handleSpectatorRoundResult(pkt.SpectatorRoundResultData)
 		}
 	}
 }

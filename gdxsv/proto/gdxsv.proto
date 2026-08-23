@@ -82,6 +82,46 @@ message BattleLogRound {
   repeated int32 used_ms = 2;
 }
 
+// Sent by a battle participant every confirmed frame. `inputs` carries every
+// frame the sender thinks LBS hasn't acked yet, starting at start_frame, so a
+// dropped packet delays a frame instead of losing it. All 4 participants send
+// redundantly and LBS dedups by frame index.
+message SpectatorInputPush {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 peer_id = 3;
+  int32 start_frame = 4;
+  repeated fixed64 inputs = 5;
+}
+
+// Sent by LBS back to a streaming peer: the highest frame index LBS has
+// received with no gaps before it. The peer may discard buffered frames
+// at or below this index.
+message SpectatorInputAck {
+  string battle_code = 1;
+  int32 ack_frame = 2;
+}
+
+// Sent once per round start (mirrors GdxsvBackendRollback's
+// start_msg_indexes/start_msg_randoms) so the live-assembled log stays
+// deterministic across round boundaries.
+message SpectatorRoundEvent {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 peer_id = 3;
+  int32 frame = 4;
+  uint64 random_value = 5;
+}
+
+// Sent when a round's result becomes known (win team / mobile suit used).
+message SpectatorRoundResult {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 peer_id = 3;
+  int32 round_index = 4;
+  BattleLogRound round = 5;
+}
+
 message BattleLogFile {
   string game_disk = 5;
   string gdxsv_version_deprecated = 2;
@@ -111,6 +151,10 @@ enum MessageType {
   Battle = 4;
   Fin = 5;
   HelloLbs = 10;
+  SpectatorInputPushType = 20;
+  SpectatorInputAckType = 21;
+  SpectatorRoundEventType = 22;
+  SpectatorRoundResultType = 23;
 }
 
 message BattleMessage {
@@ -156,4 +200,9 @@ message Packet {
   repeated BattleMessage battle_data = 13;
   FinMessage fin_data = 14;
   HelloLbsMessage hello_lbs_data = 15;
+
+  SpectatorInputPush spectator_input_push_data = 20;
+  SpectatorInputAck spectator_input_ack_data = 21;
+  SpectatorRoundEvent spectator_round_event_data = 22;
+  SpectatorRoundResult spectator_round_result_data = 23;
 }
