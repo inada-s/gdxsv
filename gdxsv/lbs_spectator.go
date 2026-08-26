@@ -264,6 +264,11 @@ func (s *SpectatorSession) Subscribe(remoteAddr *net.UDPAddr, fromFrame int32) {
 	if !exists {
 		sub = &downlinkSubscriber{remoteAddr: remoteAddr}
 		s.downlinks[key] = sub
+		logger.Info("spectator subscribed",
+			zap.String("battle_code", s.battleCode),
+			zap.String("addr", key),
+			zap.Int32("from_frame", fromFrame),
+			zap.Int("subscribers", len(s.downlinks)))
 	}
 	if !exists || fromFrame > sub.ackedFrame {
 		sub.ackedFrame = fromFrame
@@ -296,7 +301,12 @@ func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
 	}
 	// Only something actually receiving our pushes can ack them, so this
 	// address is not forged - see maxUnverifiedPushFrames.
-	sub.verified = true
+	if !sub.verified {
+		sub.verified = true
+		logger.Info("spectator verified",
+			zap.String("battle_code", s.battleCode),
+			zap.String("addr", addrKey))
+	}
 	if ackFrame > sub.ackedFrame {
 		sub.ackedFrame = ackFrame
 	}
@@ -424,6 +434,16 @@ func (s *SpectatorSession) sweepSubscribersLocked(now time.Time) []string {
 		if now.Sub(sub.lastSeen) > spectatorSubscriberTimeout {
 			delete(s.downlinks, key)
 			dropped = append(dropped, key)
+			// acked_frame against the log length is how far behind the
+			// spectator was when it went silent, which distinguishes a
+			// clean exit from one that could not keep up.
+			logger.Info("spectator dropped",
+				zap.String("battle_code", s.battleCode),
+				zap.String("addr", key),
+				zap.Int32("acked_frame", sub.ackedFrame),
+				zap.Int("log_frames", len(s.log.Inputs)),
+				zap.Duration("silent_for", now.Sub(sub.lastSeen)),
+				zap.Int("subscribers", len(s.downlinks)))
 		}
 	}
 	return dropped
