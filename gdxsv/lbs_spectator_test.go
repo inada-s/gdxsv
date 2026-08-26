@@ -590,3 +590,130 @@ func TestSpectatorSession_BuildPush_NoPatchesToUnverifiedSubscriber(t *testing.T
 	assertEq(t, 0, len(push.Patches))
 	assertEq(t, true, push.Header == nil)
 }
+
+// verifiedSub registers a subscriber and marks it verified, as one real ack
+// would, so the taper tests start from a healthy steady state.
+func verifiedSub(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
+	s.Subscribe(addr, 0)
+	s.Ack(addr.String(), 0, 0)
+	sub := s.downlinks[addr.String()]
+	sub.probeDue = false
+	sub.sentHeader = true
+	return sub
+}
+
+// fanoutStep mimics one fanout pass over a single subscriber: the taper gate,
+// buildPush, then the taper bookkeeping. Reports whether a push went out.
+func fanoutStep(s *SpectatorSession, sub *downlinkSubscriber, frame int32) bool {
+	s.PushInputs(frame, []uint64{uint64(frame)})
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if sub.shouldSkipPush() {
+		return false
+	}
+	if _, ok := s.buildPush(sub); !ok {
+		return false
+	}
+	sub.probeDue = false
+	sub.notePushSent()
+	return true
+}
+
+func TestSpectatorSession_SilentSubscriber_FullRateWithinGrace(t *testing.T) {
+	s := newTestSpectatorSession()
+	sub := verifiedSub(s, testAddr(30001))
+
+	// A subscriber that never acks still gets silentPushGrace pushes back to
+	// back, so ordinary packet loss is never tapered.
+	for i := int32(0); i < silentPushGrace; i++ {
+		if !fanoutStep(s, sub, i) {
+			t.Fatalf("push %d was skipped inside the grace window", i)
+		}
+	}
+	assertEq(t, int32(silentPushGrace), sub.silentPushes)
+	assertEq(t, int32(2), sub.skipFanouts)
+}
+
+func TestSpectatorSession_SilentSubscriber_TapersAfterGrace(t *testing.T) {
+	s := newTestSpectatorSession()
+	sub := verifiedSub(s, testAddr(30002))
+
+	var waits []int32
+	for i := int32(0); i < 400; i++ {
+		if fanoutStep(s, sub, i) {
+			waits = append(waits, sub.skipFanouts)
+		}
+	}
+
+	// The first silentPushGrace pushes are ungated; after that each further
+	// unacked push doubles the wait until it holds at 1<<maxSilentBackoffShift.
+	want := []int32{0, 0, 0, 0, 0, 0, 0, 2, 4, 8, 16, 32, 64, 64}
+	if len(waits) < len(want) {
+		t.Fatalf("only %d pushes in 400 fanouts, want at least %d", len(waits), len(want))
+	}
+	for i, w := range want {
+		if waits[i] != w {
+			t.Fatalf("push %d: skipFanouts = %d, want %d (got %v)", i+1, waits[i], w, waits[:len(want)])
+		}
+	}
+}
+
+func TestSpectatorSession_SilentSubscriber_TaperCutsTotalPushes(t *testing.T) {
+	// The point of the taper: far fewer pushes at a peer that went quiet.
+	const fanouts = 600 // 10s at 60/s, one spectatorSubscriberTimeout
+
+	tapered := newTestSpectatorSession()
+	tsub := verifiedSub(tapered, testAddr(30005))
+	sent := 0
+	for i := int32(0); i < fanouts; i++ {
+		if fanoutStep(tapered, tsub, i) {
+			sent++
+		}
+	}
+
+	if sent >= 30 {
+		t.Fatalf("tapered subscriber got %d pushes in %d fanouts, expected far fewer", sent, fanouts)
+	}
+	if sent < silentPushGrace {
+		t.Fatalf("tapered subscriber got %d pushes, fewer than the %d grace pushes", sent, silentPushGrace)
+	}
+}
+
+func TestSpectatorSession_SilentSubscriber_AckClearsTaper(t *testing.T) {
+	s := newTestSpectatorSession()
+	addr := testAddr(30003)
+	sub := verifiedSub(s, addr)
+
+	for i := int32(0); i < silentPushGrace+3; i++ {
+		fanoutStep(s, sub, i)
+	}
+	if sub.skipFanouts == 0 {
+		t.Fatal("expected the subscriber to be tapered")
+	}
+
+	s.Ack(addr.String(), 1, 0)
+	assertEq(t, int32(0), sub.skipFanouts)
+	assertEq(t, int32(0), sub.silentPushes)
+}
+
+func TestSpectatorSession_SilentSubscriber_SubscribePunchesThroughTaper(t *testing.T) {
+	s := newTestSpectatorSession()
+	addr := testAddr(30004)
+	sub := verifiedSub(s, addr)
+
+	for i := int32(0); i < silentPushGrace+3; i++ {
+		fanoutStep(s, sub, i)
+	}
+	if sub.skipFanouts == 0 {
+		t.Fatal("expected the subscriber to be tapered")
+	}
+
+	// A live spectator whose acks were lost keeps sending its keepalive. That
+	// must still earn a push, or it could never ack its way back to full rate.
+	s.Subscribe(addr, 0)
+	if !fanoutStep(s, sub, silentPushGrace+3) {
+		t.Fatal("a keepalive subscribe should push through the taper")
+	}
+}

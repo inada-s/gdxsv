@@ -45,6 +45,25 @@ const maxPatchChunkBytes = 1000
 // spectator's final backfill can still read it.
 const spectatorSessionRetention = 10 * time.Minute
 
+// silentPushGrace is how many pushes in a row may go unacked before a
+// subscriber is tapered. Ordinary packet loss heals in a push or two, since
+// every push is cumulative, so the grace window keeps a healthy spectator
+// that dropped a datagram from ever being slowed down.
+const silentPushGrace = 8
+
+// maxSilentBackoffShift caps the taper at 1<<6 = 64 skipped fanouts, about a
+// second. Past the grace window each further unacked push doubles the wait:
+// 2, 4, 8, 16, 32, then 64 until the subscriber acks or is swept.
+//
+// This is a receiver-liveness cutoff, not congestion control. It estimates no
+// RTT and retransmits nothing - a skipped push costs nothing because the next
+// one carries the current state anyway. It only stops us pushing ~1KB 60 times
+// a second at something that has gone quiet, which without it we would keep
+// doing for the full spectatorSubscriberTimeout. That matters most when the
+// silence is correlated, since one browned-out uplink silences every spectator
+// behind it at once.
+const maxSilentBackoffShift = 6
+
 // spectatorSubscriberTimeout is how long a downlink subscriber may go
 // without resending SpectatorSubscribeRequest (its keepalive) before it is
 // dropped. There is no TCP-level "connection closed" signal on this UDP
@@ -128,10 +147,45 @@ type downlinkSubscriber struct {
 
 	// probeDue allows one push to an unverified subscriber, and is set by
 	// each subscribe datagram. It is what keeps an unverified subscriber
-	// out of the periodic resend loop entirely.
+	// out of the periodic resend loop entirely. It also punches through the
+	// silent-push taper below, so a live spectator whose acks were lost gets
+	// back to full rate on its next keepalive.
 	probeDue bool
 
+	// silentPushes counts pushes sent since this subscriber last acked. Past
+	// silentPushGrace it drives the taper - see maxSilentBackoffShift.
+	silentPushes int32
+
+	// skipFanouts is how many fanouts to pass over before pushing again.
+	skipFanouts int32
+
 	lastSeen time.Time
+}
+
+// shouldSkipPush reports whether this fanout should pass over the subscriber
+// because it has gone quiet, consuming one unit of the wait if so. A pending
+// probe always pushes through, so a keepalive subscribe restores full rate.
+func (sub *downlinkSubscriber) shouldSkipPush() bool {
+	if sub.probeDue || sub.skipFanouts <= 0 {
+		return false
+	}
+	sub.skipFanouts--
+	return true
+}
+
+// notePushSent records that a push went out and lengthens the wait if the
+// subscriber still has not acked. Waits double past silentPushGrace and hold
+// at 1<<maxSilentBackoffShift.
+func (sub *downlinkSubscriber) notePushSent() {
+	sub.silentPushes++
+	if sub.silentPushes < silentPushGrace {
+		return
+	}
+	shift := sub.silentPushes - silentPushGrace + 1
+	if maxSilentBackoffShift < shift {
+		shift = maxSilentBackoffShift
+	}
+	sub.skipFanouts = 1 << shift
 }
 
 func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *proto.GamePatchList) *SpectatorSession {
@@ -307,6 +361,11 @@ func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
 			zap.String("battle_code", s.battleCode),
 			zap.String("addr", addrKey))
 	}
+	// An ack is the only proof this subscriber is still receiving, so it is
+	// the only thing that clears the taper. A subscribe datagram cannot,
+	// since its source address may be forged.
+	sub.silentPushes = 0
+	sub.skipFanouts = 0
 	if ackFrame > sub.ackedFrame {
 		sub.ackedFrame = ackFrame
 	}
@@ -566,11 +625,17 @@ func (r *SpectatorRegistry) fanoutOnce(udpConn *net.UDPConn) {
 			if !sub.verified && !sub.probeDue {
 				continue
 			}
+			// A subscriber that has gone quiet is tapered rather than pushed
+			// at full rate until it times out.
+			if sub.shouldSkipPush() {
+				continue
+			}
 			push, ok := s.buildPush(sub)
 			if !ok {
 				continue
 			}
 			sub.probeDue = false
+			sub.notePushSent()
 			pkt := &proto.Packet{
 				Type:                   proto.MessageType_SpectatorInputPushType,
 				SpectatorInputPushData: push,
