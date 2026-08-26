@@ -152,6 +152,9 @@ func (lbs *Lbs) serveUDP(port int) {
 	// (HelloLbs etc.) are unaffected by the larger read buffer.
 	buf := make([]byte, 1400)
 	pkt := new(proto.Packet)
+
+	go spectatorRegistry.StartFanoutLoop(udpConn)
+
 	for {
 		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
 		if err != nil {
@@ -210,6 +213,12 @@ func (lbs *Lbs) serveUDP(port int) {
 		}
 		if pkt.SpectatorRoundResultData != nil {
 			handleSpectatorRoundResult(pkt.SpectatorRoundResultData)
+		}
+		if pkt.SpectatorSubscribeData != nil {
+			spectatorRegistry.HandleSubscribe(remoteAddr, pkt.SpectatorSubscribeData)
+		}
+		if pkt.SpectatorInputAckData != nil {
+			spectatorRegistry.HandleAck(remoteAddr, pkt.SpectatorInputAckData)
 		}
 	}
 }

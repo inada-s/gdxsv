@@ -17,10 +17,45 @@ import (
 // and lands around 1KB - well inside one datagram, so no IP fragmentation.
 const maxSpectatorPushFrames = 128
 
+// maxUnverifiedPushFrames caps what we send to a subscriber that hasn't
+// proved it owns the address it subscribed from.
+//
+// A subscribe request is unauthenticated UDP, so the source address can be
+// forged. Uncapped, one ~40 byte forged subscribe would make LBS stream ~1KB
+// every fanout interval for a full timeout - about 200KB, a 5000x amplifier
+// aimed at someone else. Battle codes aren't secret either; /lbs/status lists
+// them.
+//
+// An ack proves the address is real, since only something receiving can
+// produce one. Until then a subscriber gets one small push per subscribe it
+// sends, so forging is not worth it. Real spectators ack their first push and
+// are verified right away.
+const maxUnverifiedPushFrames = 8
+
+// maxPatchChunkBytes keeps one patch chunk inside a single datagram, under a
+// 1500 byte MTU with room for IP/UDP and the Packet around it.
+//
+// A chunk always carries at least one patch even if that patch busts the
+// budget. Patches are indivisible, and one of them fragmenting beats the
+// whole list doing so.
+const maxPatchChunkBytes = 1000
+
 // spectatorSessionRetention is how long a closed session's assembled log is
 // kept around after the battle ends, so a late reconciliation pass or a
 // spectator's final backfill can still read it.
 const spectatorSessionRetention = 10 * time.Minute
+
+// spectatorSubscriberTimeout is how long a downlink subscriber may go
+// without resending SpectatorSubscribeRequest (its keepalive) before it is
+// dropped. There is no TCP-level "connection closed" signal on this UDP
+// channel, so staleness is the only way to notice a spectator went away.
+const spectatorSubscriberTimeout = 10 * time.Second
+
+// spectatorFanoutInterval is how often SpectatorRegistry.StartFanoutLoop
+// resends each subscriber's unacked tail, in case a push (or its ack) was
+// lost. New data is also pushed promptly via the loop's wake channel rather
+// than waiting for the next tick.
+const spectatorFanoutInterval = 50 * time.Millisecond
 
 // SpectatorSession holds the live battle log for one in-progress P2P battle,
 // keyed by battle_code. All 4 clients feed it redundantly over LBS's UDP
@@ -44,8 +79,59 @@ type SpectatorSession struct {
 	// the same event, keyed by the frame it occurred at.
 	roundEventSeen map[int32]bool
 
+	// roundStateVersion increments every time StartMsgIndexes/StartMsgRandoms/
+	// RoundData changes, so the fan-out loop (buildPush) only needs to
+	// piggyback round state on a subscriber's push when that subscriber
+	// hasn't already been sent the latest version - see downlinkSubscriber.
+	roundStateVersion int32
+
+	// downlinks holds one entry per connected spectator (see
+	// SpectatorRegistry.HandleSubscribe), keyed by the subscriber's UDP
+	// source address (remoteAddr.String()).
+	downlinks map[string]*downlinkSubscriber
+
 	closed   bool
 	closedAt time.Time
+}
+
+// downlinkSubscriber tracks one spectator's live-push state within a
+// SpectatorSession. All fields are guarded by the owning SpectatorSession's
+// mtx (same lock PushInputs et al. already use).
+type downlinkSubscriber struct {
+	remoteAddr *net.UDPAddr
+
+	// ackedFrame is the highest frame this subscriber received with no gaps
+	// before it. Resends are just log.Inputs[ackedFrame:], capped at
+	// maxSpectatorPushFrames. No separate backlog buffer is needed here -
+	// log.Inputs already is one.
+	ackedFrame int32
+
+	// sentHeader tracks whether this subscriber has been sent the one-off
+	// BattleLogFile header it needs before it can start playback at all.
+	sentHeader bool
+
+	// ackedPatches is how many patches this subscriber has received, counting
+	// contiguously from the start. Chunks resend from here, so a lost chunk
+	// costs one chunk, not the whole list.
+	ackedPatches int32
+
+	// sentRoundStateVersion/sentClose track what this subscriber has
+	// already been sent, so buildPush only piggybacks round data / the
+	// close signal again if it might not have arrived yet.
+	sentRoundStateVersion int32
+	sentClose             bool
+
+	// verified is set once this address acks anything, which proves it really
+	// receives and wasn't forged. Until then it only gets small pushes, and
+	// only in reply to its own subscribes. See maxUnverifiedPushFrames.
+	verified bool
+
+	// probeDue allows one push to an unverified subscriber, and is set by
+	// each subscribe datagram. It is what keeps an unverified subscriber
+	// out of the periodic resend loop entirely.
+	probeDue bool
+
+	lastSeen time.Time
 }
 
 func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *proto.GamePatchList) *SpectatorSession {
@@ -66,22 +152,25 @@ func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *
 		log:            log,
 		pendingFrames:  make(map[int32]uint64),
 		roundEventSeen: make(map[int32]bool),
+		downlinks:      make(map[string]*downlinkSubscriber),
 	}
 }
 
-// PushInputs folds a peer-reported backlog of confirmed frames into the
-// session's contiguous input log, deduping by frame index (first arrival
-// across any of the redundant peer streams wins). It returns the session's
-// current ack frame - the next frame index the session still needs - which
-// the caller should send back to the peer so it can evict acked entries
-// from its own resend buffer.
-func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) int32 {
+// PushInputs folds a peer's backlog into the session's contiguous input log,
+// deduping by frame index - first arrival across the redundant streams wins.
+//
+// Returns the next frame the session still needs, which the caller sends back
+// so the peer can evict acked entries, and whether the log actually grew, so
+// the caller knows whether to wake the fanout loop.
+func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) (ackFrame int32, advanced bool) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	if s.closed {
-		return int32(len(s.log.Inputs))
+		return int32(len(s.log.Inputs)), false
 	}
+
+	before := len(s.log.Inputs)
 
 	for i, v := range inputs {
 		f := startFrame + int32(i)
@@ -103,7 +192,7 @@ func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) int32 {
 		delete(s.pendingFrames, next)
 	}
 
-	return int32(len(s.log.Inputs))
+	return int32(len(s.log.Inputs)), len(s.log.Inputs) > before
 }
 
 // PushRoundEvent records a round-start RNG seed (mirrors
@@ -120,6 +209,7 @@ func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) {
 	s.log.StartMsgIndexes = append(s.log.StartMsgIndexes, frame)
 	s.log.StartMsgRandoms = append(s.log.StartMsgRandoms, randomValue)
 	s.log.RoundData = append(s.log.RoundData, &proto.BattleLogRound{})
+	s.roundStateVersion++
 }
 
 // PushRoundResult records a round's outcome once it becomes known. Mirrors
@@ -137,6 +227,7 @@ func (s *SpectatorSession) PushRoundResult(roundIndex int32, round *proto.Battle
 	}
 	if s.log.RoundData[roundIndex].GetWinTeam() == 0 {
 		s.log.RoundData[roundIndex] = round
+		s.roundStateVersion++
 	}
 }
 
@@ -158,6 +249,186 @@ func (s *SpectatorSession) Close(reason string, disconnectPeerID int32) {
 	s.log.EndAt = s.closedAt.Unix()
 }
 
+// Subscribe registers (or refreshes) a downlink subscriber for this
+// session, so it starts receiving live SpectatorInputPush updates from
+// fromFrame onward. Safe to call repeatedly (it's also the subscriber's
+// keepalive). fromFrame only ever moves ackedFrame forward, so a stale or
+// reordered Subscribe packet can never undo progress recorded by a later
+// Ack.
+func (s *SpectatorSession) Subscribe(remoteAddr *net.UDPAddr, fromFrame int32) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	key := remoteAddr.String()
+	sub, exists := s.downlinks[key]
+	if !exists {
+		sub = &downlinkSubscriber{remoteAddr: remoteAddr}
+		s.downlinks[key] = sub
+	}
+	if !exists || fromFrame > sub.ackedFrame {
+		sub.ackedFrame = fromFrame
+	}
+	if fromFrame == 0 {
+		// Still bootstrapping: re-arm the header. It is sent optimistically
+		// and never retransmitted like inputs are, so a single lost header
+		// datagram would otherwise strand this subscriber forever - it stays
+		// registered, so re-subscribing would not produce another one. A
+		// client that has folded anything in asks from a non-zero frame, so
+		// this stops on its own.
+		sub.sentHeader = false
+	}
+	sub.probeDue = true
+	sub.lastSeen = time.Now()
+}
+
+// Ack advances a downlink subscriber's ackedFrame, identified purely by its
+// UDP source address (addrKey) - SpectatorInputAck carries no session_id to
+// validate against, so routing by source address (which the sender cannot
+// spoof at the transport level) is the safety boundary here. A no-op if
+// addrKey isn't a known subscriber.
+func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	sub, ok := s.downlinks[addrKey]
+	if !ok {
+		return
+	}
+	// Only something actually receiving our pushes can ack them, so this
+	// address is not forged - see maxUnverifiedPushFrames.
+	sub.verified = true
+	if ackFrame > sub.ackedFrame {
+		sub.ackedFrame = ackFrame
+	}
+	if patchAck > sub.ackedPatches {
+		sub.ackedPatches = patchAck
+	}
+	sub.lastSeen = time.Now()
+}
+
+// buildPush constructs the next SpectatorInputPush to send a subscriber, or
+// returns ok=false if there is nothing new for it (already caught up on
+// inputs, round state, and close). Round data and the close signal are
+// piggybacked optimistically - sentRoundStateVersion/sentClose are updated
+// here rather than waiting for the ack, since a redundant resend on the
+// next tick (if this push is lost) is cheap and idempotent on the
+// receiving end.
+func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorInputPush, bool) {
+	// The header is large and variable-size, so it goes in a push of its
+	// own - both to stay clear of IP fragmentation and, like round state
+	// below, to keep it away from unverified subscribers.
+	if sub.verified && !sub.sentHeader {
+		header, ok := pb.Clone(s.log).(*proto.BattleLogFile)
+		if !ok {
+			return nil, false
+		}
+		// Inputs, round state and patches all stream through their own
+		// fields; the header carries only the small remainder.
+		header.Inputs = nil
+		header.StartMsgIndexes = nil
+		header.StartMsgRandoms = nil
+		header.RoundData = nil
+		header.Patches = nil
+		sub.sentHeader = true
+		return &proto.SpectatorInputPush{
+			BattleCode: s.battleCode,
+			StartFrame: sub.ackedFrame,
+			Header:     header,
+		}, true
+	}
+
+	// Patches next, before any inputs: the spectator cannot simulate a frame
+	// correctly until it has applied them all.
+	if sub.verified && sub.ackedPatches < int32(len(s.log.Patches)) {
+		var (
+			chunk []*proto.GamePatch
+			bytes int
+		)
+		for i := sub.ackedPatches; i < int32(len(s.log.Patches)); i++ {
+			p := s.log.Patches[i]
+			n := pb.Size(p)
+			if 0 < len(chunk) && maxPatchChunkBytes < bytes+n {
+				break
+			}
+			chunk = append(chunk, p)
+			bytes += n
+		}
+		return &proto.SpectatorInputPush{
+			BattleCode: s.battleCode,
+			StartFrame: sub.ackedFrame,
+			Patches:    chunk,
+			PatchStart: sub.ackedPatches,
+			PatchTotal: int32(len(s.log.Patches)),
+		}, true
+	}
+
+	have := int32(len(s.log.Inputs))
+	limit := int32(maxSpectatorPushFrames)
+	if !sub.verified {
+		limit = maxUnverifiedPushFrames
+	}
+	end := have
+	if end > sub.ackedFrame+limit {
+		end = sub.ackedFrame + limit
+	}
+
+	needsInputs := sub.ackedFrame < end
+	// Round state is the one variable-size part of a push, so an unverified
+	// subscriber never gets it: that keeps the reply to a possibly-forged
+	// subscribe small and predictable regardless of how far the match has
+	// progressed. A real spectator picks it up on its first verified push.
+	needsRoundState := sub.verified && sub.sentRoundStateVersion != s.roundStateVersion
+	needsClose := s.closed && !sub.sentClose
+
+	if !needsInputs && !needsRoundState && !needsClose {
+		if !sub.verified {
+			// Answer the probe even with nothing to carry, so a brand-new
+			// subscriber always has something to ack and can get verified -
+			// otherwise a spectator joining a battle that has not produced
+			// any input yet could never progress past unverified, and would
+			// never be sent the header.
+			return &proto.SpectatorInputPush{BattleCode: s.battleCode, StartFrame: sub.ackedFrame}, true
+		}
+		return nil, false
+	}
+
+	push := &proto.SpectatorInputPush{
+		BattleCode: s.battleCode,
+		StartFrame: sub.ackedFrame,
+	}
+	if needsInputs {
+		push.Inputs = append([]uint64(nil), s.log.Inputs[sub.ackedFrame:end]...)
+	}
+	if needsRoundState {
+		push.StartMsgIndexes = append([]int32(nil), s.log.StartMsgIndexes...)
+		push.StartMsgRandoms = append([]uint64(nil), s.log.StartMsgRandoms...)
+		push.RoundData = append([]*proto.BattleLogRound(nil), s.log.RoundData...)
+		sub.sentRoundStateVersion = s.roundStateVersion
+	}
+	if needsClose {
+		push.CloseReason = s.log.CloseReason
+		push.DisconnectUserIndex = s.log.DisconnectUserIndex
+		sub.sentClose = true
+	}
+
+	return push, true
+}
+
+// sweepSubscribersLocked drops downlink subscribers that haven't sent a
+// SpectatorSubscribeRequest (their keepalive) within spectatorSubscriberTimeout,
+// returning their address keys so the caller (SpectatorRegistry) can also
+// remove them from its own subscriberIndex.
+func (s *SpectatorSession) sweepSubscribersLocked(now time.Time) []string {
+	var dropped []string
+	for key, sub := range s.downlinks {
+		if now.Sub(sub.lastSeen) > spectatorSubscriberTimeout {
+			delete(s.downlinks, key)
+			dropped = append(dropped, key)
+		}
+	}
+	return dropped
+}
+
 // Snapshot returns a deep copy of the session's live-assembled log, safe
 // for the caller to read or serialize without racing further pushes.
 func (s *SpectatorSession) Snapshot() *proto.BattleLogFile {
@@ -174,10 +445,135 @@ func (s *SpectatorSession) Snapshot() *proto.BattleLogFile {
 type SpectatorRegistry struct {
 	mtx      sync.RWMutex
 	sessions map[string]*SpectatorSession
+
+	// subscriberIndex resolves an inbound SpectatorInputAck to the session
+	// it belongs to, purely by the packet's source address - SpectatorInputAck
+	// carries no session_id to look up by. Kept in sync with each session's
+	// own downlinks map by HandleSubscribe and StartFanoutLoop's sweep.
+	subscriberIndex map[string]*SpectatorSession
+
+	// wake is nudged (non-blocking) whenever a session gains new data a
+	// subscriber might want, so StartFanoutLoop can deliver it promptly
+	// instead of waiting for its next tick.
+	wake chan struct{}
 }
 
 var spectatorRegistry = &SpectatorRegistry{
-	sessions: make(map[string]*SpectatorSession),
+	sessions:        make(map[string]*SpectatorSession),
+	subscriberIndex: make(map[string]*SpectatorSession),
+	wake:            make(chan struct{}, 1),
+}
+
+// wakeFanout nudges the fan-out loop without blocking if it's already
+// pending a wake.
+func (r *SpectatorRegistry) wakeFanout() {
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
+}
+
+// HandleSubscribe registers or refreshes a downlink subscriber on the
+// session for battleCode. Looked up via GetAny rather than Get: a spectator
+// is not a battle participant and was never handed a session_id, so
+// session_id can't be used as a lookup key here.
+func (r *SpectatorRegistry) HandleSubscribe(remoteAddr *net.UDPAddr, m *proto.SpectatorSubscribeRequest) {
+	s, ok := r.GetAny(m.GetBattleCode())
+	if !ok {
+		return
+	}
+	s.Subscribe(remoteAddr, m.GetFromFrame())
+
+	r.mtx.Lock()
+	r.subscriberIndex[remoteAddr.String()] = s
+	r.mtx.Unlock()
+
+	r.wakeFanout()
+}
+
+// HandleAck routes an inbound SpectatorInputAck (sent by a spectator, not a
+// streaming peer - see SpectatorInputAck's doc) to the right session by the
+// packet's source address. A no-op if the address isn't a known subscriber.
+func (r *SpectatorRegistry) HandleAck(remoteAddr *net.UDPAddr, m *proto.SpectatorInputAck) {
+	r.mtx.RLock()
+	s, ok := r.subscriberIndex[remoteAddr.String()]
+	r.mtx.RUnlock()
+
+	if !ok {
+		return
+	}
+	s.Ack(remoteAddr.String(), m.GetAckFrame(), m.GetPatchAck())
+}
+
+// StartFanoutLoop is the single goroutine responsible for all
+// downlink (LBS -> spectator) socket writes: driven by a ticker plus the
+// wake channel, it walks every session's subscribers, builds whatever each
+// one is still missing, and sends it. Keeping every WriteToUDP here - off
+// serveUDP's hot read-loop stack - means a slow or large subscriber set can
+// never delay acking a real player's input push.
+func (r *SpectatorRegistry) StartFanoutLoop(udpConn *net.UDPConn) {
+	ticker := time.NewTicker(spectatorFanoutInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+		case <-r.wake:
+		}
+		r.fanoutOnce(udpConn)
+	}
+}
+
+func (r *SpectatorRegistry) fanoutOnce(udpConn *net.UDPConn) {
+	now := time.Now()
+
+	r.mtx.RLock()
+	sessions := make([]*SpectatorSession, 0, len(r.sessions))
+	for _, s := range r.sessions {
+		sessions = append(sessions, s)
+	}
+	r.mtx.RUnlock()
+
+	var droppedKeys []string
+	for _, s := range sessions {
+		s.mtx.Lock()
+		droppedKeys = append(droppedKeys, s.sweepSubscribersLocked(now)...)
+		for _, sub := range s.downlinks {
+			// An unverified subscriber is served only in direct response to
+			// its own subscribe datagram, never on the periodic resend -
+			// that is what stops a forged address being streamed at. See
+			// maxUnverifiedPushFrames.
+			if !sub.verified && !sub.probeDue {
+				continue
+			}
+			push, ok := s.buildPush(sub)
+			if !ok {
+				continue
+			}
+			sub.probeDue = false
+			pkt := &proto.Packet{
+				Type:                   proto.MessageType_SpectatorInputPushType,
+				SpectatorInputPushData: push,
+			}
+			bin, err := pb.Marshal(pkt)
+			if err != nil {
+				logger.Warn("spectator downlink push marshal failed", zap.Error(err))
+				continue
+			}
+			if _, err := udpConn.WriteToUDP(bin, sub.remoteAddr); err != nil {
+				logger.Warn("spectator downlink push send failed", zap.Error(err))
+			}
+		}
+		s.mtx.Unlock()
+	}
+
+	if len(droppedKeys) > 0 {
+		r.mtx.Lock()
+		for _, key := range droppedKeys {
+			delete(r.subscriberIndex, key)
+		}
+		r.mtx.Unlock()
+	}
 }
 
 // Open seeds a new live-capture session for a battle that is about to
@@ -233,6 +629,7 @@ func (r *SpectatorRegistry) Close(battleCode, reason string, disconnectPeerID in
 
 	if ok {
 		s.Close(reason, disconnectPeerID)
+		r.wakeFanout()
 	}
 }
 
@@ -248,7 +645,10 @@ func handleSpectatorInputPush(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *
 	if !ok {
 		return
 	}
-	ackFrame := s.PushInputs(m.GetStartFrame(), m.GetInputs())
+	ackFrame, advanced := s.PushInputs(m.GetStartFrame(), m.GetInputs())
+	if advanced {
+		spectatorRegistry.wakeFanout()
+	}
 
 	ack := &proto.Packet{
 		Type: proto.MessageType_SpectatorInputAckType,
@@ -274,6 +674,7 @@ func handleSpectatorRoundEvent(m *proto.SpectatorRoundEvent) {
 		return
 	}
 	s.PushRoundEvent(m.GetFrame(), m.GetRandomValue())
+	spectatorRegistry.wakeFanout()
 }
 
 // handleSpectatorRoundResult processes one SpectatorRoundResult datagram.
@@ -283,6 +684,7 @@ func handleSpectatorRoundResult(m *proto.SpectatorRoundResult) {
 		return
 	}
 	s.PushRoundResult(m.GetRoundIndex(), m.GetRound())
+	spectatorRegistry.wakeFanout()
 }
 
 // sweepLocked drops sessions that closed more than spectatorSessionRetention
