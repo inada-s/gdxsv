@@ -45,6 +45,17 @@ const maxPatchChunkBytes = 1000
 // spectator's final backfill can still read it.
 const spectatorSessionRetention = 10 * time.Minute
 
+// How long a session with no push from any peer is kept before it is treated
+// as dead. Peers push continuously while a battle runs; the longest natural
+// gap is a scene transition, seconds not minutes. Only reached when a session
+// never closes, which needs every peer to vanish without reporting.
+const spectatorSessionIdleTimeout = 10 * time.Minute
+
+// How often the fan-out loop sweeps expired sessions. Sweeping only when a new
+// battle starts leaves the last battles of a quiet night held until someone
+// plays again.
+const spectatorSweepInterval = time.Minute
+
 // silentPushGrace is how many pushes in a row may go unacked before a
 // subscriber is tapered. Ordinary packet loss heals in a push or two, since
 // every push is cumulative, so the grace window keeps a healthy spectator
@@ -111,6 +122,11 @@ type SpectatorSession struct {
 
 	closed   bool
 	closedAt time.Time
+
+	// Last time the peers pushed anything. Close() depends on a
+	// P2PMatchingReport arriving, and if every peer dies at once none does -
+	// so without this a session that never closes is never freed.
+	lastPushAt time.Time
 }
 
 // downlinkSubscriber tracks one spectator's live-push state within a
@@ -207,6 +223,7 @@ func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *
 		pendingFrames:  make(map[int32]uint64),
 		roundEventSeen: make(map[int32]bool),
 		downlinks:      make(map[string]*downlinkSubscriber),
+		lastPushAt:     time.Now(),
 	}
 }
 
@@ -219,6 +236,8 @@ func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *
 func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) (ackFrame int32, advanced bool) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	s.lastPushAt = time.Now()
 
 	if s.closed {
 		return int32(len(s.log.Inputs)), false
@@ -256,6 +275,8 @@ func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	s.lastPushAt = time.Now()
+
 	if s.closed || s.roundEventSeen[frame] {
 		return
 	}
@@ -272,6 +293,8 @@ func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) {
 func (s *SpectatorSession) PushRoundResult(roundIndex int32, round *proto.BattleLogRound) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	s.lastPushAt = time.Now()
 
 	if s.closed || roundIndex < 0 || round == nil {
 		return
@@ -593,10 +616,17 @@ func (r *SpectatorRegistry) HandleAck(remoteAddr *net.UDPAddr, m *proto.Spectato
 func (r *SpectatorRegistry) StartFanoutLoop(udpConn *net.UDPConn) {
 	ticker := time.NewTicker(spectatorFanoutInterval)
 	defer ticker.Stop()
+	sweep := time.NewTicker(spectatorSweepInterval)
+	defer sweep.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
+		case <-sweep.C:
+			r.mtx.Lock()
+			r.sweepLocked()
+			r.mtx.Unlock()
+			continue
 		case <-r.wake:
 		}
 		r.fanoutOnce(udpConn)
@@ -773,16 +803,24 @@ func handleSpectatorRoundResult(m *proto.SpectatorRoundResult) {
 }
 
 // sweepLocked drops sessions that closed more than spectatorSessionRetention
-// ago. Called opportunistically from Open rather than on a timer: session
-// churn is low (one entry per battle), so an O(n) scan on every new battle
-// start is cheap and avoids a background goroutine for M0.
+// ago, and sessions that have gone silent without ever closing. Called from
+// the fan-out loop's own timer and from Open. Session churn is low - one entry
+// per battle - so the O(n) scan is cheap.
 func (r *SpectatorRegistry) sweepLocked() {
 	now := time.Now()
 	for code, s := range r.sessions {
 		s.mtx.RLock()
 		expired := s.closed && now.Sub(s.closedAt) > spectatorSessionRetention
+		// A session only closes when a peer reports the battle ended. If every
+		// peer vanishes at once nobody reports, so fall back to silence.
+		idle := !s.closed && now.Sub(s.lastPushAt) > spectatorSessionIdleTimeout
 		s.mtx.RUnlock()
-		if expired {
+		if expired || idle {
+			if idle {
+				logger.Info("spectator session dropped after going silent",
+					zap.String("battle_code", code),
+					zap.Duration("silent_for", now.Sub(s.lastPushAt)))
+			}
 			delete(r.sessions, code)
 		}
 	}

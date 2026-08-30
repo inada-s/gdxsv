@@ -717,3 +717,67 @@ func TestSpectatorSession_SilentSubscriber_SubscribePunchesThroughTaper(t *testi
 		t.Fatal("a keepalive subscribe should push through the taper")
 	}
 }
+
+func TestSpectatorRegistry_SweepDropsClosedSessionAfterRetention(t *testing.T) {
+	r := newTestSpectatorRegistry()
+	s := newTestSpectatorSession()
+	r.sessions[s.battleCode] = s
+
+	s.Close("finished", 0)
+
+	r.mtx.Lock()
+	r.sweepLocked()
+	r.mtx.Unlock()
+	assertEq(t, 1, len(r.sessions)) // still inside the retention window
+
+	s.mtx.Lock()
+	s.closedAt = time.Now().Add(-spectatorSessionRetention - time.Minute)
+	s.mtx.Unlock()
+
+	r.mtx.Lock()
+	r.sweepLocked()
+	r.mtx.Unlock()
+	assertEq(t, 0, len(r.sessions))
+}
+
+// A session only closes when a peer reports the battle ended. If every peer
+// vanishes at once nobody reports, and the session must still be freed.
+func TestSpectatorRegistry_SweepDropsSilentSessionThatNeverClosed(t *testing.T) {
+	r := newTestSpectatorRegistry()
+	s := newTestSpectatorSession()
+	r.sessions[s.battleCode] = s
+
+	s.PushInputs(0, []uint64{1, 2, 3})
+
+	r.mtx.Lock()
+	r.sweepLocked()
+	r.mtx.Unlock()
+	assertEq(t, 1, len(r.sessions)) // pushing, so alive
+
+	s.mtx.Lock()
+	s.lastPushAt = time.Now().Add(-spectatorSessionIdleTimeout - time.Minute)
+	s.mtx.Unlock()
+
+	r.mtx.Lock()
+	r.sweepLocked()
+	r.mtx.Unlock()
+	assertEq(t, 0, len(r.sessions))
+	assertEq(t, false, s.closed) // dropped without ever having been closed
+}
+
+func TestSpectatorRegistry_SweepKeepsActiveSession(t *testing.T) {
+	r := newTestSpectatorRegistry()
+	s := newTestSpectatorSession()
+	r.sessions[s.battleCode] = s
+
+	// Older than both windows, but still pushing: a long battle must survive.
+	s.mtx.Lock()
+	s.lastPushAt = time.Now().Add(-spectatorSessionIdleTimeout - time.Minute)
+	s.mtx.Unlock()
+	s.PushInputs(0, []uint64{1})
+
+	r.mtx.Lock()
+	r.sweepLocked()
+	r.mtx.Unlock()
+	assertEq(t, 1, len(r.sessions))
+}
