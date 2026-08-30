@@ -781,3 +781,34 @@ func TestSpectatorRegistry_SweepKeepsActiveSession(t *testing.T) {
 	r.mtx.Unlock()
 	assertEq(t, 1, len(r.sessions))
 }
+
+// A battle only streams if a peer is actually pushing. Not every player runs a
+// build with the uplink, so "session exists" is not the same as "spectatable".
+func TestSpectatorRegistry_LiveStatus(t *testing.T) {
+	r := newTestSpectatorRegistry()
+	s := newTestSpectatorSession()
+	r.sessions[s.battleCode] = s
+
+	live, subs := r.LiveStatus("no-such-battle")
+	assertEq(t, false, live)
+	assertEq(t, 0, subs)
+
+	// Open, but no peer has pushed: nothing to watch yet.
+	live, _ = r.LiveStatus(s.battleCode)
+	assertEq(t, false, live)
+
+	s.PushInputs(0, []uint64{1, 2, 3})
+	live, subs = r.LiveStatus(s.battleCode)
+	assertEq(t, true, live)
+	assertEq(t, 0, subs)
+
+	s.Subscribe(testAddr(20001), 0)
+	_, subs = r.LiveStatus(s.battleCode)
+	assertEq(t, 1, subs)
+
+	// Once the battle ends it is no longer live, even though the assembled log
+	// is still held for the retention window.
+	s.Close("finished", 0)
+	live, _ = r.LiveStatus(s.battleCode)
+	assertEq(t, false, live)
+}

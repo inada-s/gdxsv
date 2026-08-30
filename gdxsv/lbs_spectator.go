@@ -736,6 +736,26 @@ func (r *SpectatorRegistry) GetAny(battleCode string) (*SpectatorSession, bool) 
 	return s, ok
 }
 
+// LiveStatus reports whether battleCode can be spectated live right now, and
+// how many spectators are attached.
+//
+// Producing, not merely open: a session is created for every battle, but only
+// peers running a build with the spectator uplink actually push. One such peer
+// is enough - each pushes the whole input log, and the session dedups by frame
+// - so the answer is simply whether any input has arrived.
+func (r *SpectatorRegistry) LiveStatus(battleCode string) (live bool, spectators int) {
+	r.mtx.RLock()
+	s, ok := r.sessions[battleCode]
+	r.mtx.RUnlock()
+	if !ok {
+		return false, 0
+	}
+
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return !s.closed && 0 < len(s.log.Inputs), len(s.downlinks)
+}
+
 // Close marks the session for battleCode closed, if one exists.
 func (r *SpectatorRegistry) Close(battleCode, reason string, disconnectPeerID int32) {
 	r.mtx.RLock()

@@ -2,12 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"go.uber.org/zap"
-	"golang.org/x/sync/singleflight"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 var httpRequestGroup singleflight.Group
@@ -42,6 +43,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		type onlineUser struct {
 			UserID     string `json:"user_id,omitempty"`
 			Name       string `json:"name,omitempty"`
+			PilotName  string `json:"pilot_name,omitempty"`
 			Team       string `json:"team,omitempty"`
 			LobbyID    uint16 `json:"lobby_id,omitempty"`
 			BattleCode string `json:"battle_code,omitempty"`
@@ -58,6 +60,12 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			State      string    `json:"state,omitempty"`
 			LobbyID    uint16    `json:"lobby_id,omitempty"`
 			UpdatedAt  time.Time `json:"updated_at,omitempty"`
+
+			// Whether this battle can be spectated live. Not every player runs
+			// a build that pushes, so a battle being in progress says nothing
+			// about whether anything is being captured.
+			LiveSpectate bool `json:"live_spectate"`
+			Spectators   int  `json:"spectators,omitempty"`
 		}
 
 		type statusResponse struct {
@@ -107,6 +115,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 					resp.BattleUsers = append(resp.BattleUsers, &onlineUser{
 						UserID:     u.UserID,
 						Name:       u.Name,
+						PilotName:  u.PilotName,
 						Team:       teamName(int(u.Team)),
 						BattleCode: u.BattleCode,
 						BattlePos:  uint8(u.Pos),
@@ -118,12 +127,15 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			}
 
 			for _, g := range sharedData.GetMcsGames() {
+				live, spectators := spectatorRegistry.LiveStatus(g.BattleCode)
 				resp.ActiveGames = append(resp.ActiveGames, &activeGame{
-					BattleCode: g.BattleCode,
-					Disk:       g.GameDisk,
-					State:      gameStateName(g.State),
-					LobbyID:    g.LobbyID,
-					UpdatedAt:  g.UpdatedAt,
+					BattleCode:   g.BattleCode,
+					Disk:         g.GameDisk,
+					State:        gameStateName(g.State),
+					LobbyID:      g.LobbyID,
+					UpdatedAt:    g.UpdatedAt,
+					LiveSpectate: live,
+					Spectators:   spectators,
 				})
 
 				for _, u := range resp.BattleUsers {
