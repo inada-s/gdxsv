@@ -114,17 +114,14 @@ func (mcs *Mcs) ListenAndServe(addr string) {
 	udpSv := NewUDPServer(mcs)
 
 	go func(addr string) {
+		// Only returns on failure.
 		err := tcpSv.ListenAndServe(addr)
-		if err != nil {
-			logger.Fatal("tcpSv.ListenAndServe", zap.Error(err))
-		}
+		logger.Fatal("tcpSv.ListenAndServe", zap.Error(err))
 	}(addr)
 
 	go func(addr string) {
 		err := udpSv.ListenAndServe(addr)
-		if err != nil {
-			logger.Fatal("udpSv.ListenAndServe", zap.Error(err))
-		}
+		logger.Fatal("udpSv.ListenAndServe", zap.Error(err))
 	}(addr)
 }
 
