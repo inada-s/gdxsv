@@ -160,6 +160,8 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		}
 	})
 
+	http.HandleFunc("/lbs/spectators", spectatorsHandler)
+
 	http.HandleFunc("/lbs/replay", func(w http.ResponseWriter, r *http.Request) {
 		// Public API: find replays
 
@@ -373,4 +375,34 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			logger.Error("Write response failed", zap.Error(err))
 		}
 	})
+}
+
+// spectatorsHandler is split out of RegisterHTTPHandlers so it can be
+// exercised directly with httptest.
+func spectatorsHandler(w http.ResponseWriter, r *http.Request) {
+	// Public API: how many people are watching one battle. Kept separate from
+	// /lbs/status so a spectator polling during playback does not pull down
+	// every user and every game for one integer.
+	if err := r.ParseForm(); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	battleCode := r.FormValue("battle_code")
+	if battleCode == "" {
+		http.Error(w, "battle_code required", http.StatusBadRequest)
+		return
+	}
+
+	live, spectators := spectatorRegistry.LiveStatus(battleCode)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(struct {
+		BattleCode string `json:"battle_code"`
+		Spectators int    `json:"spectators"`
+		// False once the battle ends, so a client can tell "nobody is
+		// watching" from "there is nothing to watch".
+		Live bool `json:"live"`
+	}{battleCode, spectators, live}); err != nil {
+		logger.Error("JSON encode failed", zap.Error(err))
+	}
 }

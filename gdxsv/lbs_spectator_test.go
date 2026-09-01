@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -811,4 +814,53 @@ func TestSpectatorRegistry_LiveStatus(t *testing.T) {
 	s.Close("finished", 0)
 	live, _ = r.LiveStatus(s.battleCode)
 	assertEq(t, false, live)
+}
+
+func TestSpectatorsHandler(t *testing.T) {
+	// The handler reads the package-level registry, so swap in a clean one.
+	saved := spectatorRegistry
+	spectatorRegistry = newTestSpectatorRegistry()
+	defer func() { spectatorRegistry = saved }()
+
+	get := func(query string) (int, map[string]interface{}) {
+		req := httptest.NewRequest(http.MethodGet, "/lbs/spectators"+query, nil)
+		rec := httptest.NewRecorder()
+		spectatorsHandler(rec, req)
+		var body map[string]interface{}
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		return rec.Code, body
+	}
+
+	code, _ := get("")
+	assertEq(t, http.StatusBadRequest, code)
+
+	// Unknown battle: answers rather than erroring, so a client can tell
+	// "nothing to watch" from a failed request.
+	code, body := get("?battle_code=nope")
+	assertEq(t, http.StatusOK, code)
+	assertEq(t, false, body["live"])
+	assertEq(t, float64(0), body["spectators"])
+
+	s := newTestSpectatorSession()
+	spectatorRegistry.sessions[s.battleCode] = s
+
+	// Open but nothing pushed yet: not live.
+	_, body = get("?battle_code=" + s.battleCode)
+	assertEq(t, false, body["live"])
+
+	s.PushInputs(0, []uint64{1, 2, 3})
+	s.Subscribe(testAddr(30001), 0)
+	s.Subscribe(testAddr(30002), 0)
+
+	code, body = get("?battle_code=" + s.battleCode)
+	assertEq(t, http.StatusOK, code)
+	assertEq(t, true, body["live"])
+	assertEq(t, float64(2), body["spectators"])
+	assertEq(t, s.battleCode, body["battle_code"])
+
+	// Once the battle ends it is no longer live, even with subscribers still
+	// attached and the log still held for the retention window.
+	s.Close("finished", 0)
+	_, body = get("?battle_code=" + s.battleCode)
+	assertEq(t, false, body["live"])
 }
