@@ -150,11 +150,10 @@ type downlinkSubscriber struct {
 	// costs one chunk, not the whole list.
 	ackedPatches int32
 
-	// sentRoundStateVersion/sentClose track what this subscriber has
-	// already been sent, so buildPush only piggybacks round data / the
-	// close signal again if it might not have arrived yet.
+	// sentRoundStateVersion is the round-state version this subscriber has
+	// already been sent, so buildPush only piggybacks round data again once
+	// it has actually changed.
 	sentRoundStateVersion int32
-	sentClose             bool
 
 	// verified is set once this address acks anything, which proves it really
 	// receives and wasn't forged. Until then it only gets small pushes, and
@@ -400,11 +399,10 @@ func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
 
 // buildPush constructs the next SpectatorInputPush to send a subscriber, or
 // returns ok=false if there is nothing new for it (already caught up on
-// inputs, round state, and close). Round data and the close signal are
-// piggybacked optimistically - sentRoundStateVersion/sentClose are updated
-// here rather than waiting for the ack, since a redundant resend on the
-// next tick (if this push is lost) is cheap and idempotent on the
-// receiving end.
+// inputs, round state, and close). Round data is piggybacked optimistically -
+// sentRoundStateVersion is updated here rather than waiting for the ack,
+// since a redundant resend on the next tick (if this push is lost) is cheap
+// and idempotent on the receiving end.
 func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorInputPush, bool) {
 	// The header is large and variable-size, so it goes in a push of its
 	// own - both to stay clear of IP fragmentation and, like round state
@@ -470,7 +468,10 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 	// subscribe small and predictable regardless of how far the match has
 	// progressed. A real spectator picks it up on its first verified push.
 	needsRoundState := sub.verified && sub.sentRoundStateVersion != s.roundStateVersion
-	needsClose := s.closed && !sub.sentClose
+	// Only once this subscriber holds every input. The spectator stops its
+	// downlink on close, so sending it early truncates the match to whatever
+	// had arrived. Resent every fanout because close is never acked.
+	needsClose := s.closed && sub.ackedFrame >= int32(len(s.log.Inputs))
 
 	if !needsInputs && !needsRoundState && !needsClose {
 		if !sub.verified {
@@ -500,7 +501,6 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 	if needsClose {
 		push.CloseReason = s.log.CloseReason
 		push.DisconnectUserIndex = s.log.DisconnectUserIndex
-		sub.sentClose = true
 	}
 
 	return push, true

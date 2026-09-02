@@ -291,7 +291,45 @@ func TestSpectatorSession_BuildPush_IncludesRoundState_ThenStopsResendingUntilCh
 	assertEq(t, []int32{0, 100}, push.StartMsgIndexes)
 }
 
-func TestSpectatorSession_BuildPush_IncludesCloseFields_OnceClosed_ThenStopsResending(t *testing.T) {
+func TestSpectatorSession_BuildPush_HoldsCloseUntilInputsDelivered(t *testing.T) {
+	// A spectator that joins after the battle ended still has the whole match
+	// to receive. It stops its downlink the moment it sees close, so close
+	// must not ride along with a push that leaves inputs undelivered.
+	s := newTestSpectatorSession()
+	inputs := make([]uint64, maxSpectatorPushFrames*2)
+	s.PushInputs(0, inputs)
+	s.Close("game_end", -1)
+
+	addr := testAddr(40000)
+	s.Subscribe(addr, 0)
+	sub := s.downlinks[addr.String()]
+	sub.verified = true
+	sub.sentHeader = true
+
+	push, ok := s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, maxSpectatorPushFrames, len(push.Inputs))
+	assertEq(t, "", push.CloseReason)
+
+	// One chunk short: still no close.
+	sub.ackedFrame = maxSpectatorPushFrames
+	push, ok = s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, "", push.CloseReason)
+
+	// Everything delivered: close goes out, on its own.
+	sub.ackedFrame = int32(len(inputs))
+	push, ok = s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, 0, len(push.Inputs))
+	assertEq(t, "game_end", push.CloseReason)
+	assertEq(t, int32(-1), push.DisconnectUserIndex)
+}
+
+func TestSpectatorSession_BuildPush_ResendsCloseWhileSubscribed(t *testing.T) {
+	// Close is never acked, so there is no latch: every fanout offers it
+	// again. That is the retry for a lost close packet. A spectator that got
+	// it stops its keepalives and sweepSubscribersLocked drops it.
 	s := newTestSpectatorSession()
 	addr := testAddr(40000)
 	s.Subscribe(addr, 0)
@@ -301,12 +339,11 @@ func TestSpectatorSession_BuildPush_IncludesCloseFields_OnceClosed_ThenStopsRese
 
 	s.Close("game_end", -1)
 
-	push, ok := s.buildPush(sub)
-	assertEq(t, true, ok)
-	assertEq(t, "game_end", push.CloseReason)
-
-	_, ok = s.buildPush(sub)
-	assertEq(t, false, ok) // already sent the close signal; nothing new
+	for i := 0; i < 3; i++ {
+		push, ok := s.buildPush(sub)
+		assertEq(t, true, ok)
+		assertEq(t, "game_end", push.CloseReason)
+	}
 }
 
 func TestSpectatorSession_SweepSubscribersLocked_DropsStale(t *testing.T) {
