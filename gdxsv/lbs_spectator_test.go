@@ -194,18 +194,6 @@ func TestSpectatorSession_Close_IsIdempotent(t *testing.T) {
 	assertEq(t, int32(-1), s.log.DisconnectUserIndex)
 }
 
-func TestSpectatorSession_Snapshot_IsIndependentCopy(t *testing.T) {
-	s := newTestSpectatorSession()
-	s.PushInputs(0, []uint64{1, 2, 3})
-
-	snap := s.Snapshot()
-	assertEq(t, []uint64{1, 2, 3}, snap.Inputs)
-
-	s.PushInputs(3, []uint64{4})
-	assertEq(t, []uint64{1, 2, 3}, snap.Inputs) // snapshot unaffected by later pushes
-	assertEq(t, []uint64{1, 2, 3, 4}, s.log.Inputs)
-}
-
 func TestSpectatorRegistry_Open_SkipsTrainingGames(t *testing.T) {
 	r := &SpectatorRegistry{sessions: make(map[string]*SpectatorSession)}
 	r.Open(&proto.P2PMatching{BattleCode: "training-code", IsTrainingGame: true}, "dc2", nil)

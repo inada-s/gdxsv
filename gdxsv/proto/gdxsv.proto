@@ -87,25 +87,24 @@ message BattleLogRound {
 // dropped packet delays a frame instead of losing it. All 4 participants send
 // redundantly and LBS dedups by frame index.
 //
-// Fields 6 onward are downlink-only (LBS -> spectator). Input, patch and
+// Fields 5 onward are downlink-only (LBS -> spectator). Input, patch and
 // round-state progress are acknowledged independently in SpectatorInputAck.
 message SpectatorInputPush {
   string battle_code = 1;
   int32 session_id = 2;
-  int32 peer_id = 3;
-  int32 start_frame = 4;
-  repeated fixed64 inputs = 5;
-  repeated int32 start_msg_indexes = 6;
-  repeated uint64 start_msg_randoms = 7;
-  repeated BattleLogRound round_data = 8;
-  string close_reason = 9;
-  int32 disconnect_user_index = 10;
+  int32 start_frame = 3;
+  repeated fixed64 inputs = 4;
+  repeated int32 start_msg_indexes = 5;
+  repeated uint64 start_msg_randoms = 6;
+  repeated BattleLogRound round_data = 7;
+  string close_reason = 8;
+  int32 disconnect_user_index = 9;
 
   // Downlink-only, sent once to each new subscriber before any inputs. The
   // BattleLogFile with inputs, round state, patches and close fields stripped
   // out - disk, users and rule, which is what playback needs to start. It comes over UDP
   // rather than HTTP because LBS's HTTP port isn't publicly reachable.
-  BattleLogFile header = 11;
+  BattleLogFile header = 10;
 
   // Downlink-only: the lobby's game patches. The spectator must apply them to
   // stay deterministic, since the shared bootstrap savestate is generic.
@@ -115,14 +114,14 @@ message SpectatorInputPush {
   // way inputs resend from ack_frame. A fragmented datagram only arrives if
   // every fragment does, so splitting keeps delivery from degrading as the
   // patch table grows.
-  repeated GamePatch patches = 12;
-  int32 patch_start = 13;  // index of patches[0] within the full list
-  int32 patch_total = 14;  // full list length, so the client knows when it has them all
+  repeated GamePatch patches = 11;
+  int32 patch_start = 12;  // index of patches[0] within the full list
+  int32 patch_total = 13;  // full list length, so the client knows when it has them all
 
-  // Version of the complete round snapshot in fields 6-8; zero means no
+  // Version of the complete round snapshot in fields 5-7; zero means no
   // snapshot in this push. Resent until the spectator applies it and ACKs.
   // On a close-only push, identifies the version required before stopping.
-  int32 round_state_version = 15;
+  int32 round_state_version = 14;
 }
 
 // Sent by LBS back to a streaming peer, or by a spectator back to LBS: the
@@ -171,18 +170,16 @@ message SpectatorSubscribeChallenge {
 message SpectatorRoundEvent {
   string battle_code = 1;
   int32 session_id = 2;
-  int32 peer_id = 3;
-  int32 frame = 4;
-  uint64 random_value = 5;
+  int32 frame = 3;
+  uint64 random_value = 4;
 }
 
 // Retried until acknowledged when a round's result becomes known (win team / mobile suit used).
 message SpectatorRoundResult {
   string battle_code = 1;
   int32 session_id = 2;
-  int32 peer_id = 3;
-  int32 round_index = 4;
-  BattleLogRound round = 5;
+  int32 round_index = 3;
+  BattleLogRound round = 4;
 }
 
 message BattleLogFile {

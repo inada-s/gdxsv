@@ -527,14 +527,6 @@ func (s *SpectatorSession) sweepSubscribersLocked(now time.Time) []string {
 	return dropped
 }
 
-// Snapshot returns a deep copy of the session's live-assembled log, safe
-// for the caller to read or serialize without racing further pushes.
-func (s *SpectatorSession) Snapshot() *proto.BattleLogFile {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	return pb.Clone(s.log).(*proto.BattleLogFile)
-}
-
 // SpectatorRegistry tracks one SpectatorSession per currently (or recently)
 // live battle_code. It is independent of Lbs's central single-threaded
 // event loop (see Lbs.Locked) by design: input pushes arrive at up to

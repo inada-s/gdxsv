@@ -393,16 +393,24 @@ func spectatorsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	live, spectators := spectatorRegistry.LiveStatus(battleCode)
+	// Share overlapping lookups for the same battle, separate from /lbs/status.
+	resp, err, _ := httpRequestGroup.Do("/lbs/spectators:"+battleCode, func() (interface{}, error) {
+		live, spectators := spectatorRegistry.LiveStatus(battleCode)
+		return struct {
+			BattleCode string `json:"battle_code"`
+			Spectators int    `json:"spectators"`
+			// False once the battle ends, so a client can tell "nobody is
+			// watching" from "there is nothing to watch".
+			Live bool `json:"live"`
+		}{battleCode, spectators, live}, nil
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(struct {
-		BattleCode string `json:"battle_code"`
-		Spectators int    `json:"spectators"`
-		// False once the battle ends, so a client can tell "nobody is
-		// watching" from "there is nothing to watch".
-		Live bool `json:"live"`
-	}{battleCode, spectators, live}); err != nil {
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		logger.Error("JSON encode failed", zap.Error(err))
 	}
 }
