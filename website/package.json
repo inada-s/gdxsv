@@ -29,8 +29,8 @@
     "gh-pages": "^5.0.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
-    "vite": "^6.0.7",
-    "vitest": "^2.1.8"
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
   },
   "scripts": {
     "start": "vite",
