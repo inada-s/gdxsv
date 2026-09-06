@@ -269,7 +269,7 @@ func TestSpectatorSession_Ack_AdvancesSubscriberAckedFrame(t *testing.T) {
 	addr := testAddr(40000)
 	subscribeTestSpectator(s, addr, 0)
 
-	s.Ack(addr.String(), 7, 0)
+	s.Ack(addr.String(), 7, 0, 0)
 
 	assertEq(t, int32(7), s.downlinks[addr.String()].ackedFrame)
 }
@@ -279,7 +279,7 @@ func TestSpectatorSession_Ack_IgnoredForUnknownSubscriber(t *testing.T) {
 	addr := testAddr(40000)
 	subscribeTestSpectator(s, addr, 0)
 
-	s.Ack(testAddr(50000).String(), 999, 0) // never subscribed
+	s.Ack(testAddr(50000).String(), 999, 0, 0) // never subscribed
 
 	assertEq(t, int32(0), s.downlinks[addr.String()].ackedFrame)
 	_, ok := s.downlinks[testAddr(50000).String()]
@@ -319,7 +319,7 @@ func TestSpectatorSession_BuildPush_NothingNewReturnsFalse(t *testing.T) {
 	assertEq(t, false, ok)
 }
 
-func TestSpectatorSession_BuildPush_IncludesRoundState_ThenStopsResendingUntilChanged(t *testing.T) {
+func TestSpectatorSession_BuildPush_ResendsRoundStateUntilAcked(t *testing.T) {
 	s := newTestSpectatorSession()
 	s.PushRoundEvent(0, 111)
 
@@ -332,16 +332,39 @@ func TestSpectatorSession_BuildPush_IncludesRoundState_ThenStopsResendingUntilCh
 	assertEq(t, true, ok)
 	assertEq(t, []int32{0}, push.StartMsgIndexes)
 	assertEq(t, []uint64{111}, push.StartMsgRandoms)
+	assertEq(t, int32(1), push.RoundStateVersion)
+	assertEq(t, int32(0), sub.ackedRoundStateVersion)
 
-	// Nothing changed since: round state must not be resent.
+	// A lost push or ACK must not stop round-state delivery.
+	retry, ok := s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, true, pb.Equal(push, retry))
+	s.Ack(addr.String(), 0, 0, 1)
 	_, ok = s.buildPush(sub)
 	assertEq(t, false, ok)
 
-	// A new round event bumps roundStateVersion: must be sent again.
+	// A result changes the version even without another round start.
+	s.PushRoundResult(0, &proto.BattleLogRound{WinTeam: 2})
+	push, ok = s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, int32(2), push.RoundStateVersion)
+	assertEq(t, []int32{0}, push.StartMsgIndexes)
+	assertEq(t, int32(2), push.RoundData[0].WinTeam)
+	s.Ack(addr.String(), 0, 0, 1) // A reordered old ACK cannot confirm the result.
+	_, ok = s.buildPush(sub)
+	assertEq(t, true, ok)
+	s.Ack(addr.String(), 0, 0, 2)
+	s.Ack(addr.String(), 0, 0, 1)
+	assertEq(t, int32(2), sub.ackedRoundStateVersion)
+	_, ok = s.buildPush(sub)
+	assertEq(t, false, ok)
+
+	// The next round start also needs its own acknowledgement.
 	s.PushRoundEvent(100, 222)
 	push, ok = s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, []int32{0, 100}, push.StartMsgIndexes)
+	assertEq(t, int32(3), push.RoundStateVersion)
 }
 
 func TestSpectatorSession_BuildPush_HoldsCloseUntilInputsDelivered(t *testing.T) {
@@ -605,7 +628,7 @@ func TestSpectatorSession_BuildPush_ChunksPatchesUnderByteBudget(t *testing.T) {
 		again, _ := s.buildPush(sub)
 		assertEq(t, int32(i), again.PatchStart)
 
-		s.Ack(sub.remoteAddr.String(), 0, int32(i+1))
+		s.Ack(sub.remoteAddr.String(), 0, int32(i+1), 0)
 	}
 
 	// All acked: back to normal input streaming.
@@ -628,7 +651,7 @@ func TestSpectatorSession_BuildPush_PacksSmallPatchesTogether(t *testing.T) {
 // admittedSub starts the taper tests after admission and header delivery.
 func admittedSub(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
 	subscribeTestSpectator(s, addr, 0)
-	s.Ack(addr.String(), 0, 0)
+	s.Ack(addr.String(), 0, 0, 0)
 	sub := s.downlinks[addr.String()]
 	sub.probeDue = false
 	sub.sentHeader = true
@@ -726,7 +749,7 @@ func TestSpectatorSession_SilentSubscriber_AckClearsTaper(t *testing.T) {
 		t.Fatal("expected the subscriber to be tapered")
 	}
 
-	s.Ack(addr.String(), 1, 0)
+	s.Ack(addr.String(), 1, 0, 0)
 	assertEq(t, int32(0), sub.skipFanouts)
 	assertEq(t, int32(0), sub.silentPushes)
 }

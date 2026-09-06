@@ -219,10 +219,10 @@ func (lbs *Lbs) serveUDP(port int) {
 			handleSpectatorInputPush(udpConn, remoteAddr, pkt.SpectatorInputPushData)
 		}
 		if pkt.SpectatorRoundEventData != nil {
-			handleSpectatorRoundEvent(pkt.SpectatorRoundEventData)
+			handleSpectatorRoundEvent(udpConn, remoteAddr, pkt.SpectatorRoundEventData)
 		}
 		if pkt.SpectatorRoundResultData != nil {
-			handleSpectatorRoundResult(pkt.SpectatorRoundResultData)
+			handleSpectatorRoundResult(udpConn, remoteAddr, pkt.SpectatorRoundResultData)
 		}
 		if pkt.SpectatorSubscribeData != nil {
 			handleSpectatorSubscribe(udpConn, remoteAddr, pkt.SpectatorSubscribeData)

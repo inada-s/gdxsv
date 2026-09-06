@@ -87,9 +87,8 @@ message BattleLogRound {
 // dropped packet delays a frame instead of losing it. All 4 participants send
 // redundantly and LBS dedups by frame index.
 //
-// Fields 6-10 are downlink-only (LBS -> spectator) and always unset on the
-// uplink. One message both ways means one reliability channel: a single
-// SpectatorInputAck says "caught up on everything".
+// Fields 6 onward are downlink-only (LBS -> spectator). Input, patch and
+// round-state progress are acknowledged independently in SpectatorInputAck.
 message SpectatorInputPush {
   string battle_code = 1;
   int32 session_id = 2;
@@ -103,8 +102,8 @@ message SpectatorInputPush {
   int32 disconnect_user_index = 10;
 
   // Downlink-only, sent once to each new subscriber before any inputs. The
-  // BattleLogFile with inputs, round state and patches stripped out - disk,
-  // users and rule, which is what playback needs to start. It comes over UDP
+  // BattleLogFile with inputs, round state, patches and close fields stripped
+  // out - disk, users and rule, which is what playback needs to start. It comes over UDP
   // rather than HTTP because LBS's HTTP port isn't publicly reachable.
   BattleLogFile header = 11;
 
@@ -119,17 +118,28 @@ message SpectatorInputPush {
   repeated GamePatch patches = 12;
   int32 patch_start = 13;  // index of patches[0] within the full list
   int32 patch_total = 14;  // full list length, so the client knows when it has them all
+
+  // Version of the complete round snapshot in fields 6-8; zero means no
+  // snapshot in this push. Resent until the spectator applies it and ACKs.
+  // On a close-only push, identifies the version required before stopping.
+  int32 round_state_version = 15;
 }
 
 // Sent by LBS back to a streaming peer, or by a spectator back to LBS: the
-// highest frame index the sender has received with no gaps before it. The
-// other side may discard buffered/backlog data at or below this index.
+// next missing frame index (the contiguous input count). The other side
+// may discard buffered/backlog data strictly below this index.
 message SpectatorInputAck {
   string battle_code = 1;
   int32 ack_frame = 2;
   // How many patches the spectator has received contiguously; LBS resends
   // from here, so a lost chunk costs one chunk rather than the whole list.
   int32 patch_ack = 3;
+  // Spectator -> LBS: latest round-state version actually applied to its log.
+  int32 round_ack = 4;
+  // LBS -> participant: individual accepted round starts (by frame) and
+  // results (by round index). Explicit entries also acknowledge frame/index 0.
+  repeated int32 round_event_ack = 5;
+  repeated int32 round_result_ack = 6;
 }
 
 // Sent by a spectator client to LBS to start or resume receiving live
@@ -155,7 +165,7 @@ message SpectatorSubscribeChallenge {
   bytes cookie = 2;
 }
 
-// Sent once per round start (mirrors GdxsvBackendRollback's
+// Retried until acknowledged, one round start at a time in order (mirrors GdxsvBackendRollback's
 // start_msg_indexes/start_msg_randoms) so the live-assembled log stays
 // deterministic across round boundaries.
 message SpectatorRoundEvent {
@@ -166,7 +176,7 @@ message SpectatorRoundEvent {
   uint64 random_value = 5;
 }
 
-// Sent when a round's result becomes known (win team / mobile suit used).
+// Retried until acknowledged when a round's result becomes known (win team / mobile suit used).
 message SpectatorRoundResult {
   string battle_code = 1;
   int32 session_id = 2;

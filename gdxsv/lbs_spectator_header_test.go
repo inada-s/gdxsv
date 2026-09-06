@@ -29,14 +29,16 @@ func TestSpectatorSession_BuildPush_HeaderPreservesMetadata(t *testing.T) {
 			}
 
 			before := pb.Clone(s.log).(*proto.BattleLogFile)
-			// The old clone-and-strip implementation defines the wire contents
-			// to preserve, including close metadata for finished sessions.
+			// Bootstrap metadata must not close a retained recording before
+			// the subscriber receives its streamed inputs and round state.
 			want := pb.Clone(s.log).(*proto.BattleLogFile)
 			want.Inputs = nil
 			want.StartMsgIndexes = nil
 			want.StartMsgRandoms = nil
 			want.RoundData = nil
 			want.Patches = nil
+			want.CloseReason = ""
+			want.DisconnectUserIndex = 0
 
 			addr := testAddr(40000)
 			subscribeTestSpectator(s, addr, 0)
@@ -50,6 +52,7 @@ func TestSpectatorSession_BuildPush_HeaderPreservesMetadata(t *testing.T) {
 			assertEq(t, true, pb.Equal(&proto.SpectatorInputPush{
 				BattleCode: s.battleCode,
 				Header:     want,
+				PatchTotal: int32(len(s.log.Patches)),
 			}, push))
 			assertEq(t, true, pb.Equal(before, s.log))
 

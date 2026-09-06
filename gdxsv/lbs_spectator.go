@@ -106,7 +106,7 @@ type SpectatorSession struct {
 	// roundStateVersion increments every time StartMsgIndexes/StartMsgRandoms/
 	// RoundData changes, so the fan-out loop (buildPush) only needs to
 	// piggyback round state on a subscriber's push when that subscriber
-	// hasn't already been sent the latest version - see downlinkSubscriber.
+	// hasn't acknowledged the latest version - see downlinkSubscriber.
 	roundStateVersion int32
 
 	// downlinks holds one entry per connected spectator (see
@@ -144,10 +144,9 @@ type downlinkSubscriber struct {
 	// costs one chunk, not the whole list.
 	ackedPatches int32
 
-	// sentRoundStateVersion is the round-state version this subscriber has
-	// already been sent, so buildPush only piggybacks round data again once
-	// it has actually changed.
-	sentRoundStateVersion int32
+	// ackedRoundStateVersion advances only when the subscriber confirms it
+	// applied the snapshot. Sending a UDP packet does not prove delivery.
+	ackedRoundStateVersion int32
 
 	// probeDue lets a validated keepalive trigger a push through the silent
 	// backoff, so a spectator whose acks were lost can recover.
@@ -268,46 +267,63 @@ func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) (ackFra
 
 // PushRoundEvent records a round-start RNG seed (mirrors
 // GdxsvBackendRollback's start_msg_indexes_/start_msg_randoms_), deduped by
-// frame since all 4 peers send the same event.
-func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) {
+// frame since all 4 peers send the same event. True also covers duplicates,
+// including after close, so a lost ACK can be recovered without mutating state.
+func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	s.lastPushAt = time.Now()
-
-	if s.closed || s.roundEventSeen[frame] {
-		return
+	if s.roundEventSeen[frame] {
+		if !s.closed {
+			s.lastPushAt = time.Now()
+		}
+		return true
 	}
+	count := len(s.log.StartMsgIndexes)
+	if s.closed || frame < 0 || count >= maxSpectatorRounds ||
+		(count > 0 && frame <= s.log.StartMsgIndexes[count-1]) {
+		return false
+	}
+	s.lastPushAt = time.Now()
 	s.roundEventSeen[frame] = true
 	s.log.StartMsgIndexes = append(s.log.StartMsgIndexes, frame)
 	s.log.StartMsgRandoms = append(s.log.StartMsgRandoms, randomValue)
-	s.log.RoundData = append(s.log.RoundData, &proto.BattleLogRound{})
+	// A result can arrive before its start on the independent UDP channel.
+	// Do not append an extra placeholder and shift subsequent round results.
+	for len(s.log.RoundData) < len(s.log.StartMsgIndexes) {
+		s.log.RoundData = append(s.log.RoundData, &proto.BattleLogRound{})
+	}
 	s.roundStateVersion++
+	return true
 }
 
 // PushRoundResult records a round's outcome once it becomes known. Mirrors
 // the client's "first WinTeam transition wins" semantics: once a round's
 // result is set it is not overwritten by a later (redundant) push.
-func (s *SpectatorSession) PushRoundResult(roundIndex int32, round *proto.BattleLogRound) {
-	if roundIndex < 0 || roundIndex >= maxSpectatorRounds || round == nil {
-		return
+func (s *SpectatorSession) PushRoundResult(roundIndex int32, round *proto.BattleLogRound) bool {
+	if roundIndex < 0 || roundIndex >= maxSpectatorRounds || round.GetWinTeam() == 0 {
+		return false
 	}
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	s.lastPushAt = time.Now()
-
-	if s.closed {
-		return
+	if int(roundIndex) < len(s.log.RoundData) && s.log.RoundData[roundIndex].GetWinTeam() != 0 {
+		if !s.closed {
+			s.lastPushAt = time.Now()
+		}
+		return true // Re-ACK a redundant result, even after the battle closes.
 	}
+	if s.closed {
+		return false
+	}
+	s.lastPushAt = time.Now()
 	for int32(len(s.log.RoundData)) <= roundIndex {
 		s.log.RoundData = append(s.log.RoundData, &proto.BattleLogRound{})
 	}
-	if s.log.RoundData[roundIndex].GetWinTeam() == 0 {
-		s.log.RoundData[roundIndex] = round
-		s.roundStateVersion++
-	}
+	s.log.RoundData[roundIndex] = round
+	s.roundStateVersion++
+	return true
 }
 
 // Close marks the session's battle as finished. Idempotent: only the first
@@ -362,7 +378,7 @@ func (s *SpectatorSession) subscribeLocked(remoteAddr *net.UDPAddr, fromFrame in
 // Ack advances an existing subscriber's receive position. Address validation
 // happens at admission; an ACK alone cannot create a subscription or prove
 // that its UDP source address is genuine.
-func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
+func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck, roundAck int32) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -371,7 +387,8 @@ func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
 		return
 	}
 	if ackFrame < 0 || int64(ackFrame) > int64(len(s.log.Inputs)) ||
-		patchAck < 0 || int64(patchAck) > int64(len(s.log.Patches)) {
+		patchAck < 0 || int64(patchAck) > int64(len(s.log.Patches)) ||
+		roundAck < 0 || roundAck > s.roundStateVersion {
 		return
 	}
 	// Receipt feedback clears the taper; a keepalive only requests one probe.
@@ -383,15 +400,16 @@ func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
 	if patchAck > sub.ackedPatches {
 		sub.ackedPatches = patchAck
 	}
+	if roundAck > sub.ackedRoundStateVersion {
+		sub.ackedRoundStateVersion = roundAck
+	}
 	sub.lastSeen = time.Now()
 }
 
 // buildPush constructs the next SpectatorInputPush to send a subscriber, or
 // returns ok=false if there is nothing new for it (already caught up on
-// inputs, round state, and close). Round data is piggybacked optimistically -
-// sentRoundStateVersion is updated here rather than waiting for the ack,
-// since a redundant resend on the next tick (if this push is lost) is cheap
-// and idempotent on the receiving end.
+// inputs, round state, and close). Unacknowledged round snapshots are resent
+// whole, including result-only changes that do not add a new round start.
 func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorInputPush, bool) {
 	// The header goes in its own push to stay clear of IP fragmentation.
 	if !sub.sentHeader {
@@ -409,14 +427,15 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 			BattleData:             s.log.BattleData,
 			StartAt:                s.log.StartAt,
 			EndAt:                  s.log.EndAt,
-			CloseReason:            s.log.CloseReason,
-			DisconnectUserIndex:    s.log.DisconnectUserIndex,
 		}).(*proto.BattleLogFile)
+		// A retained, already-closed battle must bootstrap just like a live
+		// one. Close fields are sent only after all streamed data is ACKed.
 		sub.sentHeader = true
 		return &proto.SpectatorInputPush{
 			BattleCode: s.battleCode,
 			StartFrame: sub.ackedFrame,
 			Header:     header,
+			PatchTotal: int32(len(s.log.Patches)),
 		}, true
 	}
 
@@ -452,11 +471,11 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 	}
 
 	needsInputs := sub.ackedFrame < end
-	needsRoundState := sub.sentRoundStateVersion != s.roundStateVersion
-	// Only once this subscriber holds every input. The spectator stops its
-	// downlink on close, so sending it early truncates the match to whatever
-	// had arrived. Resent every fanout because close is never acked.
-	needsClose := s.closed && sub.ackedFrame >= int32(len(s.log.Inputs))
+	needsRoundState := sub.ackedRoundStateVersion < s.roundStateVersion
+	// Only once this subscriber holds every input and round update. The
+	// spectator stops its downlink on close, so sending it early truncates
+	// the match to whatever had arrived. Resent because close is never acked.
+	needsClose := s.closed && sub.ackedFrame >= have && !needsRoundState
 
 	if !needsInputs && !needsRoundState && !needsClose {
 		return nil, false
@@ -473,9 +492,10 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 		push.StartMsgIndexes = append([]int32(nil), s.log.StartMsgIndexes...)
 		push.StartMsgRandoms = append([]uint64(nil), s.log.StartMsgRandoms...)
 		push.RoundData = append([]*proto.BattleLogRound(nil), s.log.RoundData...)
-		sub.sentRoundStateVersion = s.roundStateVersion
+		push.RoundStateVersion = s.roundStateVersion
 	}
 	if needsClose {
+		push.RoundStateVersion = s.roundStateVersion
 		push.CloseReason = s.log.CloseReason
 		push.DisconnectUserIndex = s.log.DisconnectUserIndex
 	}
@@ -630,7 +650,7 @@ func (r *SpectatorRegistry) HandleAck(remoteAddr *net.UDPAddr, m *proto.Spectato
 	if !ok || s.battleCode != m.GetBattleCode() {
 		return
 	}
-	s.Ack(remoteAddr.String(), m.GetAckFrame(), m.GetPatchAck())
+	s.Ack(remoteAddr.String(), m.GetAckFrame(), m.GetPatchAck(), m.GetRoundAck())
 }
 
 // StartFanoutLoop sends admitted subscribers their missing data off the UDP
@@ -817,14 +837,17 @@ func handleSpectatorInputPush(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *
 		spectatorRegistry.wakeFanout()
 	}
 
-	ack := &proto.Packet{
-		Type: proto.MessageType_SpectatorInputAckType,
-		SpectatorInputAckData: &proto.SpectatorInputAck{
-			BattleCode: m.GetBattleCode(),
-			AckFrame:   ackFrame,
-		},
-	}
-	bin, err := pb.Marshal(ack)
+	sendSpectatorAck(udpConn, remoteAddr, &proto.SpectatorInputAck{
+		BattleCode: m.GetBattleCode(),
+		AckFrame:   ackFrame,
+	})
+}
+
+func sendSpectatorAck(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, ack *proto.SpectatorInputAck) {
+	bin, err := pb.Marshal(&proto.Packet{
+		Type:                  proto.MessageType_SpectatorInputAckType,
+		SpectatorInputAckData: ack,
+	})
 	if err != nil {
 		logger.Warn("spectator input ack marshal failed", zap.Error(err))
 		return
@@ -835,22 +858,28 @@ func handleSpectatorInputPush(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *
 }
 
 // handleSpectatorRoundEvent processes one SpectatorRoundEvent datagram.
-func handleSpectatorRoundEvent(m *proto.SpectatorRoundEvent) {
+func handleSpectatorRoundEvent(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *proto.SpectatorRoundEvent) {
 	s, ok := spectatorRegistry.Get(m.GetBattleCode(), m.GetSessionId())
-	if !ok {
+	if !ok || !s.PushRoundEvent(m.GetFrame(), m.GetRandomValue()) {
 		return
 	}
-	s.PushRoundEvent(m.GetFrame(), m.GetRandomValue())
+	sendSpectatorAck(udpConn, remoteAddr, &proto.SpectatorInputAck{
+		BattleCode:    m.GetBattleCode(),
+		RoundEventAck: []int32{m.GetFrame()},
+	})
 	spectatorRegistry.wakeFanout()
 }
 
 // handleSpectatorRoundResult processes one SpectatorRoundResult datagram.
-func handleSpectatorRoundResult(m *proto.SpectatorRoundResult) {
+func handleSpectatorRoundResult(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *proto.SpectatorRoundResult) {
 	s, ok := spectatorRegistry.Get(m.GetBattleCode(), m.GetSessionId())
-	if !ok {
+	if !ok || !s.PushRoundResult(m.GetRoundIndex(), m.GetRound()) {
 		return
 	}
-	s.PushRoundResult(m.GetRoundIndex(), m.GetRound())
+	sendSpectatorAck(udpConn, remoteAddr, &proto.SpectatorInputAck{
+		BattleCode:     m.GetBattleCode(),
+		RoundResultAck: []int32{m.GetRoundIndex()},
+	})
 	spectatorRegistry.wakeFanout()
 }
 
