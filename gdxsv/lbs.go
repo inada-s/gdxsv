@@ -215,7 +215,7 @@ func (lbs *Lbs) serveUDP(port int) {
 			handleSpectatorRoundResult(pkt.SpectatorRoundResultData)
 		}
 		if pkt.SpectatorSubscribeData != nil {
-			spectatorRegistry.HandleSubscribe(remoteAddr, pkt.SpectatorSubscribeData)
+			handleSpectatorSubscribe(udpConn, remoteAddr, pkt.SpectatorSubscribeData)
 		}
 		if pkt.SpectatorInputAckData != nil {
 			spectatorRegistry.HandleAck(remoteAddr, pkt.SpectatorInputAckData)

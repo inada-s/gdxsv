@@ -15,10 +15,22 @@ import (
 )
 
 func newTestSpectatorRegistry() *SpectatorRegistry {
-	return &SpectatorRegistry{
-		sessions:        make(map[string]*SpectatorSession),
-		subscriberIndex: make(map[string]*SpectatorSession),
-		wake:            make(chan struct{}, 1),
+	return newSpectatorRegistry()
+}
+
+// Session tests start after admission; registry tests exercise the handshake.
+func subscribeTestSpectator(s *SpectatorSession, addr *net.UDPAddr, fromFrame int32) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.subscribeLocked(addr, fromFrame, time.Now())
+}
+
+func testSubscribeRequest(r *SpectatorRegistry, battleCode string, addr *net.UDPAddr, fromFrame int32) *proto.SpectatorSubscribeRequest {
+	epoch := time.Now().Unix() / int64(spectatorCookieWindow/time.Second)
+	return &proto.SpectatorSubscribeRequest{
+		BattleCode: battleCode,
+		FromFrame:  fromFrame,
+		Cookie:     r.subscribeCookie(battleCode, addr, epoch),
 	}
 }
 
@@ -189,9 +201,10 @@ func TestSpectatorRegistry_Get_RejectsWrongSessionID(t *testing.T) {
 
 func TestSpectatorSession_Subscribe_RegistersDownlink(t *testing.T) {
 	s := newTestSpectatorSession()
+	s.PushInputs(0, make([]uint64, 5))
 	addr := testAddr(40000)
 
-	s.Subscribe(addr, 5)
+	subscribeTestSpectator(s, addr, 5)
 
 	sub, ok := s.downlinks[addr.String()]
 	assertEq(t, true, ok)
@@ -200,18 +213,20 @@ func TestSpectatorSession_Subscribe_RegistersDownlink(t *testing.T) {
 
 func TestSpectatorSession_Subscribe_FromFrameNeverMovesAckBackward(t *testing.T) {
 	s := newTestSpectatorSession()
+	s.PushInputs(0, make([]uint64, 10))
 	addr := testAddr(40000)
 
-	s.Subscribe(addr, 10)
-	s.Subscribe(addr, 3) // stale/reordered resubscribe: must not undo progress
+	subscribeTestSpectator(s, addr, 10)
+	subscribeTestSpectator(s, addr, 3) // stale/reordered resubscribe: must not undo progress
 
 	assertEq(t, int32(10), s.downlinks[addr.String()].ackedFrame)
 }
 
 func TestSpectatorSession_Ack_AdvancesSubscriberAckedFrame(t *testing.T) {
 	s := newTestSpectatorSession()
+	s.PushInputs(0, make([]uint64, 7))
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 
 	s.Ack(addr.String(), 7, 0)
 
@@ -221,7 +236,7 @@ func TestSpectatorSession_Ack_AdvancesSubscriberAckedFrame(t *testing.T) {
 func TestSpectatorSession_Ack_IgnoredForUnknownSubscriber(t *testing.T) {
 	s := newTestSpectatorSession()
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 
 	s.Ack(testAddr(50000).String(), 999, 0) // never subscribed
 
@@ -239,9 +254,8 @@ func TestSpectatorSession_BuildPush_SlicesFromAckedFrame_CappedAtMaxFrames(t *te
 	s.PushInputs(0, inputs)
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 10)
+	subscribeTestSpectator(s, addr, 10)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true   // steady state: this subscriber has acked before
 	sub.sentHeader = true // and was already sent the one-off header
 
 	push, ok := s.buildPush(sub)
@@ -256,9 +270,8 @@ func TestSpectatorSession_BuildPush_NothingNewReturnsFalse(t *testing.T) {
 	s.PushInputs(0, []uint64{1, 2, 3})
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 3) // already fully caught up
+	subscribeTestSpectator(s, addr, 3) // already fully caught up
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 	sub.sentHeader = true
 
 	_, ok := s.buildPush(sub)
@@ -270,9 +283,8 @@ func TestSpectatorSession_BuildPush_IncludesRoundState_ThenStopsResendingUntilCh
 	s.PushRoundEvent(0, 111)
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true   // round state is only sent to verified subscribers
 	sub.sentHeader = true // header goes in its own push, before any of this
 
 	push, ok := s.buildPush(sub)
@@ -301,9 +313,8 @@ func TestSpectatorSession_BuildPush_HoldsCloseUntilInputsDelivered(t *testing.T)
 	s.Close("game_end", -1)
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 	sub.sentHeader = true
 
 	push, ok := s.buildPush(sub)
@@ -332,9 +343,8 @@ func TestSpectatorSession_BuildPush_ResendsCloseWhileSubscribed(t *testing.T) {
 	// it stops its keepalives and sweepSubscribersLocked drops it.
 	s := newTestSpectatorSession()
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 	sub.sentHeader = true
 
 	s.Close("game_end", -1)
@@ -349,7 +359,7 @@ func TestSpectatorSession_BuildPush_ResendsCloseWhileSubscribed(t *testing.T) {
 func TestSpectatorSession_SweepSubscribersLocked_DropsStale(t *testing.T) {
 	s := newTestSpectatorSession()
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	s.downlinks[addr.String()].lastSeen = s.downlinks[addr.String()].lastSeen.Add(-2 * spectatorSubscriberTimeout)
 
 	dropped := s.sweepSubscribersLocked(time.Now())
@@ -366,8 +376,11 @@ func TestSpectatorRegistry_HandleSubscribe_RejectsUnknownBattleCode(t *testing.T
 	// A spectator has no session_id (unlike a real battle participant), so
 	// HandleSubscribe looks up purely by battle_code - it must still reject
 	// a battle_code that doesn't exist.
-	r.HandleSubscribe(testAddr(40000), &proto.SpectatorSubscribeRequest{BattleCode: "no-such-battle", FromFrame: 0})
+	challenge := r.HandleSubscribe(testAddr(40000), &proto.SpectatorSubscribeRequest{
+		BattleCode: "no-such-battle", Cookie: make([]byte, spectatorCookieBytes),
+	})
 
+	assertEq(t, true, challenge == nil)
 	assertEq(t, 0, len(r.subscriberIndex))
 }
 
@@ -376,9 +389,10 @@ func TestSpectatorRegistry_HandleSubscribe_RegistersInBothSessionAndIndex(t *tes
 	r.Open(&proto.P2PMatching{BattleCode: "bc", SessionId: 1}, "dc2", nil)
 	addr := testAddr(40000)
 
-	r.HandleSubscribe(addr, &proto.SpectatorSubscribeRequest{BattleCode: "bc", FromFrame: 5})
-
 	s, _ := r.GetAny("bc")
+	s.PushInputs(0, make([]uint64, 5))
+	r.HandleSubscribe(addr, testSubscribeRequest(r, "bc", addr, 5))
+
 	assertEq(t, 1, len(s.downlinks))
 	assertEq(t, s, r.subscriberIndex[addr.String()])
 }
@@ -387,7 +401,7 @@ func TestSpectatorRegistry_HandleAck_UnknownAddrIsNoop_DoesNotAffectOtherSubscri
 	r := newTestSpectatorRegistry()
 	r.Open(&proto.P2PMatching{BattleCode: "bc", SessionId: 1}, "dc2", nil)
 	known := testAddr(40000)
-	r.HandleSubscribe(known, &proto.SpectatorSubscribeRequest{BattleCode: "bc", FromFrame: 0})
+	r.HandleSubscribe(known, testSubscribeRequest(r, "bc", known, 0))
 
 	stranger := testAddr(50000)
 	r.HandleAck(stranger, &proto.SpectatorInputAck{BattleCode: "bc", AckFrame: 999})
@@ -398,43 +412,15 @@ func TestSpectatorRegistry_HandleAck_UnknownAddrIsNoop_DoesNotAffectOtherSubscri
 	assertEq(t, false, ok)
 }
 
-// A subscribe datagram's source address can be forged, so until a subscriber
-// acks (proving it really receives what we send) it must not be usable as an
-// amplifier - see maxUnverifiedPushFrames.
-
-func TestSpectatorSession_BuildPush_UnverifiedSubscriberGetsSmallPushOnly(t *testing.T) {
-	s := newTestSpectatorSession()
-	inputs := make([]uint64, maxSpectatorPushFrames+50)
-	for i := range inputs {
-		inputs[i] = uint64(i)
-	}
-	s.PushInputs(0, inputs)
-	s.PushRoundEvent(0, 111) // variable-size round state must be withheld too
-
-	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
-	sub := s.downlinks[addr.String()]
-
-	push, ok := s.buildPush(sub)
-	assertEq(t, true, ok)
-	assertEq(t, maxUnverifiedPushFrames, len(push.Inputs))
-	assertEq(t, 0, len(push.StartMsgIndexes))
-}
-
-func TestSpectatorSession_Ack_VerifiesSubscriberAndLiftsTheCap(t *testing.T) {
+func TestSpectatorSession_BuildPush_AdmittedSubscriberGetsFullStreamWithoutAck(t *testing.T) {
 	s := newTestSpectatorSession()
 	inputs := make([]uint64, maxSpectatorPushFrames+50)
 	s.PushInputs(0, inputs)
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	assertEq(t, false, sub.verified)
-
-	s.Ack(addr.String(), 0, 0)
-	assertEq(t, true, sub.verified)
-
-	// First push to a newly verified subscriber is the header.
+	// Cookie admission is sufficient to start bootstrap and normal streaming.
 	header, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, true, header.Header != nil)
@@ -449,13 +435,11 @@ func TestSpectatorSession_Subscribe_SetsProbeDue_SoOnePushIsAllowed(t *testing.T
 	s.PushInputs(0, []uint64{1, 2, 3})
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
 
-	// Set by the subscribe, and cleared by fanoutOnce after its one push, so
-	// an unverified subscriber never enters the periodic resend loop.
+	// A keepalive gets one push through the silent-subscriber backoff.
 	assertEq(t, true, sub.probeDue)
-	assertEq(t, false, sub.verified)
 }
 
 func TestSpectatorSession_BuildPush_SendsHeaderOnceBeforeInputs(t *testing.T) {
@@ -464,9 +448,8 @@ func TestSpectatorSession_BuildPush_SendsHeaderOnceBeforeInputs(t *testing.T) {
 	s.PushRoundEvent(0, 111)
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 
 	// Header first, carrying setup data but neither inputs nor round state.
 	push, ok := s.buildPush(sub)
@@ -484,33 +467,17 @@ func TestSpectatorSession_BuildPush_SendsHeaderOnceBeforeInputs(t *testing.T) {
 	assertEq(t, 3, len(push.Inputs))
 }
 
-func TestSpectatorSession_BuildPush_UnverifiedSubscriberGetsNoHeader(t *testing.T) {
-	s := newTestSpectatorSession()
-	s.PushInputs(0, []uint64{1, 2, 3})
-
-	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
-	sub := s.downlinks[addr.String()]
-
-	push, ok := s.buildPush(sub)
-	assertEq(t, true, ok)
-	assertEq(t, true, push.Header == nil)
-	assertEq(t, false, sub.sentHeader)
-}
-
-func TestSpectatorSession_BuildPush_UnverifiedGetsProbeEvenWithNothingToSend(t *testing.T) {
-	// A spectator joining a battle with no input yet still needs something
-	// to ack, or it can never be verified and never receives the header.
+func TestSpectatorSession_BuildPush_AdmittedSubscriberGetsHeaderBeforeFirstInput(t *testing.T) {
 	s := newTestSpectatorSession()
 
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
 
 	push, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, 0, len(push.Inputs))
-	assertEq(t, true, push.Header == nil)
+	assertEq(t, true, push.Header != nil)
 }
 
 func TestSpectatorSession_Subscribe_ReArmsHeaderWhileBootstrapping(t *testing.T) {
@@ -518,26 +485,26 @@ func TestSpectatorSession_Subscribe_ReArmsHeaderWhileBootstrapping(t *testing.T)
 	// inputs, so a lost one has to be re-armed by the next bootstrap
 	// subscribe or the subscriber is stranded.
 	s := newTestSpectatorSession()
+	s.PushInputs(0, make([]uint64, 9))
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 
 	_, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, true, sub.sentHeader)
 
 	// Pretend it was lost: the client re-subscribes from 0 and must get another.
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	assertEq(t, false, sub.sentHeader)
 
 	// Once it has folded anything in it asks from a later frame, and the
 	// header is not sent again.
-	s.Subscribe(addr, 5)
+	subscribeTestSpectator(s, addr, 5)
 	push, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, true, push.Header != nil) // the re-armed one from above
-	s.Subscribe(addr, 9)
+	subscribeTestSpectator(s, addr, 9)
 	assertEq(t, true, sub.sentHeader)
 }
 
@@ -559,10 +526,9 @@ func newTestSpectatorSessionWithPatches(n, codesEach int) *SpectatorSession {
 	return s
 }
 
-func verifiedSubWithHeaderSent(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
-	s.Subscribe(addr, 0)
+func admittedSubWithHeaderSent(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 	_, _ = s.buildPush(sub) // consume the header push
 	return sub
 }
@@ -570,9 +536,8 @@ func verifiedSubWithHeaderSent(s *SpectatorSession, addr *net.UDPAddr) *downlink
 func TestSpectatorSession_BuildPush_HeaderExcludesPatches(t *testing.T) {
 	s := newTestSpectatorSessionWithPatches(3, 2)
 	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	sub := s.downlinks[addr.String()]
-	sub.verified = true
 
 	push, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
@@ -584,7 +549,7 @@ func TestSpectatorSession_BuildPush_HeaderExcludesPatches(t *testing.T) {
 func TestSpectatorSession_BuildPush_ChunksPatchesUnderByteBudget(t *testing.T) {
 	// Each patch is far too big to share a datagram, so every chunk holds one.
 	s := newTestSpectatorSessionWithPatches(3, 80)
-	sub := verifiedSubWithHeaderSent(s, testAddr(40000))
+	sub := admittedSubWithHeaderSent(s, testAddr(40000))
 
 	for i := 0; i < 3; i++ {
 		push, ok := s.buildPush(sub)
@@ -612,29 +577,16 @@ func TestSpectatorSession_BuildPush_ChunksPatchesUnderByteBudget(t *testing.T) {
 
 func TestSpectatorSession_BuildPush_PacksSmallPatchesTogether(t *testing.T) {
 	s := newTestSpectatorSessionWithPatches(4, 1)
-	sub := verifiedSubWithHeaderSent(s, testAddr(40000))
+	sub := admittedSubWithHeaderSent(s, testAddr(40000))
 
 	push, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, 4, len(push.Patches)) // all four fit in one datagram
 }
 
-func TestSpectatorSession_BuildPush_NoPatchesToUnverifiedSubscriber(t *testing.T) {
-	s := newTestSpectatorSessionWithPatches(3, 2)
-	addr := testAddr(40000)
-	s.Subscribe(addr, 0)
-	sub := s.downlinks[addr.String()]
-
-	push, ok := s.buildPush(sub)
-	assertEq(t, true, ok)
-	assertEq(t, 0, len(push.Patches))
-	assertEq(t, true, push.Header == nil)
-}
-
-// verifiedSub registers a subscriber and marks it verified, as one real ack
-// would, so the taper tests start from a healthy steady state.
-func verifiedSub(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
-	s.Subscribe(addr, 0)
+// admittedSub starts the taper tests after admission and header delivery.
+func admittedSub(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
+	subscribeTestSpectator(s, addr, 0)
 	s.Ack(addr.String(), 0, 0)
 	sub := s.downlinks[addr.String()]
 	sub.probeDue = false
@@ -663,7 +615,7 @@ func fanoutStep(s *SpectatorSession, sub *downlinkSubscriber, frame int32) bool 
 
 func TestSpectatorSession_SilentSubscriber_FullRateWithinGrace(t *testing.T) {
 	s := newTestSpectatorSession()
-	sub := verifiedSub(s, testAddr(30001))
+	sub := admittedSub(s, testAddr(30001))
 
 	// A subscriber that never acks still gets silentPushGrace pushes back to
 	// back, so ordinary packet loss is never tapered.
@@ -678,7 +630,7 @@ func TestSpectatorSession_SilentSubscriber_FullRateWithinGrace(t *testing.T) {
 
 func TestSpectatorSession_SilentSubscriber_TapersAfterGrace(t *testing.T) {
 	s := newTestSpectatorSession()
-	sub := verifiedSub(s, testAddr(30002))
+	sub := admittedSub(s, testAddr(30002))
 
 	var waits []int32
 	for i := int32(0); i < 400; i++ {
@@ -705,7 +657,7 @@ func TestSpectatorSession_SilentSubscriber_TaperCutsTotalPushes(t *testing.T) {
 	const fanouts = 600 // 10s at 60/s, one spectatorSubscriberTimeout
 
 	tapered := newTestSpectatorSession()
-	tsub := verifiedSub(tapered, testAddr(30005))
+	tsub := admittedSub(tapered, testAddr(30005))
 	sent := 0
 	for i := int32(0); i < fanouts; i++ {
 		if fanoutStep(tapered, tsub, i) {
@@ -724,7 +676,7 @@ func TestSpectatorSession_SilentSubscriber_TaperCutsTotalPushes(t *testing.T) {
 func TestSpectatorSession_SilentSubscriber_AckClearsTaper(t *testing.T) {
 	s := newTestSpectatorSession()
 	addr := testAddr(30003)
-	sub := verifiedSub(s, addr)
+	sub := admittedSub(s, addr)
 
 	for i := int32(0); i < silentPushGrace+3; i++ {
 		fanoutStep(s, sub, i)
@@ -741,7 +693,7 @@ func TestSpectatorSession_SilentSubscriber_AckClearsTaper(t *testing.T) {
 func TestSpectatorSession_SilentSubscriber_SubscribePunchesThroughTaper(t *testing.T) {
 	s := newTestSpectatorSession()
 	addr := testAddr(30004)
-	sub := verifiedSub(s, addr)
+	sub := admittedSub(s, addr)
 
 	for i := int32(0); i < silentPushGrace+3; i++ {
 		fanoutStep(s, sub, i)
@@ -752,7 +704,7 @@ func TestSpectatorSession_SilentSubscriber_SubscribePunchesThroughTaper(t *testi
 
 	// A live spectator whose acks were lost keeps sending its keepalive. That
 	// must still earn a push, or it could never ack its way back to full rate.
-	s.Subscribe(addr, 0)
+	subscribeTestSpectator(s, addr, 0)
 	if !fanoutStep(s, sub, silentPushGrace+3) {
 		t.Fatal("a keepalive subscribe should push through the taper")
 	}
@@ -842,7 +794,7 @@ func TestSpectatorRegistry_LiveStatus(t *testing.T) {
 	assertEq(t, true, live)
 	assertEq(t, 0, subs)
 
-	s.Subscribe(testAddr(20001), 0)
+	subscribeTestSpectator(s, testAddr(20001), 0)
 	_, subs = r.LiveStatus(s.battleCode)
 	assertEq(t, 1, subs)
 
@@ -886,8 +838,8 @@ func TestSpectatorsHandler(t *testing.T) {
 	assertEq(t, false, body["live"])
 
 	s.PushInputs(0, []uint64{1, 2, 3})
-	s.Subscribe(testAddr(30001), 0)
-	s.Subscribe(testAddr(30002), 0)
+	subscribeTestSpectator(s, testAddr(30001), 0)
+	subscribeTestSpectator(s, testAddr(30002), 0)
 
 	code, body = get("?battle_code=" + s.battleCode)
 	assertEq(t, http.StatusOK, code)

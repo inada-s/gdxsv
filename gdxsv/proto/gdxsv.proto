@@ -138,11 +138,21 @@ message SpectatorInputAck {
 // (see spectatorSubscriberTimeout in lbs_spectator.go).
 message SpectatorSubscribeRequest {
   string battle_code = 1;
-  // 2 was session_id. Uplink messages use it to prove the sender is in the
-  // battle, but a spectator isn't and never gets one, so it was always unset
-  // here and never checked.
+  // 2 was session_id. Spectators are not battle participants and are not
+  // given this value, so it is neither sent nor checked here.
   reserved 2;
   int32 from_frame = 3;
+  // Echo the server's 16-byte cookie. Start with 16 zero bytes so a
+  // challenge reply is no larger than the request that triggered it.
+  bytes cookie = 4;
+}
+
+// Proves that a spectator receives packets at its observed UDP address
+// before the server allocates a subscription. Expired cookies are renewed
+// through the same exchange on the next subscribe/keepalive.
+message SpectatorSubscribeChallenge {
+  string battle_code = 1;
+  bytes cookie = 2;
 }
 
 // Sent once per round start (mirrors GdxsvBackendRollback's
@@ -199,6 +209,7 @@ enum MessageType {
   SpectatorRoundEventType = 22;
   SpectatorRoundResultType = 23;
   SpectatorSubscribeType = 24;
+  SpectatorSubscribeChallengeType = 25;
 }
 
 message BattleMessage {
@@ -250,4 +261,5 @@ message Packet {
   SpectatorRoundEvent spectator_round_event_data = 22;
   SpectatorRoundResult spectator_round_result_data = 23;
   SpectatorSubscribeRequest spectator_subscribe_data = 24;
+  SpectatorSubscribeChallenge spectator_subscribe_challenge_data = 25;
 }

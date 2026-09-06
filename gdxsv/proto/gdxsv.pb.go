@@ -23,18 +23,19 @@ const (
 type MessageType int32
 
 const (
-	MessageType_None                     MessageType = 0
-	MessageType_HelloServer              MessageType = 1
-	MessageType_Ping                     MessageType = 2
-	MessageType_Pong                     MessageType = 3
-	MessageType_Battle                   MessageType = 4
-	MessageType_Fin                      MessageType = 5
-	MessageType_HelloLbs                 MessageType = 10
-	MessageType_SpectatorInputPushType   MessageType = 20
-	MessageType_SpectatorInputAckType    MessageType = 21
-	MessageType_SpectatorRoundEventType  MessageType = 22
-	MessageType_SpectatorRoundResultType MessageType = 23
-	MessageType_SpectatorSubscribeType   MessageType = 24
+	MessageType_None                            MessageType = 0
+	MessageType_HelloServer                     MessageType = 1
+	MessageType_Ping                            MessageType = 2
+	MessageType_Pong                            MessageType = 3
+	MessageType_Battle                          MessageType = 4
+	MessageType_Fin                             MessageType = 5
+	MessageType_HelloLbs                        MessageType = 10
+	MessageType_SpectatorInputPushType          MessageType = 20
+	MessageType_SpectatorInputAckType           MessageType = 21
+	MessageType_SpectatorRoundEventType         MessageType = 22
+	MessageType_SpectatorRoundResultType        MessageType = 23
+	MessageType_SpectatorSubscribeType          MessageType = 24
+	MessageType_SpectatorSubscribeChallengeType MessageType = 25
 )
 
 // Enum value maps for MessageType.
@@ -52,20 +53,22 @@ var (
 		22: "SpectatorRoundEventType",
 		23: "SpectatorRoundResultType",
 		24: "SpectatorSubscribeType",
+		25: "SpectatorSubscribeChallengeType",
 	}
 	MessageType_value = map[string]int32{
-		"None":                     0,
-		"HelloServer":              1,
-		"Ping":                     2,
-		"Pong":                     3,
-		"Battle":                   4,
-		"Fin":                      5,
-		"HelloLbs":                 10,
-		"SpectatorInputPushType":   20,
-		"SpectatorInputAckType":    21,
-		"SpectatorRoundEventType":  22,
-		"SpectatorRoundResultType": 23,
-		"SpectatorSubscribeType":   24,
+		"None":                            0,
+		"HelloServer":                     1,
+		"Ping":                            2,
+		"Pong":                            3,
+		"Battle":                          4,
+		"Fin":                             5,
+		"HelloLbs":                        10,
+		"SpectatorInputPushType":          20,
+		"SpectatorInputAckType":           21,
+		"SpectatorRoundEventType":         22,
+		"SpectatorRoundResultType":        23,
+		"SpectatorSubscribeType":          24,
+		"SpectatorSubscribeChallengeType": 25,
 	}
 )
 
@@ -1076,6 +1079,9 @@ type SpectatorSubscribeRequest struct {
 
 	BattleCode string `protobuf:"bytes,1,opt,name=battle_code,json=battleCode,proto3" json:"battle_code,omitempty"`
 	FromFrame  int32  `protobuf:"varint,3,opt,name=from_frame,json=fromFrame,proto3" json:"from_frame,omitempty"`
+	// Echo the server's 16-byte cookie. Start with 16 zero bytes so a
+	// challenge reply is no larger than the request that triggered it.
+	Cookie []byte `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"`
 }
 
 func (x *SpectatorSubscribeRequest) Reset() {
@@ -1124,6 +1130,71 @@ func (x *SpectatorSubscribeRequest) GetFromFrame() int32 {
 	return 0
 }
 
+func (x *SpectatorSubscribeRequest) GetCookie() []byte {
+	if x != nil {
+		return x.Cookie
+	}
+	return nil
+}
+
+// Proves that a spectator receives packets at its observed UDP address
+// before the server allocates a subscription. Expired cookies are renewed
+// through the same exchange on the next subscribe/keepalive.
+type SpectatorSubscribeChallenge struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	BattleCode string `protobuf:"bytes,1,opt,name=battle_code,json=battleCode,proto3" json:"battle_code,omitempty"`
+	Cookie     []byte `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
+}
+
+func (x *SpectatorSubscribeChallenge) Reset() {
+	*x = SpectatorSubscribeChallenge{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gdxsv_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SpectatorSubscribeChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpectatorSubscribeChallenge) ProtoMessage() {}
+
+func (x *SpectatorSubscribeChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_gdxsv_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpectatorSubscribeChallenge.ProtoReflect.Descriptor instead.
+func (*SpectatorSubscribeChallenge) Descriptor() ([]byte, []int) {
+	return file_gdxsv_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SpectatorSubscribeChallenge) GetBattleCode() string {
+	if x != nil {
+		return x.BattleCode
+	}
+	return ""
+}
+
+func (x *SpectatorSubscribeChallenge) GetCookie() []byte {
+	if x != nil {
+		return x.Cookie
+	}
+	return nil
+}
+
 // Sent once per round start (mirrors GdxsvBackendRollback's
 // start_msg_indexes/start_msg_randoms) so the live-assembled log stays
 // deterministic across round boundaries.
@@ -1142,7 +1213,7 @@ type SpectatorRoundEvent struct {
 func (x *SpectatorRoundEvent) Reset() {
 	*x = SpectatorRoundEvent{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[11]
+		mi := &file_gdxsv_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1155,7 +1226,7 @@ func (x *SpectatorRoundEvent) String() string {
 func (*SpectatorRoundEvent) ProtoMessage() {}
 
 func (x *SpectatorRoundEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[11]
+	mi := &file_gdxsv_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1168,7 +1239,7 @@ func (x *SpectatorRoundEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpectatorRoundEvent.ProtoReflect.Descriptor instead.
 func (*SpectatorRoundEvent) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{11}
+	return file_gdxsv_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SpectatorRoundEvent) GetBattleCode() string {
@@ -1222,7 +1293,7 @@ type SpectatorRoundResult struct {
 func (x *SpectatorRoundResult) Reset() {
 	*x = SpectatorRoundResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[12]
+		mi := &file_gdxsv_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1235,7 +1306,7 @@ func (x *SpectatorRoundResult) String() string {
 func (*SpectatorRoundResult) ProtoMessage() {}
 
 func (x *SpectatorRoundResult) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[12]
+	mi := &file_gdxsv_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1248,7 +1319,7 @@ func (x *SpectatorRoundResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpectatorRoundResult.ProtoReflect.Descriptor instead.
 func (*SpectatorRoundResult) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{12}
+	return file_gdxsv_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SpectatorRoundResult) GetBattleCode() string {
@@ -1312,7 +1383,7 @@ type BattleLogFile struct {
 func (x *BattleLogFile) Reset() {
 	*x = BattleLogFile{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[13]
+		mi := &file_gdxsv_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1325,7 +1396,7 @@ func (x *BattleLogFile) String() string {
 func (*BattleLogFile) ProtoMessage() {}
 
 func (x *BattleLogFile) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[13]
+	mi := &file_gdxsv_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1338,7 +1409,7 @@ func (x *BattleLogFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BattleLogFile.ProtoReflect.Descriptor instead.
 func (*BattleLogFile) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{13}
+	return file_gdxsv_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *BattleLogFile) GetGameDisk() string {
@@ -1466,7 +1537,7 @@ type BattleMessage struct {
 func (x *BattleMessage) Reset() {
 	*x = BattleMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[14]
+		mi := &file_gdxsv_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1479,7 +1550,7 @@ func (x *BattleMessage) String() string {
 func (*BattleMessage) ProtoMessage() {}
 
 func (x *BattleMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[14]
+	mi := &file_gdxsv_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1492,7 +1563,7 @@ func (x *BattleMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BattleMessage.ProtoReflect.Descriptor instead.
 func (*BattleMessage) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{14}
+	return file_gdxsv_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *BattleMessage) GetUserId() string {
@@ -1528,7 +1599,7 @@ type PingMessage struct {
 func (x *PingMessage) Reset() {
 	*x = PingMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[15]
+		mi := &file_gdxsv_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1541,7 +1612,7 @@ func (x *PingMessage) String() string {
 func (*PingMessage) ProtoMessage() {}
 
 func (x *PingMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[15]
+	mi := &file_gdxsv_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1554,7 +1625,7 @@ func (x *PingMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingMessage.ProtoReflect.Descriptor instead.
 func (*PingMessage) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{15}
+	return file_gdxsv_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *PingMessage) GetTimestamp() int64 {
@@ -1584,7 +1655,7 @@ type PongMessage struct {
 func (x *PongMessage) Reset() {
 	*x = PongMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[16]
+		mi := &file_gdxsv_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1597,7 +1668,7 @@ func (x *PongMessage) String() string {
 func (*PongMessage) ProtoMessage() {}
 
 func (x *PongMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[16]
+	mi := &file_gdxsv_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1610,7 +1681,7 @@ func (x *PongMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PongMessage.ProtoReflect.Descriptor instead.
 func (*PongMessage) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{16}
+	return file_gdxsv_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *PongMessage) GetTimestamp() int64 {
@@ -1647,7 +1718,7 @@ type HelloServerMessage struct {
 func (x *HelloServerMessage) Reset() {
 	*x = HelloServerMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[17]
+		mi := &file_gdxsv_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1660,7 +1731,7 @@ func (x *HelloServerMessage) String() string {
 func (*HelloServerMessage) ProtoMessage() {}
 
 func (x *HelloServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[17]
+	mi := &file_gdxsv_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1673,7 +1744,7 @@ func (x *HelloServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloServerMessage.ProtoReflect.Descriptor instead.
 func (*HelloServerMessage) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{17}
+	return file_gdxsv_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *HelloServerMessage) GetSessionIdDeprecated() string {
@@ -1708,7 +1779,7 @@ type FinMessage struct {
 func (x *FinMessage) Reset() {
 	*x = FinMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[18]
+		mi := &file_gdxsv_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1721,7 +1792,7 @@ func (x *FinMessage) String() string {
 func (*FinMessage) ProtoMessage() {}
 
 func (x *FinMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[18]
+	mi := &file_gdxsv_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1734,7 +1805,7 @@ func (x *FinMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinMessage.ProtoReflect.Descriptor instead.
 func (*FinMessage) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{18}
+	return file_gdxsv_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *FinMessage) GetDetail() string {
@@ -1755,7 +1826,7 @@ type HelloLbsMessage struct {
 func (x *HelloLbsMessage) Reset() {
 	*x = HelloLbsMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[19]
+		mi := &file_gdxsv_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1768,7 +1839,7 @@ func (x *HelloLbsMessage) String() string {
 func (*HelloLbsMessage) ProtoMessage() {}
 
 func (x *HelloLbsMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[19]
+	mi := &file_gdxsv_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1781,7 +1852,7 @@ func (x *HelloLbsMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloLbsMessage.ProtoReflect.Descriptor instead.
 func (*HelloLbsMessage) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{19}
+	return file_gdxsv_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *HelloLbsMessage) GetUserId() string {
@@ -1796,27 +1867,28 @@ type Packet struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Type                     MessageType                `protobuf:"varint,1,opt,name=type,proto3,enum=proto.MessageType" json:"type,omitempty"`
-	Seq                      uint32                     `protobuf:"varint,2,opt,name=seq,proto3" json:"seq,omitempty"`
-	Ack                      uint32                     `protobuf:"varint,3,opt,name=ack,proto3" json:"ack,omitempty"`
-	SessionId                string                     `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	HelloServerData          *HelloServerMessage        `protobuf:"bytes,10,opt,name=hello_server_data,json=helloServerData,proto3" json:"hello_server_data,omitempty"`
-	PingData                 *PingMessage               `protobuf:"bytes,11,opt,name=ping_data,json=pingData,proto3" json:"ping_data,omitempty"`
-	PongData                 *PongMessage               `protobuf:"bytes,12,opt,name=pong_data,json=pongData,proto3" json:"pong_data,omitempty"`
-	BattleData               []*BattleMessage           `protobuf:"bytes,13,rep,name=battle_data,json=battleData,proto3" json:"battle_data,omitempty"`
-	FinData                  *FinMessage                `protobuf:"bytes,14,opt,name=fin_data,json=finData,proto3" json:"fin_data,omitempty"`
-	HelloLbsData             *HelloLbsMessage           `protobuf:"bytes,15,opt,name=hello_lbs_data,json=helloLbsData,proto3" json:"hello_lbs_data,omitempty"`
-	SpectatorInputPushData   *SpectatorInputPush        `protobuf:"bytes,20,opt,name=spectator_input_push_data,json=spectatorInputPushData,proto3" json:"spectator_input_push_data,omitempty"`
-	SpectatorInputAckData    *SpectatorInputAck         `protobuf:"bytes,21,opt,name=spectator_input_ack_data,json=spectatorInputAckData,proto3" json:"spectator_input_ack_data,omitempty"`
-	SpectatorRoundEventData  *SpectatorRoundEvent       `protobuf:"bytes,22,opt,name=spectator_round_event_data,json=spectatorRoundEventData,proto3" json:"spectator_round_event_data,omitempty"`
-	SpectatorRoundResultData *SpectatorRoundResult      `protobuf:"bytes,23,opt,name=spectator_round_result_data,json=spectatorRoundResultData,proto3" json:"spectator_round_result_data,omitempty"`
-	SpectatorSubscribeData   *SpectatorSubscribeRequest `protobuf:"bytes,24,opt,name=spectator_subscribe_data,json=spectatorSubscribeData,proto3" json:"spectator_subscribe_data,omitempty"`
+	Type                            MessageType                  `protobuf:"varint,1,opt,name=type,proto3,enum=proto.MessageType" json:"type,omitempty"`
+	Seq                             uint32                       `protobuf:"varint,2,opt,name=seq,proto3" json:"seq,omitempty"`
+	Ack                             uint32                       `protobuf:"varint,3,opt,name=ack,proto3" json:"ack,omitempty"`
+	SessionId                       string                       `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	HelloServerData                 *HelloServerMessage          `protobuf:"bytes,10,opt,name=hello_server_data,json=helloServerData,proto3" json:"hello_server_data,omitempty"`
+	PingData                        *PingMessage                 `protobuf:"bytes,11,opt,name=ping_data,json=pingData,proto3" json:"ping_data,omitempty"`
+	PongData                        *PongMessage                 `protobuf:"bytes,12,opt,name=pong_data,json=pongData,proto3" json:"pong_data,omitempty"`
+	BattleData                      []*BattleMessage             `protobuf:"bytes,13,rep,name=battle_data,json=battleData,proto3" json:"battle_data,omitempty"`
+	FinData                         *FinMessage                  `protobuf:"bytes,14,opt,name=fin_data,json=finData,proto3" json:"fin_data,omitempty"`
+	HelloLbsData                    *HelloLbsMessage             `protobuf:"bytes,15,opt,name=hello_lbs_data,json=helloLbsData,proto3" json:"hello_lbs_data,omitempty"`
+	SpectatorInputPushData          *SpectatorInputPush          `protobuf:"bytes,20,opt,name=spectator_input_push_data,json=spectatorInputPushData,proto3" json:"spectator_input_push_data,omitempty"`
+	SpectatorInputAckData           *SpectatorInputAck           `protobuf:"bytes,21,opt,name=spectator_input_ack_data,json=spectatorInputAckData,proto3" json:"spectator_input_ack_data,omitempty"`
+	SpectatorRoundEventData         *SpectatorRoundEvent         `protobuf:"bytes,22,opt,name=spectator_round_event_data,json=spectatorRoundEventData,proto3" json:"spectator_round_event_data,omitempty"`
+	SpectatorRoundResultData        *SpectatorRoundResult        `protobuf:"bytes,23,opt,name=spectator_round_result_data,json=spectatorRoundResultData,proto3" json:"spectator_round_result_data,omitempty"`
+	SpectatorSubscribeData          *SpectatorSubscribeRequest   `protobuf:"bytes,24,opt,name=spectator_subscribe_data,json=spectatorSubscribeData,proto3" json:"spectator_subscribe_data,omitempty"`
+	SpectatorSubscribeChallengeData *SpectatorSubscribeChallenge `protobuf:"bytes,25,opt,name=spectator_subscribe_challenge_data,json=spectatorSubscribeChallengeData,proto3" json:"spectator_subscribe_challenge_data,omitempty"`
 }
 
 func (x *Packet) Reset() {
 	*x = Packet{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gdxsv_proto_msgTypes[20]
+		mi := &file_gdxsv_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1829,7 +1901,7 @@ func (x *Packet) String() string {
 func (*Packet) ProtoMessage() {}
 
 func (x *Packet) ProtoReflect() protoreflect.Message {
-	mi := &file_gdxsv_proto_msgTypes[20]
+	mi := &file_gdxsv_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1842,7 +1914,7 @@ func (x *Packet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Packet.ProtoReflect.Descriptor instead.
 func (*Packet) Descriptor() ([]byte, []int) {
-	return file_gdxsv_proto_rawDescGZIP(), []int{20}
+	return file_gdxsv_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Packet) GetType() MessageType {
@@ -1946,6 +2018,13 @@ func (x *Packet) GetSpectatorRoundResultData() *SpectatorRoundResult {
 func (x *Packet) GetSpectatorSubscribeData() *SpectatorSubscribeRequest {
 	if x != nil {
 		return x.SpectatorSubscribeData
+	}
+	return nil
+}
+
+func (x *Packet) GetSpectatorSubscribeChallengeData() *SpectatorSubscribeChallenge {
+	if x != nil {
+		return x.SpectatorSubscribeChallengeData
 	}
 	return nil
 }
@@ -2108,14 +2187,21 @@ var file_gdxsv_proto_rawDesc = []byte{
 	0x43, 0x6f, 0x64, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x61, 0x63, 0x6b, 0x5f, 0x66, 0x72, 0x61, 0x6d,
 	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x61, 0x63, 0x6b, 0x46, 0x72, 0x61, 0x6d,
 	0x65, 0x12, 0x1b, 0x0a, 0x09, 0x70, 0x61, 0x74, 0x63, 0x68, 0x5f, 0x61, 0x63, 0x6b, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x70, 0x61, 0x74, 0x63, 0x68, 0x41, 0x63, 0x6b, 0x22, 0x61,
+	0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x70, 0x61, 0x74, 0x63, 0x68, 0x41, 0x63, 0x6b, 0x22, 0x79,
 	0x0a, 0x19, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63,
 	0x72, 0x69, 0x62, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1f, 0x0a, 0x0b, 0x62,
 	0x61, 0x74, 0x74, 0x6c, 0x65, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x0a, 0x62, 0x61, 0x74, 0x74, 0x6c, 0x65, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x1d, 0x0a, 0x0a,
 	0x66, 0x72, 0x6f, 0x6d, 0x5f, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05,
-	0x52, 0x09, 0x66, 0x72, 0x6f, 0x6d, 0x46, 0x72, 0x61, 0x6d, 0x65, 0x4a, 0x04, 0x08, 0x02, 0x10,
-	0x03, 0x22, 0xa7, 0x01, 0x0a, 0x13, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x52,
+	0x52, 0x09, 0x66, 0x72, 0x6f, 0x6d, 0x46, 0x72, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x63,
+	0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x63, 0x6f, 0x6f,
+	0x6b, 0x69, 0x65, 0x4a, 0x04, 0x08, 0x02, 0x10, 0x03, 0x22, 0x56, 0x0a, 0x1b, 0x53, 0x70, 0x65,
+	0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65, 0x43,
+	0x68, 0x61, 0x6c, 0x6c, 0x65, 0x6e, 0x67, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x62, 0x61, 0x74, 0x74,
+	0x6c, 0x65, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x62,
+	0x61, 0x74, 0x74, 0x6c, 0x65, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x63, 0x6f, 0x6f,
+	0x6b, 0x69, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x63, 0x6f, 0x6f, 0x6b, 0x69,
+	0x65, 0x22, 0xa7, 0x01, 0x0a, 0x13, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x52,
 	0x6f, 0x75, 0x6e, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x12, 0x1f, 0x0a, 0x0b, 0x62, 0x61, 0x74,
 	0x74, 0x6c, 0x65, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a,
 	0x62, 0x61, 0x74, 0x74, 0x6c, 0x65, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x65,
@@ -2206,7 +2292,7 @@ var file_gdxsv_proto_rawDesc = []byte{
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x22, 0x2a,
 	0x0a, 0x0f, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x4c, 0x62, 0x73, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67,
 	0x65, 0x12, 0x17, 0x0a, 0x07, 0x75, 0x73, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x06, 0x75, 0x73, 0x65, 0x72, 0x49, 0x64, 0x22, 0xf9, 0x06, 0x0a, 0x06, 0x50,
+	0x28, 0x09, 0x52, 0x06, 0x75, 0x73, 0x65, 0x72, 0x49, 0x64, 0x22, 0xea, 0x07, 0x0a, 0x06, 0x50,
 	0x61, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x26, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x0e, 0x32, 0x12, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4d, 0x65, 0x73, 0x73,
 	0x61, 0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x10, 0x0a,
@@ -2262,23 +2348,33 @@ var file_gdxsv_proto_rawDesc = []byte{
 	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x53, 0x75,
 	0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x16,
 	0x73, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69,
-	0x62, 0x65, 0x44, 0x61, 0x74, 0x61, 0x2a, 0xed, 0x01, 0x0a, 0x0b, 0x4d, 0x65, 0x73, 0x73, 0x61,
-	0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x4e, 0x6f, 0x6e, 0x65, 0x10, 0x00,
-	0x12, 0x0f, 0x0a, 0x0b, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x10,
-	0x01, 0x12, 0x08, 0x0a, 0x04, 0x50, 0x69, 0x6e, 0x67, 0x10, 0x02, 0x12, 0x08, 0x0a, 0x04, 0x50,
-	0x6f, 0x6e, 0x67, 0x10, 0x03, 0x12, 0x0a, 0x0a, 0x06, 0x42, 0x61, 0x74, 0x74, 0x6c, 0x65, 0x10,
-	0x04, 0x12, 0x07, 0x0a, 0x03, 0x46, 0x69, 0x6e, 0x10, 0x05, 0x12, 0x0c, 0x0a, 0x08, 0x48, 0x65,
-	0x6c, 0x6c, 0x6f, 0x4c, 0x62, 0x73, 0x10, 0x0a, 0x12, 0x1a, 0x0a, 0x16, 0x53, 0x70, 0x65, 0x63,
-	0x74, 0x61, 0x74, 0x6f, 0x72, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x50, 0x75, 0x73, 0x68, 0x54, 0x79,
-	0x70, 0x65, 0x10, 0x14, 0x12, 0x19, 0x0a, 0x15, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f,
-	0x72, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x41, 0x63, 0x6b, 0x54, 0x79, 0x70, 0x65, 0x10, 0x15, 0x12,
-	0x1b, 0x0a, 0x17, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x52, 0x6f, 0x75, 0x6e,
-	0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65, 0x10, 0x16, 0x12, 0x1c, 0x0a, 0x18,
-	0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x52, 0x6f, 0x75, 0x6e, 0x64, 0x52, 0x65,
-	0x73, 0x75, 0x6c, 0x74, 0x54, 0x79, 0x70, 0x65, 0x10, 0x17, 0x12, 0x1a, 0x0a, 0x16, 0x53, 0x70,
-	0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65,
-	0x54, 0x79, 0x70, 0x65, 0x10, 0x18, 0x42, 0x0d, 0x5a, 0x0b, 0x67, 0x64, 0x78, 0x73, 0x76, 0x2f,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x62, 0x65, 0x44, 0x61, 0x74, 0x61, 0x12, 0x6f, 0x0a, 0x22, 0x73, 0x70, 0x65, 0x63, 0x74, 0x61,
+	0x74, 0x6f, 0x72, 0x5f, 0x73, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65, 0x5f, 0x63, 0x68,
+	0x61, 0x6c, 0x6c, 0x65, 0x6e, 0x67, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x19, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x22, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x53, 0x70, 0x65, 0x63, 0x74,
+	0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65, 0x43, 0x68, 0x61,
+	0x6c, 0x6c, 0x65, 0x6e, 0x67, 0x65, 0x52, 0x1f, 0x73, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f,
+	0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65, 0x43, 0x68, 0x61, 0x6c, 0x6c, 0x65,
+	0x6e, 0x67, 0x65, 0x44, 0x61, 0x74, 0x61, 0x2a, 0x92, 0x02, 0x0a, 0x0b, 0x4d, 0x65, 0x73, 0x73,
+	0x61, 0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x4e, 0x6f, 0x6e, 0x65, 0x10,
+	0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x10, 0x01, 0x12, 0x08, 0x0a, 0x04, 0x50, 0x69, 0x6e, 0x67, 0x10, 0x02, 0x12, 0x08, 0x0a, 0x04,
+	0x50, 0x6f, 0x6e, 0x67, 0x10, 0x03, 0x12, 0x0a, 0x0a, 0x06, 0x42, 0x61, 0x74, 0x74, 0x6c, 0x65,
+	0x10, 0x04, 0x12, 0x07, 0x0a, 0x03, 0x46, 0x69, 0x6e, 0x10, 0x05, 0x12, 0x0c, 0x0a, 0x08, 0x48,
+	0x65, 0x6c, 0x6c, 0x6f, 0x4c, 0x62, 0x73, 0x10, 0x0a, 0x12, 0x1a, 0x0a, 0x16, 0x53, 0x70, 0x65,
+	0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x50, 0x75, 0x73, 0x68, 0x54,
+	0x79, 0x70, 0x65, 0x10, 0x14, 0x12, 0x19, 0x0a, 0x15, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74,
+	0x6f, 0x72, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x41, 0x63, 0x6b, 0x54, 0x79, 0x70, 0x65, 0x10, 0x15,
+	0x12, 0x1b, 0x0a, 0x17, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x52, 0x6f, 0x75,
+	0x6e, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65, 0x10, 0x16, 0x12, 0x1c, 0x0a,
+	0x18, 0x53, 0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x52, 0x6f, 0x75, 0x6e, 0x64, 0x52,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x54, 0x79, 0x70, 0x65, 0x10, 0x17, 0x12, 0x1a, 0x0a, 0x16, 0x53,
+	0x70, 0x65, 0x63, 0x74, 0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62,
+	0x65, 0x54, 0x79, 0x70, 0x65, 0x10, 0x18, 0x12, 0x23, 0x0a, 0x1f, 0x53, 0x70, 0x65, 0x63, 0x74,
+	0x61, 0x74, 0x6f, 0x72, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x62, 0x65, 0x43, 0x68, 0x61,
+	0x6c, 0x6c, 0x65, 0x6e, 0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x10, 0x19, 0x42, 0x0d, 0x5a, 0x0b,
+	0x67, 0x64, 0x78, 0x73, 0x76, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2294,30 +2390,31 @@ func file_gdxsv_proto_rawDescGZIP() []byte {
 }
 
 var file_gdxsv_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_gdxsv_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_gdxsv_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_gdxsv_proto_goTypes = []interface{}{
-	(MessageType)(0),                  // 0: proto.MessageType
-	(*P2PMatchingReport)(nil),         // 1: proto.P2PMatchingReport
-	(*P2PMatching)(nil),               // 2: proto.P2PMatching
-	(*PlayerAddress)(nil),             // 3: proto.PlayerAddress
-	(*GamePatch)(nil),                 // 4: proto.GamePatch
-	(*GamePatchCode)(nil),             // 5: proto.GamePatchCode
-	(*GamePatchList)(nil),             // 6: proto.GamePatchList
-	(*BattleLogUser)(nil),             // 7: proto.BattleLogUser
-	(*BattleLogRound)(nil),            // 8: proto.BattleLogRound
-	(*SpectatorInputPush)(nil),        // 9: proto.SpectatorInputPush
-	(*SpectatorInputAck)(nil),         // 10: proto.SpectatorInputAck
-	(*SpectatorSubscribeRequest)(nil), // 11: proto.SpectatorSubscribeRequest
-	(*SpectatorRoundEvent)(nil),       // 12: proto.SpectatorRoundEvent
-	(*SpectatorRoundResult)(nil),      // 13: proto.SpectatorRoundResult
-	(*BattleLogFile)(nil),             // 14: proto.BattleLogFile
-	(*BattleMessage)(nil),             // 15: proto.BattleMessage
-	(*PingMessage)(nil),               // 16: proto.PingMessage
-	(*PongMessage)(nil),               // 17: proto.PongMessage
-	(*HelloServerMessage)(nil),        // 18: proto.HelloServerMessage
-	(*FinMessage)(nil),                // 19: proto.FinMessage
-	(*HelloLbsMessage)(nil),           // 20: proto.HelloLbsMessage
-	(*Packet)(nil),                    // 21: proto.Packet
+	(MessageType)(0),                    // 0: proto.MessageType
+	(*P2PMatchingReport)(nil),           // 1: proto.P2PMatchingReport
+	(*P2PMatching)(nil),                 // 2: proto.P2PMatching
+	(*PlayerAddress)(nil),               // 3: proto.PlayerAddress
+	(*GamePatch)(nil),                   // 4: proto.GamePatch
+	(*GamePatchCode)(nil),               // 5: proto.GamePatchCode
+	(*GamePatchList)(nil),               // 6: proto.GamePatchList
+	(*BattleLogUser)(nil),               // 7: proto.BattleLogUser
+	(*BattleLogRound)(nil),              // 8: proto.BattleLogRound
+	(*SpectatorInputPush)(nil),          // 9: proto.SpectatorInputPush
+	(*SpectatorInputAck)(nil),           // 10: proto.SpectatorInputAck
+	(*SpectatorSubscribeRequest)(nil),   // 11: proto.SpectatorSubscribeRequest
+	(*SpectatorSubscribeChallenge)(nil), // 12: proto.SpectatorSubscribeChallenge
+	(*SpectatorRoundEvent)(nil),         // 13: proto.SpectatorRoundEvent
+	(*SpectatorRoundResult)(nil),        // 14: proto.SpectatorRoundResult
+	(*BattleLogFile)(nil),               // 15: proto.BattleLogFile
+	(*BattleMessage)(nil),               // 16: proto.BattleMessage
+	(*PingMessage)(nil),                 // 17: proto.PingMessage
+	(*PongMessage)(nil),                 // 18: proto.PongMessage
+	(*HelloServerMessage)(nil),          // 19: proto.HelloServerMessage
+	(*FinMessage)(nil),                  // 20: proto.FinMessage
+	(*HelloLbsMessage)(nil),             // 21: proto.HelloLbsMessage
+	(*Packet)(nil),                      // 22: proto.Packet
 }
 var file_gdxsv_proto_depIdxs = []int32{
 	8,  // 0: proto.P2PMatchingReport.round_data:type_name -> proto.BattleLogRound
@@ -2326,30 +2423,31 @@ var file_gdxsv_proto_depIdxs = []int32{
 	5,  // 3: proto.GamePatch.codes:type_name -> proto.GamePatchCode
 	4,  // 4: proto.GamePatchList.patches:type_name -> proto.GamePatch
 	8,  // 5: proto.SpectatorInputPush.round_data:type_name -> proto.BattleLogRound
-	14, // 6: proto.SpectatorInputPush.header:type_name -> proto.BattleLogFile
+	15, // 6: proto.SpectatorInputPush.header:type_name -> proto.BattleLogFile
 	4,  // 7: proto.SpectatorInputPush.patches:type_name -> proto.GamePatch
 	8,  // 8: proto.SpectatorRoundResult.round:type_name -> proto.BattleLogRound
 	4,  // 9: proto.BattleLogFile.patches:type_name -> proto.GamePatch
 	7,  // 10: proto.BattleLogFile.users:type_name -> proto.BattleLogUser
-	15, // 11: proto.BattleLogFile.battle_data:type_name -> proto.BattleMessage
+	16, // 11: proto.BattleLogFile.battle_data:type_name -> proto.BattleMessage
 	8,  // 12: proto.BattleLogFile.round_data:type_name -> proto.BattleLogRound
 	0,  // 13: proto.Packet.type:type_name -> proto.MessageType
-	18, // 14: proto.Packet.hello_server_data:type_name -> proto.HelloServerMessage
-	16, // 15: proto.Packet.ping_data:type_name -> proto.PingMessage
-	17, // 16: proto.Packet.pong_data:type_name -> proto.PongMessage
-	15, // 17: proto.Packet.battle_data:type_name -> proto.BattleMessage
-	19, // 18: proto.Packet.fin_data:type_name -> proto.FinMessage
-	20, // 19: proto.Packet.hello_lbs_data:type_name -> proto.HelloLbsMessage
+	19, // 14: proto.Packet.hello_server_data:type_name -> proto.HelloServerMessage
+	17, // 15: proto.Packet.ping_data:type_name -> proto.PingMessage
+	18, // 16: proto.Packet.pong_data:type_name -> proto.PongMessage
+	16, // 17: proto.Packet.battle_data:type_name -> proto.BattleMessage
+	20, // 18: proto.Packet.fin_data:type_name -> proto.FinMessage
+	21, // 19: proto.Packet.hello_lbs_data:type_name -> proto.HelloLbsMessage
 	9,  // 20: proto.Packet.spectator_input_push_data:type_name -> proto.SpectatorInputPush
 	10, // 21: proto.Packet.spectator_input_ack_data:type_name -> proto.SpectatorInputAck
-	12, // 22: proto.Packet.spectator_round_event_data:type_name -> proto.SpectatorRoundEvent
-	13, // 23: proto.Packet.spectator_round_result_data:type_name -> proto.SpectatorRoundResult
+	13, // 22: proto.Packet.spectator_round_event_data:type_name -> proto.SpectatorRoundEvent
+	14, // 23: proto.Packet.spectator_round_result_data:type_name -> proto.SpectatorRoundResult
 	11, // 24: proto.Packet.spectator_subscribe_data:type_name -> proto.SpectatorSubscribeRequest
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	12, // 25: proto.Packet.spectator_subscribe_challenge_data:type_name -> proto.SpectatorSubscribeChallenge
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_gdxsv_proto_init() }
@@ -2491,7 +2589,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SpectatorRoundEvent); i {
+			switch v := v.(*SpectatorSubscribeChallenge); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2503,7 +2601,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SpectatorRoundResult); i {
+			switch v := v.(*SpectatorRoundEvent); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2515,7 +2613,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BattleLogFile); i {
+			switch v := v.(*SpectatorRoundResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2527,7 +2625,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BattleMessage); i {
+			switch v := v.(*BattleLogFile); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2539,7 +2637,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PingMessage); i {
+			switch v := v.(*BattleMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2551,7 +2649,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PongMessage); i {
+			switch v := v.(*PingMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2563,7 +2661,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HelloServerMessage); i {
+			switch v := v.(*PongMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2575,7 +2673,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FinMessage); i {
+			switch v := v.(*HelloServerMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2587,7 +2685,7 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HelloLbsMessage); i {
+			switch v := v.(*FinMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2599,6 +2697,18 @@ func file_gdxsv_proto_init() {
 			}
 		}
 		file_gdxsv_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*HelloLbsMessage); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gdxsv_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Packet); i {
 			case 0:
 				return &v.state
@@ -2617,7 +2727,7 @@ func file_gdxsv_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_gdxsv_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   21,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
