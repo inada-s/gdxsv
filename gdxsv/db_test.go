@@ -13,6 +13,9 @@ func prepareTestDB() {
 	if err != nil {
 		log.Fatalln("Cannot open test db. err:", err)
 	}
+	// In-memory databases are connection-local. Match production's pool limit
+	// so concurrent test queries cannot open a second, uninitialized database.
+	conn.SetMaxOpenConns(1)
 	db := SQLiteDB{
 		DB:          conn,
 		SQLiteCache: NewSQLiteCache(),
