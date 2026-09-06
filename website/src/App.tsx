@@ -27,7 +27,7 @@ function App() {
         >
             <React.Fragment>
                 <Header locale={locale} setLocale={setLocale} localeList={localeList} />
-                <Router basename={process.env.PUBLIC_URL}>
+                <Router>
                     <div>
                         <Routes>
                             <Route path="/" element={<>{pageview('/')}<Home/></>}/>
