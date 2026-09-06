@@ -22,7 +22,7 @@ export default function Header({locale, setLocale, localeList}: IHeader) {
             <Navbar.Brand id="page-header-brand" href="#/">{intl.formatMessage({id: "common.title"})}</Navbar.Brand>
             <Navbar.Toggle aria-controls="basic-navbar-nav"/>
             <Navbar.Collapse id="basic-navbar-nav">
-                <Nav className="ml-auto">
+                <Nav className="ms-auto">
                     <Nav.Link href="#/status">{intl.formatMessage({id: "header.status"})}</Nav.Link>
                 </Nav>
                 <Button target="_blank" href={locale === 'ja' ? GuideJaUrl : GuideEnUrl} variant={"outline-secondary"}

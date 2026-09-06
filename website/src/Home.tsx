@@ -12,7 +12,6 @@ import {
     Button,
     Col,
     Container,
-    Jumbotron,
     Row,
     Image,
 } from 'react-bootstrap';
@@ -92,7 +91,7 @@ export default function Home() {
                     </Col>
                 </Row>
 
-                <Jumbotron fluid>
+                <div className={"jumbotron"}>
                     <Container>
                         <h2>{intl.formatMessage({ id: "common.start-now" })}</h2>
                         <div className={"d-flex justify-content-center"}>
@@ -102,7 +101,7 @@ export default function Home() {
                                     className={"join-btn mx-2 my-3 px-4 py-3"}>{intl.formatMessage({ id: "common.join" })}</Button>
                         </div>
                     </Container>
-                </Jumbotron>
+                </div>
             </Container>
         </div>
     )
