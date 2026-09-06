@@ -37,15 +37,13 @@ const defaultSpectatorMaxSubscribersPerBattle = 512
 // whole list doing so.
 const maxPatchChunkBytes = 1000
 
-// spectatorSessionRetention is how long a closed session's assembled log is
-// kept around after the battle ends, so a late reconciliation pass or a
-// spectator's final backfill can still read it.
+// spectatorSessionRetention is the minimum time a closed session's assembled
+// log is kept after the battle ends. Connected subscribers extend its lifetime.
 const spectatorSessionRetention = 10 * time.Minute
 
-// How long a session with no push from any peer is kept before it is treated
-// as dead. Peers push continuously while a battle runs; the longest natural
-// gap is a scene transition, seconds not minutes. Only reached when a session
-// never closes, which needs every peer to vanish without reporting.
+// spectatorSessionIdleTimeout is how long a session without peer pushes is
+// kept before it can be removed, once no subscribers remain. This handles
+// participants disappearing without a close report.
 const spectatorSessionIdleTimeout = 10 * time.Minute
 
 // How often the fan-out loop sweeps expired sessions. Sweeping only when a new
@@ -73,9 +71,7 @@ const silentPushGrace = 8
 const maxSilentBackoffShift = 6
 
 // spectatorSubscriberTimeout is how long a downlink subscriber may go
-// without resending SpectatorSubscribeRequest (its keepalive) before it is
-// dropped. There is no TCP-level "connection closed" signal on this UDP
-// channel, so staleness is the only way to notice a spectator went away.
+// without a valid keepalive or ACK before it is dropped.
 const spectatorSubscriberTimeout = 10 * time.Second
 
 // spectatorFanoutInterval is how often SpectatorRegistry.StartFanoutLoop
@@ -481,10 +477,9 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 	return push, true
 }
 
-// sweepSubscribersLocked drops downlink subscribers that haven't sent a
-// SpectatorSubscribeRequest (their keepalive) within spectatorSubscriberTimeout,
-// returning their address keys so the caller (SpectatorRegistry) can also
-// remove them from its own subscriberIndex.
+// sweepSubscribersLocked drops subscribers with no keepalive or ACK within
+// spectatorSubscriberTimeout and returns their address keys for removal from
+// SpectatorRegistry.subscriberIndex.
 func (s *SpectatorSession) sweepSubscribersLocked(now time.Time) []string {
 	var dropped []string
 	for key, sub := range s.downlinks {
@@ -853,31 +848,29 @@ func handleSpectatorRoundResult(m *proto.SpectatorRoundResult) {
 	spectatorRegistry.wakeFanout()
 }
 
-// sweepLocked drops sessions that closed more than spectatorSessionRetention
-// ago, and sessions that have gone silent without ever closing. Called from
-// the fan-out loop's own timer and from Open. Session churn is low - one entry
-// per battle - so the O(n) scan is cheap.
+// sweepLocked expires silent subscribers and drops idle or closed sessions
+// past their retention windows once no subscribers remain. Called by the
+// fan-out timer and Open.
 func (r *SpectatorRegistry) sweepLocked() {
 	now := time.Now()
 	for code, s := range r.sessions {
 		s.mtx.Lock()
+		for _, key := range s.sweepSubscribersLocked(now) {
+			if r.subscriberIndex[key] == s {
+				delete(r.subscriberIndex, key)
+			}
+		}
 		expired := s.closed && now.Sub(s.closedAt) > spectatorSessionRetention
 		// A session only closes when a peer reports the battle ended. If every
 		// peer vanishes at once nobody reports, so fall back to silence.
 		idle := !s.closed && now.Sub(s.lastPushAt) > spectatorSessionIdleTimeout
-		if expired || idle {
+		if len(s.downlinks) == 0 && (expired || idle) {
 			if idle {
 				logger.Info("spectator session dropped after going silent",
 					zap.String("battle_code", code),
 					zap.Duration("silent_for", now.Sub(s.lastPushAt)))
 			}
 			delete(r.sessions, code)
-			for key := range s.downlinks {
-				if r.subscriberIndex[key] == s {
-					delete(r.subscriberIndex, key)
-				}
-				delete(s.downlinks, key)
-			}
 		}
 		s.mtx.Unlock()
 	}

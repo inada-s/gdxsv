@@ -226,9 +226,9 @@ func TestSpectatorRegistry_ExpiryReleasesBothMapsAndSlots(t *testing.T) {
 			s, _ := r.GetAny("old")
 			addr := testAddr(40000)
 			r.HandleSubscribe(addr, testSubscribeRequest(r, "old", addr, 0))
+			s.downlinks[addr.String()].lastSeen = time.Now().Add(-2 * spectatorSubscriberTimeout)
 			switch expiry {
 			case "subscriber":
-				s.downlinks[addr.String()].lastSeen = time.Now().Add(-2 * spectatorSubscriberTimeout)
 				r.fanoutOnce(nil) // no subscribers remain to send to
 			case "closed":
 				s.Close("finished", -1)
@@ -248,6 +248,89 @@ func TestSpectatorRegistry_ExpiryReleasesBothMapsAndSlots(t *testing.T) {
 			addr = testAddr(40001)
 			r.HandleSubscribe(addr, testSubscribeRequest(r, "new", addr, 0))
 			assertEq(t, 1, len(r.subscriberIndex))
+		})
+	}
+}
+
+func TestSpectatorRegistry_SweepRetainsConnectedSessions(t *testing.T) {
+	for _, expiry := range []string{"closed", "idle"} {
+		for _, activity := range []string{"keepalive", "ack"} {
+			t.Run(expiry+"/"+activity, func(t *testing.T) {
+				r := newTestSpectatorRegistry()
+				r.Open(&proto.P2PMatching{BattleCode: "watched"}, "dc2", nil)
+				s, _ := r.GetAny("watched")
+				s.PushInputs(0, []uint64{1, 2, 3})
+				active, stale := testAddr(40000), testAddr(40001)
+				for _, addr := range []*net.UDPAddr{active, stale} {
+					r.HandleSubscribe(addr, testSubscribeRequest(r, "watched", addr, 3))
+					s.downlinks[addr.String()].lastSeen = time.Now().Add(-2 * spectatorSubscriberTimeout)
+				}
+				if expiry == "closed" {
+					s.Close("finished", -1)
+					s.closedAt = time.Now().Add(-2 * spectatorSessionRetention)
+				} else {
+					s.lastPushAt = time.Now().Add(-2 * spectatorSessionIdleTimeout)
+				}
+				beforePushAt, beforeClosedAt := s.lastPushAt, s.closedAt
+
+				// Even a fully caught-up viewer keeps the recording available.
+				if activity == "keepalive" {
+					r.HandleSubscribe(active, testSubscribeRequest(r, "watched", active, 3))
+				} else {
+					r.HandleAck(active, &proto.SpectatorInputAck{BattleCode: "watched", AckFrame: 3})
+				}
+				r.mtx.Lock()
+				r.sweepLocked()
+				r.mtx.Unlock()
+
+				assertEq(t, s, r.sessions["watched"])
+				assertEq(t, 1, len(s.downlinks))
+				assertEq(t, 1, len(r.subscriberIndex))
+				assertEq(t, s, r.subscriberIndex[active.String()])
+				assertEq(t, beforePushAt, s.lastPushAt)
+				assertEq(t, beforeClosedAt, s.closedAt)
+				assertEq(t, []uint64{1, 2, 3}, s.log.Inputs)
+
+				// Opening another battle also sweeps, without evicting this one.
+				r.Open(&proto.P2PMatching{BattleCode: "new"}, "dc2", nil)
+				assertEq(t, s, r.sessions["watched"])
+
+				// The original deadline already passed: no extra wait after exit.
+				s.downlinks[active.String()].lastSeen = time.Now().Add(-2 * spectatorSubscriberTimeout)
+				r.mtx.Lock()
+				r.sweepLocked()
+				r.mtx.Unlock()
+				_, ok := r.GetAny("watched")
+				assertEq(t, false, ok)
+				assertEq(t, 0, len(s.downlinks))
+				assertEq(t, 0, len(r.subscriberIndex))
+				_, ok = r.GetAny("new")
+				assertEq(t, true, ok)
+			})
+		}
+	}
+}
+
+func TestSpectatorRegistry_SweepExpiresSubscribersWithinRetention(t *testing.T) {
+	for _, state := range []string{"open", "closed"} {
+		t.Run(state, func(t *testing.T) {
+			r := newTestSpectatorRegistry()
+			r.Open(&proto.P2PMatching{BattleCode: "recent"}, "dc2", nil)
+			s, _ := r.GetAny("recent")
+			addr := testAddr(40000)
+			r.HandleSubscribe(addr, testSubscribeRequest(r, "recent", addr, 0))
+			s.downlinks[addr.String()].lastSeen = time.Now().Add(-2 * spectatorSubscriberTimeout)
+			if state == "closed" {
+				s.Close("finished", -1)
+			}
+
+			r.mtx.Lock()
+			r.sweepLocked()
+			r.mtx.Unlock()
+
+			assertEq(t, s, r.sessions["recent"])
+			assertEq(t, 0, len(s.downlinks))
+			assertEq(t, 0, len(r.subscriberIndex))
 		})
 	}
 }
