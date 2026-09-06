@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -17,6 +18,10 @@ import (
 // drop. 128 frames is ~2s at 60fps, double GGPO's own pending-output window,
 // and lands around 1KB - well inside one datagram, so no IP fragmentation.
 const maxSpectatorPushFrames = 128
+
+// maxSpectatorPendingFrames bounds the out-of-order receive window,
+// measured from the next missing frame.
+const maxSpectatorPendingFrames = 256
 
 // maxSpectatorRounds is the game's maximum number of rounds per battle.
 const maxSpectatorRounds = 10
@@ -94,7 +99,8 @@ type SpectatorSession struct {
 	// pendingFrames holds input frames received ahead of the current
 	// contiguous frontier (log.Inputs), keyed by frame index, until the
 	// gap in front of them is filled. Entries are folded into log.Inputs
-	// and removed as soon as they become contiguous.
+	// and removed as soon as they become contiguous. The receive window
+	// limits this map to maxSpectatorPendingFrames positions.
 	pendingFrames map[int32]uint64
 
 	// roundEventSeen dedups SpectatorRoundEvent pushes: all 4 peers send
@@ -220,20 +226,33 @@ func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) (ackFra
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	s.lastPushAt = time.Now()
-
-	if s.closed {
-		return int32(len(s.log.Inputs)), false
+	before := len(s.log.Inputs)
+	endFrame := int64(startFrame) + int64(len(inputs))
+	// Keep both frame indexes and the next-frame ACK representable as int32.
+	if s.closed || startFrame < 0 || len(inputs) == 0 || endFrame > math.MaxInt32 {
+		return int32(before), false
 	}
 
-	before := len(s.log.Inputs)
+	// Only out-of-order input needs pending storage. Validate its whole range.
+	if int64(startFrame) > int64(before) && endFrame > int64(before)+maxSpectatorPendingFrames {
+		return int32(before), false
+	}
+
+	s.lastPushAt = time.Now()
 
 	for i, v := range inputs {
 		f := startFrame + int32(i)
 		if f < int32(len(s.log.Inputs)) {
 			continue // already folded into the contiguous log
 		}
-		if _, exists := s.pendingFrames[f]; !exists {
+		if f == int32(len(s.log.Inputs)) {
+			// Append directly, preserving any earlier buffered value.
+			if pending, exists := s.pendingFrames[f]; exists {
+				v = pending
+				delete(s.pendingFrames, f)
+			}
+			s.log.Inputs = append(s.log.Inputs, v)
+		} else if _, exists := s.pendingFrames[f]; !exists {
 			s.pendingFrames[f] = v
 		}
 	}
