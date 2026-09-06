@@ -395,17 +395,23 @@ func (s *SpectatorSession) Ack(addrKey string, ackFrame, patchAck int32) {
 func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorInputPush, bool) {
 	// The header goes in its own push to stay clear of IP fragmentation.
 	if !sub.sentHeader {
-		header, ok := pb.Clone(s.log).(*proto.BattleLogFile)
-		if !ok {
-			return nil, false
-		}
-		// Inputs, round state and patches all stream through their own
-		// fields; the header carries only the small remainder.
-		header.Inputs = nil
-		header.StartMsgIndexes = nil
-		header.StartMsgRandoms = nil
-		header.RoundData = nil
-		header.Patches = nil
+		// Clone only the header metadata to keep its nested data independent.
+		// Inputs, round state and patches stream separately; excluding them
+		// before cloning avoids copying the accumulated match on every join
+		// or bootstrap retry.
+		header := pb.Clone(&proto.BattleLogFile{
+			GameDisk:               s.log.GameDisk,
+			GdxsvVersionDeprecated: s.log.GdxsvVersionDeprecated,
+			BattleCode:             s.log.BattleCode,
+			LogFileVersion:         s.log.LogFileVersion,
+			RuleBin:                s.log.RuleBin,
+			Users:                  s.log.Users,
+			BattleData:             s.log.BattleData,
+			StartAt:                s.log.StartAt,
+			EndAt:                  s.log.EndAt,
+			CloseReason:            s.log.CloseReason,
+			DisconnectUserIndex:    s.log.DisconnectUserIndex,
+		}).(*proto.BattleLogFile)
 		sub.sentHeader = true
 		return &proto.SpectatorInputPush{
 			BattleCode: s.battleCode,
