@@ -147,9 +147,19 @@ func (lbs *Lbs) serveUDP(port int) {
 		logger.Fatal("net.ListenUDP", zap.Error(err))
 	}
 
+	// Allow bursts of spectator traffic to queue while the socket is busy.
+	// The OS may cap these requests at its configured socket-buffer limits.
+	const bufferSize = 16 * 1024 * 1024
+	if err := udpConn.SetReadBuffer(bufferSize); err != nil {
+		logger.Warn("udpConn.SetReadBuffer", zap.Int("requested_bytes", bufferSize), zap.Error(err))
+	}
+	if err := udpConn.SetWriteBuffer(bufferSize); err != nil {
+		logger.Warn("udpConn.SetWriteBuffer", zap.Int("requested_bytes", bufferSize), zap.Error(err))
+	}
+
 	// 1400 comfortably covers a SpectatorInputPush carrying
 	// maxSpectatorPushFrames (128) frames (~1KB); existing small messages
-	// (HelloLbs etc.) are unaffected by the larger read buffer.
+	// (HelloLbs etc.) are unaffected by the larger per-packet buffer.
 	buf := make([]byte, 1400)
 	pkt := new(proto.Packet)
 
