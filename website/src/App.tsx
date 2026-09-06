@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     HashRouter as Router,
-    Switch,
+    Routes,
     Route,
 } from "react-router-dom";
 import { IntlProvider } from 'react-intl';
@@ -27,18 +27,12 @@ function App() {
         >
             <React.Fragment>
                 <Header locale={locale} setLocale={setLocale} localeList={localeList} />
-                <Router basename={process.env.PUBLIC_URL}>
+                <Router>
                     <div>
-                        <Switch>
-                            <Route exact path="/">
-                                {pageview('/')}
-                                <Home/>
-                            </Route>
-                            <Route path="/status">
-                                {pageview('/status')}
-                                <Status/>
-                            </Route>
-                        </Switch>
+                        <Routes>
+                            <Route path="/" element={<>{pageview('/')}<Home/></>}/>
+                            <Route path="/status" element={<>{pageview('/status')}<Status/></>}/>
+                        </Routes>
                     </div>
                 </Router>
                 <Footer/>

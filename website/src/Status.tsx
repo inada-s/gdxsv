@@ -107,7 +107,7 @@ export default class Status extends React.Component<Props, State> {
         const renderTeamIcon = (team: string) => <>
             {team === "renpo" && (
                 <Image
-                    className={"ml-2 mr-2 mb-2"}
+                    className={"ms-2 me-2 mb-2"}
                     src={renpoIcon}
                     style={{backgroundColor: "CornflowerBlue"}}
                     height="20" width="20"
@@ -115,7 +115,7 @@ export default class Status extends React.Component<Props, State> {
             )}
             {team === "zeon" && (
                 <Image
-                    className={"ml-2 mr-2 mb-2"}
+                    className={"ms-2 me-2 mb-2"}
                     src={zeonIcon}
                     style={{backgroundColor: "mediumvioletred"}}
                     height="20" width="20"
@@ -123,7 +123,7 @@ export default class Status extends React.Component<Props, State> {
             )}
             {!team && (
                 <Image
-                    className={"ml-2 mr-2 mb-2"}
+                    className={"ms-2 me-2 mb-2"}
                     src={renpoIcon}
                     style={{backgroundColor: "CornflowerBlue", opacity: "0"}}
                     height="20" width="20"
@@ -137,7 +137,7 @@ export default class Status extends React.Component<Props, State> {
                     {renderTeamIcon(u.team)}
                     <span className={"user-id m-2"}>{u.user_id}</span>
                     <span className={"user-name m-2"}>{u.name}</span>
-                    <span className={"badge m-1 float-right"}>{u.flycast}</span>
+                    <span className={"badge m-1 float-end"}>{u.flycast}</span>
                 </td>
                 <td className={"text-center align-middle"} >
                     <FormattedMessage id={"game.lobby" + (u.lobby_id ?? 0)} />
@@ -163,7 +163,7 @@ export default class Status extends React.Component<Props, State> {
                     {renderTeamIcon(u.team)}
                     <span className={"user-id m-2"}>{u.user_id}</span>
                     <span className={"user-name m-2"}>{u.name}</span>
-                    <span className={"badge m-1 float-right"}>{u.flycast}</span>
+                    <span className={"badge m-1 float-end"}>{u.flycast}</span>
                 </td>
                 {u.battle_pos === 1 && (
                     <td className={"text-center align-middle"} rowSpan={
