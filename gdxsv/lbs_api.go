@@ -2,12 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"go.uber.org/zap"
-	"golang.org/x/sync/singleflight"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 var httpRequestGroup singleflight.Group
@@ -42,6 +43,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		type onlineUser struct {
 			UserID     string `json:"user_id,omitempty"`
 			Name       string `json:"name,omitempty"`
+			PilotName  string `json:"pilot_name,omitempty"`
 			Team       string `json:"team,omitempty"`
 			LobbyID    uint16 `json:"lobby_id,omitempty"`
 			BattleCode string `json:"battle_code,omitempty"`
@@ -58,6 +60,12 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			State      string    `json:"state,omitempty"`
 			LobbyID    uint16    `json:"lobby_id,omitempty"`
 			UpdatedAt  time.Time `json:"updated_at,omitempty"`
+
+			// Whether this battle can be spectated live. Not every player runs
+			// a build that pushes, so a battle being in progress says nothing
+			// about whether anything is being captured.
+			LiveSpectate bool `json:"live_spectate"`
+			Spectators   int  `json:"spectators,omitempty"`
 		}
 
 		type statusResponse struct {
@@ -107,6 +115,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 					resp.BattleUsers = append(resp.BattleUsers, &onlineUser{
 						UserID:     u.UserID,
 						Name:       u.Name,
+						PilotName:  u.PilotName,
 						Team:       teamName(int(u.Team)),
 						BattleCode: u.BattleCode,
 						BattlePos:  uint8(u.Pos),
@@ -118,12 +127,15 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			}
 
 			for _, g := range sharedData.GetMcsGames() {
+				live, spectators := spectatorRegistry.LiveStatus(g.BattleCode)
 				resp.ActiveGames = append(resp.ActiveGames, &activeGame{
-					BattleCode: g.BattleCode,
-					Disk:       g.GameDisk,
-					State:      gameStateName(g.State),
-					LobbyID:    g.LobbyID,
-					UpdatedAt:  g.UpdatedAt,
+					BattleCode:   g.BattleCode,
+					Disk:         g.GameDisk,
+					State:        gameStateName(g.State),
+					LobbyID:      g.LobbyID,
+					UpdatedAt:    g.UpdatedAt,
+					LiveSpectate: live,
+					Spectators:   spectators,
 				})
 
 				for _, u := range resp.BattleUsers {
@@ -147,6 +159,8 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			logger.Error("JSON encode failed", zap.Error(err))
 		}
 	})
+
+	http.HandleFunc("/lbs/spectators", spectatorsHandler)
 
 	http.HandleFunc("/lbs/replay", func(w http.ResponseWriter, r *http.Request) {
 		// Public API: find replays
@@ -361,4 +375,42 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 			logger.Error("Write response failed", zap.Error(err))
 		}
 	})
+}
+
+// spectatorsHandler is split out of RegisterHTTPHandlers so it can be
+// exercised directly with httptest.
+func spectatorsHandler(w http.ResponseWriter, r *http.Request) {
+	// Public API: how many people are watching one battle. Kept separate from
+	// /lbs/status so a spectator polling during playback does not pull down
+	// every user and every game for one integer.
+	if err := r.ParseForm(); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	battleCode := r.FormValue("battle_code")
+	if battleCode == "" {
+		http.Error(w, "battle_code required", http.StatusBadRequest)
+		return
+	}
+
+	// Share overlapping lookups for the same battle, separate from /lbs/status.
+	resp, err, _ := httpRequestGroup.Do("/lbs/spectators:"+battleCode, func() (interface{}, error) {
+		live, spectators := spectatorRegistry.LiveStatus(battleCode)
+		return struct {
+			BattleCode string `json:"battle_code"`
+			Spectators int    `json:"spectators"`
+			// False once the battle ends, so a client can tell "nobody is
+			// watching" from "there is nothing to watch".
+			Live bool `json:"live"`
+		}{battleCode, spectators, live}, nil
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		logger.Error("JSON encode failed", zap.Error(err))
+	}
 }

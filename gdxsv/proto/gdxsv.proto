@@ -82,6 +82,106 @@ message BattleLogRound {
   repeated int32 used_ms = 2;
 }
 
+// Sent by a battle participant every confirmed frame. `inputs` carries every
+// frame the sender thinks LBS hasn't acked yet, starting at start_frame, so a
+// dropped packet delays a frame instead of losing it. All 4 participants send
+// redundantly and LBS dedups by frame index.
+//
+// Fields 5 onward are downlink-only (LBS -> spectator). Input, patch and
+// round-state progress are acknowledged independently in SpectatorInputAck.
+message SpectatorInputPush {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 start_frame = 3;
+  repeated fixed64 inputs = 4;
+  repeated int32 start_msg_indexes = 5;
+  repeated uint64 start_msg_randoms = 6;
+  repeated BattleLogRound round_data = 7;
+  string close_reason = 8;
+  int32 disconnect_user_index = 9;
+
+  // Downlink-only, sent once to each new subscriber before any inputs. The
+  // BattleLogFile with inputs, round state, patches and close fields stripped
+  // out - disk, users and rule, which is what playback needs to start. It comes over UDP
+  // rather than HTTP because LBS's HTTP port isn't publicly reachable.
+  BattleLogFile header = 10;
+
+  // Downlink-only: the lobby's game patches. The spectator must apply them to
+  // stay deterministic, since the shared bootstrap savestate is generic.
+  //
+  // They are too big to ride with the header - ~1.4KB of a ~1.8KB header - so
+  // they stream as their own datagram-sized chunks, resent from patch_ack the
+  // way inputs resend from ack_frame. A fragmented datagram only arrives if
+  // every fragment does, so splitting keeps delivery from degrading as the
+  // patch table grows.
+  repeated GamePatch patches = 11;
+  int32 patch_start = 12;  // index of patches[0] within the full list
+  int32 patch_total = 13;  // full list length, so the client knows when it has them all
+
+  // Version of the complete round snapshot in fields 5-7; zero means no
+  // snapshot in this push. Resent until the spectator applies it and ACKs.
+  // On a close-only push, identifies the version required before stopping.
+  int32 round_state_version = 14;
+}
+
+// Sent by LBS back to a streaming peer, or by a spectator back to LBS: the
+// next missing frame index (the contiguous input count). The other side
+// may discard buffered/backlog data strictly below this index.
+message SpectatorInputAck {
+  string battle_code = 1;
+  int32 ack_frame = 2;
+  // How many patches the spectator has received contiguously; LBS resends
+  // from here, so a lost chunk costs one chunk rather than the whole list.
+  int32 patch_ack = 3;
+  // Spectator -> LBS: latest round-state version actually applied to its log.
+  int32 round_ack = 4;
+  // LBS -> participant: individual accepted round starts (by frame) and
+  // results (by round index). Explicit entries also acknowledge frame/index 0.
+  repeated int32 round_event_ack = 5;
+  repeated int32 round_result_ack = 6;
+}
+
+// Sent by a spectator client to LBS to start or resume receiving live
+// SpectatorInputPush updates for battle_code from from_frame onward. Also
+// doubles as a keepalive - LBS drops a subscriber that stops resending this
+// (see spectatorSubscriberTimeout in lbs_spectator.go).
+message SpectatorSubscribeRequest {
+  string battle_code = 1;
+  // 2 was session_id. Spectators are not battle participants and are not
+  // given this value, so it is neither sent nor checked here.
+  reserved 2;
+  int32 from_frame = 3;
+  // Echo the server's 16-byte cookie. Start with 16 zero bytes so a
+  // challenge reply is no larger than the request that triggered it.
+  bytes cookie = 4;
+}
+
+// Proves that a spectator receives packets at its observed UDP address
+// before the server allocates a subscription. Expired cookies are renewed
+// through the same exchange on the next subscribe/keepalive.
+message SpectatorSubscribeChallenge {
+  string battle_code = 1;
+  bytes cookie = 2;
+}
+
+// Retried until acknowledged, one round start at a time in order (mirrors GdxsvBackendRollback's
+// start_msg_indexes/start_msg_randoms) so the live-assembled log stays
+// deterministic across round boundaries.
+message SpectatorRoundEvent {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 frame = 3;
+  uint64 random_value = 4;
+}
+
+// Retried until acknowledged when a round's result becomes known (win team / mobile suit used).
+message SpectatorRoundResult {
+  string battle_code = 1;
+  int32 session_id = 2;
+  int32 round_index = 3;
+  BattleLogRound round = 4;
+}
+
 message BattleLogFile {
   string game_disk = 5;
   string gdxsv_version_deprecated = 2;
@@ -111,6 +211,12 @@ enum MessageType {
   Battle = 4;
   Fin = 5;
   HelloLbs = 10;
+  SpectatorInputPushType = 20;
+  SpectatorInputAckType = 21;
+  SpectatorRoundEventType = 22;
+  SpectatorRoundResultType = 23;
+  SpectatorSubscribeType = 24;
+  SpectatorSubscribeChallengeType = 25;
 }
 
 message BattleMessage {
@@ -156,4 +262,11 @@ message Packet {
   repeated BattleMessage battle_data = 13;
   FinMessage fin_data = 14;
   HelloLbsMessage hello_lbs_data = 15;
+
+  SpectatorInputPush spectator_input_push_data = 20;
+  SpectatorInputAck spectator_input_ack_data = 21;
+  SpectatorRoundEvent spectator_round_event_data = 22;
+  SpectatorRoundResult spectator_round_result_data = 23;
+  SpectatorSubscribeRequest spectator_subscribe_data = 24;
+  SpectatorSubscribeChallenge spectator_subscribe_challenge_data = 25;
 }

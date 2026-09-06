@@ -6,7 +6,6 @@ import (
 	"go.uber.org/zap"
 	pb "google.golang.org/protobuf/proto"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -39,10 +38,7 @@ func (s *McsUDPServer) ListenAndServe(addr string) error {
 
 	s.conn = conn
 
-	bufferSize := 16 * 1024 * 1024
-	if runtime.GOOS == "darwin" {
-		bufferSize = 9216
-	}
+	const bufferSize = 16 * 1024 * 1024
 
 	err = s.conn.SetReadBuffer(bufferSize)
 	if err != nil {
