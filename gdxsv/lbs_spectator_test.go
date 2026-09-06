@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -141,6 +142,46 @@ func TestSpectatorSession_PushRoundResult_GrowsRoundData(t *testing.T) {
 
 	assertEq(t, 3, len(s.log.RoundData))
 	assertEq(t, int32(1), s.log.RoundData[2].WinTeam)
+}
+
+func TestSpectatorSession_PushRoundResult_AcceptsTenthRound(t *testing.T) {
+	s := newTestSpectatorSession()
+
+	s.PushRoundResult(9, &proto.BattleLogRound{WinTeam: 1, UsedMs: []int32{3}})
+
+	assertEq(t, 10, len(s.log.RoundData))
+	assertEq(t, int32(1), s.log.RoundData[9].WinTeam)
+	assertEq(t, []int32{3}, s.log.RoundData[9].UsedMs)
+	assertEq(t, int32(1), s.roundStateVersion)
+}
+
+func TestSpectatorSession_PushRoundResult_RejectsInvalid(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		roundIndex int32
+		round      *proto.BattleLogRound
+	}{
+		{"negative", -1, &proto.BattleLogRound{WinTeam: 1}},
+		{"eleventh_round", 10, &proto.BattleLogRound{WinTeam: 1}},
+		{"int32_max", math.MaxInt32, &proto.BattleLogRound{WinTeam: 1}},
+		{"nil_round", 0, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestSpectatorSession()
+			s.PushRoundEvent(0, 111)
+			s.PushRoundResult(0, &proto.BattleLogRound{WinTeam: 2, UsedMs: []int32{9}})
+			s.lastPushAt = time.Unix(100, 0)
+			beforeLog := pb.Clone(s.log)
+			beforeVersion := s.roundStateVersion
+			beforePushAt := s.lastPushAt
+
+			s.PushRoundResult(tt.roundIndex, tt.round)
+
+			assertEq(t, true, pb.Equal(beforeLog, s.log))
+			assertEq(t, beforeVersion, s.roundStateVersion)
+			assertEq(t, beforePushAt, s.lastPushAt)
+		})
+	}
 }
 
 func TestSpectatorSession_Close_IsIdempotent(t *testing.T) {

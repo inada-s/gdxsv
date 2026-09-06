@@ -18,6 +18,9 @@ import (
 // and lands around 1KB - well inside one datagram, so no IP fragmentation.
 const maxSpectatorPushFrames = 128
 
+// maxSpectatorRounds is the game's maximum number of rounds per battle.
+const maxSpectatorRounds = 10
+
 const defaultSpectatorMaxSubscribers = 4096
 const defaultSpectatorMaxSubscribersPerBattle = 512
 
@@ -271,12 +274,16 @@ func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) {
 // the client's "first WinTeam transition wins" semantics: once a round's
 // result is set it is not overwritten by a later (redundant) push.
 func (s *SpectatorSession) PushRoundResult(roundIndex int32, round *proto.BattleLogRound) {
+	if roundIndex < 0 || roundIndex >= maxSpectatorRounds || round == nil {
+		return
+	}
+
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	s.lastPushAt = time.Now()
 
-	if s.closed || roundIndex < 0 || round == nil {
+	if s.closed {
 		return
 	}
 	for int32(len(s.log.RoundData)) <= roundIndex {
