@@ -717,7 +717,7 @@ func (l *LbsLobby) isTrainingLobby() bool {
 	return 4 <= l.Rule.Timer && 1000 <= l.Rule.RenpoVital && 1000 <= l.Rule.ZeonVital
 }
 
-func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]*LbsMessage, error) {
+func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer, patchList *proto.GamePatchList) ([]*LbsMessage, error) {
 	hash := fnv.New32()
 	hash.Write([]byte(b.BattleCode))
 
@@ -803,6 +803,8 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer) ([]
 		}
 	}
 
+	spectatorRegistry.Open(matching, l.GameDisk, patchList)
+
 	var msgs []*LbsMessage
 	for i := range participants {
 		matching.PeerId = int32(i)
@@ -879,7 +881,7 @@ func (l *LbsLobby) checkLobbyBattleStart(force bool) {
 
 	var p2pMatchingMsgs []*LbsMessage
 	if mcsRegion == "p2p" {
-		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b, participants)
+		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b, participants, patchList)
 		if err != nil {
 			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
 			return
@@ -1044,7 +1046,7 @@ func (l *LbsLobby) checkRoomBattleStart() {
 
 	var p2pMatchingMsgs []*LbsMessage
 	if mcsRegion == "p2p" {
-		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b, participants)
+		p2pMatchingMsgs, err = l.makeP2PMatchingMsg(b, participants, patchList)
 		if err != nil {
 			logger.Error("makeP2PMatchingMsg failed", zap.Error(err))
 			return

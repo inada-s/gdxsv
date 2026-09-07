@@ -1693,6 +1693,10 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 			return
 		}
 
+		// Reports arrive redundantly from all 4 participants; Close is
+		// idempotent so only the first one takes effect.
+		spectatorRegistry.Close(report.BattleCode, report.CloseReason, report.DisconnectedPeerId)
+
 		if report.CloseReason == "game_end" {
 			p.logger.Info("P2PMatchingReport",
 				zap.String("close_reason", report.CloseReason),

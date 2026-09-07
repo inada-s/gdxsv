@@ -147,8 +147,24 @@ func (lbs *Lbs) serveUDP(port int) {
 		logger.Fatal("net.ListenUDP", zap.Error(err))
 	}
 
-	buf := make([]byte, 128)
+	// Allow bursts of spectator traffic to queue while the socket is busy.
+	// The OS may cap these requests at its configured socket-buffer limits.
+	const bufferSize = 16 * 1024 * 1024
+	if err := udpConn.SetReadBuffer(bufferSize); err != nil {
+		logger.Warn("udpConn.SetReadBuffer", zap.Int("requested_bytes", bufferSize), zap.Error(err))
+	}
+	if err := udpConn.SetWriteBuffer(bufferSize); err != nil {
+		logger.Warn("udpConn.SetWriteBuffer", zap.Int("requested_bytes", bufferSize), zap.Error(err))
+	}
+
+	// 1400 comfortably covers a SpectatorInputPush carrying
+	// maxSpectatorPushFrames (128) frames (~1KB); existing small messages
+	// (HelloLbs etc.) are unaffected by the larger per-packet buffer.
+	buf := make([]byte, 1400)
 	pkt := new(proto.Packet)
+
+	go spectatorRegistry.StartFanoutLoop(udpConn)
+
 	for {
 		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
 		if err != nil {
@@ -193,6 +209,26 @@ func (lbs *Lbs) serveUDP(port int) {
 					logger.Warn("error when sending empty message", zap.Error(err))
 				}
 			}
+		}
+
+		// Live spectator capture channel (see lbs_spectator.go). Handled
+		// directly here rather than via lbs.Locked: pushes arrive at up
+		// to 60/sec per streaming peer and must not queue behind
+		// unrelated lobby/matchmaking event-loop work.
+		if pkt.SpectatorInputPushData != nil {
+			handleSpectatorInputPush(udpConn, remoteAddr, pkt.SpectatorInputPushData)
+		}
+		if pkt.SpectatorRoundEventData != nil {
+			handleSpectatorRoundEvent(udpConn, remoteAddr, pkt.SpectatorRoundEventData)
+		}
+		if pkt.SpectatorRoundResultData != nil {
+			handleSpectatorRoundResult(udpConn, remoteAddr, pkt.SpectatorRoundResultData)
+		}
+		if pkt.SpectatorSubscribeData != nil {
+			handleSpectatorSubscribe(udpConn, remoteAddr, pkt.SpectatorSubscribeData)
+		}
+		if pkt.SpectatorInputAckData != nil {
+			spectatorRegistry.HandleAck(remoteAddr, pkt.SpectatorInputAckData)
 		}
 	}
 }

@@ -69,6 +69,9 @@ type Config struct {
 	BattleRegion     string `env:"GDXSV_BATTLE_REGION" envDefault:""`
 	BattleLogPath    string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
 
+	SpectatorMaxSubscribers          int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS" envDefault:"4096"`
+	SpectatorMaxSubscribersPerBattle int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS_PER_BATTLE" envDefault:"512"`
+
 	GCPProjectID string `env:"GDXSV_GCP_PROJECT_ID" envDefault:""`
 	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`
 	McsFuncURL   string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
@@ -114,6 +117,9 @@ func loadConfig() {
 	var c Config
 	if err := env.Parse(&c); err != nil {
 		logger.Fatal("config load failed", zap.Error(err))
+	}
+	if c.SpectatorMaxSubscribers <= 0 || c.SpectatorMaxSubscribersPerBattle <= 0 {
+		logger.Fatal("spectator subscription limits must be positive")
 	}
 
 	logger.Info("config loaded", zap.Any("config", c))
@@ -189,6 +195,9 @@ func prepareDB() {
 }
 
 func mainLbs() {
+	spectatorRegistry.maxSubscribers = conf.SpectatorMaxSubscribers
+	spectatorRegistry.maxSubscribersPerBattle = conf.SpectatorMaxSubscribersPerBattle
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 
