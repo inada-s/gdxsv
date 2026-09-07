@@ -687,18 +687,41 @@ func (r *SpectatorRegistry) fanoutOnce(udpConn *net.UDPConn) {
 			}
 		}
 		r.mtx.Unlock()
+
+		// buildPush is a pure function of the session log plus one
+		// subscriber's progress (sentHeader/ackedFrame/ackedPatches/
+		// ackedRoundStateVersion): subscribers at the same progress get
+		// byte-identical pushes. A live battle's spectators mostly sit at
+		// the live edge together, so group them here and build + Marshal
+		// once per group instead of once per subscriber.
+		type pushGroupKey struct {
+			sentHeader             bool
+			ackedFrame             int32
+			ackedPatches           int32
+			ackedRoundStateVersion int32
+		}
+		groups := make(map[pushGroupKey][]*downlinkSubscriber)
 		for _, sub := range s.downlinks {
 			// A subscriber that has gone quiet is tapered rather than pushed
 			// at full rate until it times out.
 			if sub.shouldSkipPush() {
 				continue
 			}
-			push, ok := s.buildPush(sub)
+			k := pushGroupKey{sub.sentHeader, sub.ackedFrame, sub.ackedPatches, sub.ackedRoundStateVersion}
+			groups[k] = append(groups[k], sub)
+		}
+		for _, subs := range groups {
+			// buildPush mutates its argument's sentHeader; run it against one
+			// representative and propagate that flip to the rest of the
+			// group below rather than calling it (and re-cloning the header)
+			// once per subscriber.
+			lead := subs[0]
+			wasHeaderSent := lead.sentHeader
+			push, ok := s.buildPush(lead)
 			if !ok {
 				continue
 			}
-			sub.probeDue = false
-			sub.notePushSent()
+			becameHeaderSent := !wasHeaderSent && lead.sentHeader
 			pkt := &proto.Packet{
 				Type:                   proto.MessageType_SpectatorInputPushType,
 				SpectatorInputPushData: push,
@@ -708,8 +731,15 @@ func (r *SpectatorRegistry) fanoutOnce(udpConn *net.UDPConn) {
 				logger.Warn("spectator downlink push marshal failed", zap.Error(err))
 				continue
 			}
-			if _, err := udpConn.WriteToUDP(bin, sub.remoteAddr); err != nil {
-				logger.Warn("spectator downlink push send failed", zap.Error(err))
+			for _, sub := range subs {
+				if becameHeaderSent {
+					sub.sentHeader = true
+				}
+				sub.probeDue = false
+				sub.notePushSent()
+				if _, err := udpConn.WriteToUDP(bin, sub.remoteAddr); err != nil {
+					logger.Warn("spectator downlink push send failed", zap.Error(err))
+				}
 			}
 		}
 		s.mtx.Unlock()
