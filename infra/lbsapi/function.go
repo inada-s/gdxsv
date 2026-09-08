@@ -39,6 +39,7 @@ func lbsApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	key := r.URL.RequestURI()
