@@ -1284,13 +1284,24 @@ func TestLbs_LobbyMatchingFlow(t *testing.T) {
 					cli.MustReadMessageSkipNotice())
 
 				for j := 0; j < len(clients); j++ {
-					askPos := fmt.Sprintf("%02d", i+1)
+					askPos := fmt.Sprintf("%02d", j+1)
 					cli.MustWriteMessage(
 						&LbsMessage{Command: lbsAskPlayerInfo, Direction: ClientToServer, Category: CategoryQuestion, Seq: 0, Status: StatusSuccess, BodySize: 1, Body: hexbytes(askPos)})
+					legacy := cli.MustReadMessageSkipNotice()
 					AssertMsg(t,
 						&LbsMessage{Command: lbsAskPlayerInfo, Direction: ServerToClient, Category: CategoryAnswer, Seq: 0, Status: StatusSuccess},
-						cli.MustReadMessageSkipNotice())
-					// TODO: check body
+						legacy)
+					request := NewClientQuestion(lbsAskPlayerInfo32).Writer().Write8(byte(j + 1)).Msg()
+					request.Seq = uint16(0x1234 + j)
+					cli.MustWriteMessage(request)
+					extended := cli.MustReadMessageSkipNotice()
+					assertEq(t, ServerToClient, extended.Direction)
+					assertEq(t, CategoryAnswer, extended.Category)
+					assertEq(t, lbsAskPlayerInfo32, extended.Command)
+					assertEq(t, StatusSuccess, extended.Status)
+					assertEq(t, request.Seq, extended.Seq)
+					assertEq(t, legacy.BodySize+12, extended.BodySize)
+					assertEq(t, append(legacy.Body, make([]byte, 12)...), extended.Body)
 				}
 
 				cli.MustWriteMessage(
