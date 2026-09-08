@@ -110,3 +110,35 @@ func TestLbsAPIHandlerErrorsNoStore(t *testing.T) {
 		}
 	}
 }
+
+func TestLbsAPIHandlerNonGetRejected(t *testing.T) {
+	savedClient := http.DefaultClient
+	savedCache := cache
+	t.Cleanup(func() {
+		http.DefaultClient = savedClient
+		cache = savedCache
+	})
+	cache = make(map[string]*ResponseCache)
+
+	calls := 0
+	http.DefaultClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+
+	rec := httptest.NewRecorder()
+	lbsApiHandler(rec, httptest.NewRequest(http.MethodPost, "/status", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("body = %q, want empty", rec.Body.String())
+	}
+	if calls != 0 {
+		t.Errorf("origin requests = %d, want 0 (should reject before reaching the origin)", calls)
+	}
+}
