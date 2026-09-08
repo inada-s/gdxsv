@@ -12,6 +12,7 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -167,6 +168,8 @@ const (
 	lbsP2PMatching       CmdID = 0x9961
 	lbsP2PMatchingReport CmdID = 0x9962
 	lbsBattleUserCount   CmdID = 0x9965
+	lbsAskPlayerInfo32   CmdID = 0x9966
+	lbsWinLose32         CmdID = 0x9967
 )
 
 func RequestLineCheck(p *LbsPeer) {
@@ -754,17 +757,9 @@ var _ = register(lbsWinLose, func(p *LbsPeer, m *LbsMessage) {
 		userLose := r16(p.LoseCount)
 		userDraw := uint16(0)
 		userInvalid := r16(p.BattleCount - p.WinCount - p.LoseCount)
-		userBattlePoint1 := uint32(0)
-		userBattlePoint2 := uint32(0)
 
-		p.SendMessage(NewServerAnswer(m).Writer().
-			Write16(uint16(grade)).
-			Write16(userWin).
-			Write16(userLose).
-			Write16(userDraw).
-			Write16(userInvalid).
-			Write32(userBattlePoint1).
-			Write32(userBattlePoint2).Msg())
+		p.SendMessage(writeWinLose(NewServerAnswer(m).Writer(), uint16(grade),
+			userWin, userLose, userDraw, userInvalid).Msg())
 	} else {
 		p.logger.Warn("unknown top rank", zap.Any("now_top_rank", nowTopRank))
 		p.SendMessage(NewServerAnswer(m).Writer().
@@ -777,6 +772,43 @@ var _ = register(lbsWinLose, func(p *LbsPeer, m *LbsMessage) {
 			Write32(1).Msg())
 	}
 
+})
+
+// Category-zero personal statistics keep the same 18-byte legacy body.
+func writeWinLose(w *MessageBodyWriter, grade, wins, losses, draws, invalid uint16) *MessageBodyWriter {
+	return w.Write16(grade).
+		Write16(wins).
+		Write16(losses).
+		Write16(draws).
+		Write16(invalid).
+		Write32(0). // battle points 1
+		Write32(0)  // battle points 2
+}
+
+var _ = register(lbsWinLose32, func(p *LbsPeer, m *LbsMessage) {
+	if m.Direction != ClientToServer || m.Category != CategoryQuestion ||
+		m.BodySize != 1 || len(m.Body) != 1 || m.Body[0] != 0 {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	battles, wins, losses := int64(p.BattleCount), int64(p.WinCount), int64(p.LoseCount)
+	// Validate before subtracting so corrupt signed source data cannot overflow.
+	// Battles may exceed uint32: only the individual counters are sent by this API.
+	if battles < 0 || wins < 0 || wins > math.MaxUint32 || losses < 0 || losses > math.MaxUint32 {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+	invalid := battles - wins - losses
+	if invalid < 0 || invalid > math.MaxUint32 {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+	draws := uint32(0) // same draw policy as lbsWinLose
+	grade := decideGrade(int(wins), p.Rank)
+	w := writeWinLose(NewServerAnswer(m).Writer(), uint16(grade),
+		uint16(min(wins, math.MaxUint16)), uint16(min(losses, math.MaxUint16)), uint16(draws), uint16(min(invalid, math.MaxUint16)))
+	p.SendMessage(w.Write32(uint32(wins)).Write32(uint32(losses)).Write32(draws).Write32(uint32(invalid)).Msg())
 })
 
 var _ = register(lbsDeviceData, func(p *LbsPeer, m *LbsMessage) {
@@ -1506,24 +1538,69 @@ var _ = register(lbsAskPlayerInfo, func(p *LbsPeer, m *LbsMessage) {
 
 	pos := m.Reader().Read8()
 	u := p.Battle.GetUserByPos(pos)
-	param := p.Battle.GetGameParamByPos(pos)
-	team := p.Battle.GetUserTeam(u.UserID)
-	grade := decideGrade(u.WinCount, p.Battle.GetUserRankByPos(pos))
-	msg := NewServerAnswer(m).Writer().
+	p.SendMessage(writePlayerInfo(NewServerAnswer(m).Writer(), p.Battle, pos,
+		r16(u.WinCount), r16(u.LoseCount), r16(u.BattleCount-u.WinCount-u.LoseCount)).Msg())
+})
+
+// Keep the legacy layout and encodings shared by both player-info commands.
+func writePlayerInfo(w *MessageBodyWriter, b *LbsBattle, pos byte, wins, losses, invalid uint16) *MessageBodyWriter {
+	u := b.GetUserByPos(pos)
+	param := b.GetGameParamByPos(pos)
+	team := b.GetUserTeam(u.UserID)
+	grade := decideGrade(u.WinCount, b.GetUserRankByPos(pos))
+	return w.
 		Write8(pos).
 		WriteString(u.UserID).
 		WriteString(u.Name).
 		WriteBytes(param).
 		Write16(uint16(grade)).
-		Write16(r16(u.WinCount)).
-		Write16(r16(u.LoseCount)).
+		Write16(wins).
+		Write16(losses).
 		Write16(0). // draw count
-		Write16(r16(u.BattleCount - u.WinCount - u.LoseCount)).
+		Write16(invalid).
 		Write16(0). // Unknown
 		Write16(team).
-		Write16(0). // Unknown
-		Msg()
-	p.SendMessage(msg)
+		Write16(0) // Unknown
+}
+
+var _ = register(lbsAskPlayerInfo32, func(p *LbsPeer, m *LbsMessage) {
+	b := p.Battle
+	if m.Direction != ClientToServer || m.Category != CategoryQuestion ||
+		m.BodySize != 1 || len(m.Body) != 1 || b == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	pos := m.Reader().Read8()
+	u := b.GetUserByPos(pos)
+	// LbsBattle.Add stores each participating session's live DBUser pointer.
+	if pos < 1 || pos > 4 || u == nil || !slices.Contains(b.Users, &p.DBUser) {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	// Read the original totals before narrowing; battles include invalid results.
+	battles, wins, losses := int64(u.BattleCount), int64(u.WinCount), int64(u.LoseCount)
+	for _, count := range []int64{battles, wins, losses} {
+		if count < 0 || count > math.MaxUint32 {
+			p.SendMessage(NewServerAnswer(m).SetErr())
+			return
+		}
+	}
+	invalid := battles - wins - losses
+	if invalid < 0 {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	w := writePlayerInfo(NewServerAnswer(m).Writer(), b, pos,
+		uint16(min(wins, math.MaxUint16)), uint16(min(losses, math.MaxUint16)), uint16(min(invalid, math.MaxUint16)))
+	w.Write32(uint32(battles)).Write32(uint32(wins)).Write32(uint32(losses))
+	if w.BodyLen() > math.MaxUint16 {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+	p.SendMessage(w.Msg())
 })
 
 var _ = register(lbsAskRuleData, func(p *LbsPeer, m *LbsMessage) {
