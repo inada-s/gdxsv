@@ -39,6 +39,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 
 	http.HandleFunc("/lbs/status", func(w http.ResponseWriter, r *http.Request) {
 		// Public API: get lobby status
+		w.Header().Set("Cache-Control", "no-store")
 
 		type onlineUser struct {
 			UserID     string `json:"user_id,omitempty"`
@@ -380,6 +381,7 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 // spectatorsHandler is split out of RegisterHTTPHandlers so it can be
 // exercised directly with httptest.
 func spectatorsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	// Public API: how many people are watching one battle. Kept separate from
 	// /lbs/status so a spectator polling during playback does not pull down
 	// every user and every game for one integer.

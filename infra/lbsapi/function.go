@@ -31,6 +31,12 @@ func clearOldCacheLocked() {
 }
 
 func lbsApiHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/status" || r.URL.Path == "/spectators" {
+		// Live polling must reach this handler, even when we serve our own
+		// three-second snapshot below. Do not let clients cache the response.
+		w.Header().Set("Cache-Control", "no-store")
+	}
+
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusBadRequest)
 	}
