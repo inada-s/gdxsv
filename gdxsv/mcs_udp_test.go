@@ -18,19 +18,29 @@ import (
 
 const udpTestRecvWait = 500 * time.Millisecond
 
+// udpTestRecvTimeout is the peer recv timeout used by tests that are not
+// about the timeout itself: long enough that a slow runner never trips it.
+const udpTestRecvTimeout = 3 * time.Second
+
 // newTestUDPServer starts a McsUDPServer read loop on a loopback socket and
 // returns the server, its Mcs, and the address clients should send to.
 // Cleanup closes the socket and verifies the read loop and all peers exit.
 func newTestUDPServer(t *testing.T) (*McsUDPServer, *Mcs, *net.UDPAddr) {
 	t.Helper()
+	return newTestUDPServerWithRecvTimeout(t, udpTestRecvTimeout)
+}
+
+// newTestUDPServerWithRecvTimeout is newTestUDPServer with an explicit peer
+// recv timeout. The timeout is fixed on the server before its read loop
+// goroutine starts, so peers observe it without a data race (see #418 CI).
+func newTestUDPServerWithRecvTimeout(t *testing.T, recvTimeout time.Duration) (*McsUDPServer, *Mcs, *net.UDPAddr) {
+	t.Helper()
 
 	conf.BattleLogPath = t.TempDir()
 
-	prevTimeout := mcsUDPRecvTimeout
-	mcsUDPRecvTimeout = 3 * time.Second
-
 	mcs := NewMcs(0)
 	s := NewUDPServer(mcs)
+	s.recvTimeout = recvTimeout
 
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	must(t, err)
@@ -59,7 +69,6 @@ func newTestUDPServer(t *testing.T) (*McsUDPServer, *Mcs, *net.UDPAddr) {
 		case <-time.After(5 * time.Second):
 			t.Error("readLoop did not exit after the socket was closed")
 		}
-		mcsUDPRecvTimeout = prevTimeout
 	})
 
 	return s, mcs, conn.LocalAddr().(*net.UDPAddr)
@@ -440,8 +449,8 @@ func TestMcsUDP_ServeTimesOutWithSvRecvTimeout(t *testing.T) {
 	const sessionID = "udp-sess-timeout"
 	udpShareBattle(t, battleCode, userID, sessionID)
 
-	s, mcs, addr := newTestUDPServer(t)
-	mcsUDPRecvTimeout = 200 * time.Millisecond
+	const recvTimeout = 200 * time.Millisecond
+	s, mcs, addr := newTestUDPServerWithRecvTimeout(t, recvTimeout)
 	client := newTestUDPClient(t, addr)
 
 	start := time.Now()
@@ -452,7 +461,7 @@ func TestMcsUDP_ServeTimesOutWithSvRecvTimeout(t *testing.T) {
 
 	udpWaitPeers(t, s, 0)
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
-		t.Fatalf("peer took %v to time out, expected roughly %v", elapsed, mcsUDPRecvTimeout)
+		t.Fatalf("peer took %v to time out, expected roughly %v", elapsed, recvTimeout)
 	}
 	assertEq(t, "sv_recv_timeout", peer.GetCloseReason())
 	udpWaitRoomsClosed(t, mcs)

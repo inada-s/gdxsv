@@ -11,14 +11,19 @@ import (
 	"time"
 )
 
-// mcsUDPRecvTimeout is how long a UDP peer may stay silent (no accepted battle
-// message) before Serve gives up on it with close reason "sv_recv_timeout".
-// It is a variable so tests can shorten it.
-var mcsUDPRecvTimeout = 10 * time.Second
+// mcsUDPDefaultRecvTimeout is how long a UDP peer may stay silent (no accepted
+// battle message) before Serve gives up on it with close reason
+// "sv_recv_timeout". Tests shorten it via McsUDPServer.recvTimeout, which is
+// fixed before the read loop starts so peer goroutines never race on it.
+const mcsUDPDefaultRecvTimeout = 10 * time.Second
 
 type McsUDPServer struct {
 	mcs  *Mcs
 	conn *net.UDPConn
+
+	// recvTimeout is copied into every peer at creation. It must only be set
+	// before ListenAndServe/readLoop is started.
+	recvTimeout time.Duration
 
 	mtx   sync.Mutex
 	peers map[string]*McsUDPPeer
@@ -26,8 +31,9 @@ type McsUDPServer struct {
 
 func NewUDPServer(mcs *Mcs) *McsUDPServer {
 	return &McsUDPServer{
-		mcs:   mcs,
-		peers: map[string]*McsUDPPeer{},
+		mcs:         mcs,
+		peers:       map[string]*McsUDPPeer{},
+		recvTimeout: mcsUDPDefaultRecvTimeout,
 	}
 }
 
@@ -119,6 +125,7 @@ func (s *McsUDPServer) readLoop() error {
 
 			if !found && sessionID != "" {
 				peer := NewMcsUDPPeer(s.conn, addr)
+				peer.recvTimeout = s.recvTimeout
 				peer.room = s.mcs.Join(peer, sessionID)
 				if peer.room != nil {
 					peer.logger.Info("join udp peer", zap.Any("key", key))
@@ -241,6 +248,9 @@ type McsUDPPeer struct {
 
 	closeMtx  sync.Mutex
 	closeFunc func()
+
+	// recvTimeout is set once by the server before Serve is started.
+	recvTimeout time.Duration
 }
 
 func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
@@ -251,6 +261,8 @@ func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
 		chRecv:  make(chan struct{}, 1),
 		rudp:    proto.NewBattleBuffer(""),
 		filter:  proto.NewMessageFilter([]string{""}),
+
+		recvTimeout: mcsUDPDefaultRecvTimeout,
 	}
 	u.logger = logger.With(
 		zap.String("proto", "udp"),
@@ -292,7 +304,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	defer timer.Stop()
 	lastRecv := time.Now()
 	lastSend := time.Now()
-	recvTimeout := mcsUDPRecvTimeout
+	recvTimeout := u.recvTimeout
 
 	pbBuf := make([]byte, 0)
 	pbm := pb.MarshalOptions{Deterministic: true}
