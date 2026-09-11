@@ -140,7 +140,7 @@ func (c *PipeNetwork) Close() error {
 type TestLbsClient struct {
 	DBUser
 	t    *testing.T
-	conn *PipeConn
+	conn net.Conn // *PipeConn for in-process tests; a real TCP conn for integration tests
 }
 
 var errTimeout = fmt.Errorf("timeout")
