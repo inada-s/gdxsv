@@ -64,10 +64,20 @@ func (b *BattleBuffer) GetSendData() ([]*BattleMessage, uint32, uint32) {
 	}
 }
 
+// ApplySeqAck applies a cumulative ack received from the peer.
+//
+// seq/ack come straight from an unauthenticated UDP packet, so they are
+// validated before touching the send window: only acks that refer to a
+// message we have actually sent (ack < end) and that move the window
+// forward are honoured. A bogus ack (ack >= end, or ack+1 wrapping to 0)
+// used to set begin past end, making GetSendData hand out nil entries or
+// up to ringSize-50 stale slots instead of the intended 50-message window.
 func (b *BattleBuffer) ApplySeqAck(seq, ack uint32) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
-	b.begin = ack + 1
+	if ack < b.end && b.begin < ack+1 {
+		b.begin = ack + 1
+	}
 	b.ack = seq
 }
 
@@ -86,10 +96,19 @@ func NewMessageFilter(acceptIDs []string) *MessageFilter {
 	return mf
 }
 
+// SetAcceptIDs replaces the set of user IDs whose messages pass Filter.
+// IDs that are not in acceptIDs are dropped, so a peer created with a
+// placeholder ID (McsUDPPeer starts with "") stops accepting messages for
+// that placeholder once the real user ID is set. IDs that are already
+// accepted keep their receive state.
 func (m *MessageFilter) SetAcceptIDs(acceptIDs []string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	recvSeq := make(map[string]uint32, len(acceptIDs))
 	for _, id := range acceptIDs {
-		m.recvSeq[id] = 0
+		recvSeq[id] = m.recvSeq[id]
 	}
+	m.recvSeq = recvSeq
 }
 
 func (m *MessageFilter) GenerateMessage(userID string, data []byte) *BattleMessage {
@@ -108,6 +127,12 @@ func (m *MessageFilter) Filter(msg *BattleMessage) bool {
 	defer m.mtx.Unlock()
 	ack, ok := m.recvSeq[msg.GetUserId()]
 	if !ok {
+		return false
+	}
+	// Seq 0 is never generated (GenerateMessage starts at 1). Accepting it
+	// would store 0 as the last received seq, which is the "nothing received
+	// yet" sentinel, leaving the filter accepting anything forever.
+	if msg.GetSeq() == 0 {
 		return false
 	}
 	if ack == 0 || msg.GetSeq() == ack+1 {
