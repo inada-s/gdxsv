@@ -87,7 +87,11 @@ func (r *McsRoom) SendMessage(peer McsPeer, msg *proto.BattleMessage) {
 	r.mtx.RUnlock()
 
 	r.logMtx.Lock()
-	r.battleLog.BattleData = append(r.battleLog.BattleData, msg)
+	// battleLog is nil once Finalize has run; a message relayed by a peer
+	// that is still draining after the room closed must not panic.
+	if r.battleLog != nil {
+		r.battleLog.BattleData = append(r.battleLog.BattleData, msg)
+	}
 	r.logMtx.Unlock()
 }
 
@@ -120,6 +124,11 @@ func (r *McsRoom) Finalize() {
 
 	r.logMtx.Lock()
 	defer r.logMtx.Unlock()
+
+	if r.mcs == nil || r.battleLog == nil {
+		// already finalized
+		return
+	}
 
 	sort.Slice(r.battleLog.Users, func(i, j int) bool {
 		return r.battleLog.Users[i].Pos < r.battleLog.Users[j].Pos
@@ -166,19 +175,28 @@ func (r *McsRoom) Leave(p McsPeer) {
 	sessionID := p.SessionID()
 
 	r.mtx.Lock()
-	if pos < len(r.peers) {
+	mcs := r.mcs
+	// Only evict the slot if it is actually occupied by this peer.
+	// Position() is 0 for a peer that never completed Join, and the slot is
+	// already nil on a second Leave for the same peer; in both cases we must
+	// not touch (or re-finalize) the room.
+	removed := 0 <= pos && pos < len(r.peers) && r.peers[pos] == p
+	if removed {
 		r.peers[pos] = nil
 	}
-	empty := true
-	for i := 0; i < len(r.peers); i++ {
+	empty := removed
+	for i := 0; i < len(r.peers) && empty; i++ {
 		if r.peers[i] != nil {
 			empty = false
-			break
 		}
 	}
 	r.mtx.Unlock()
 
-	r.mcs.OnUserLeft(r, sessionID, p.GetCloseReason())
+	if !removed || mcs == nil {
+		return
+	}
+
+	mcs.OnUserLeft(r, sessionID, p.GetCloseReason())
 
 	if empty {
 		go r.Finalize()
