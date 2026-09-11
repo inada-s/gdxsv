@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
 	pb "google.golang.org/protobuf/proto"
@@ -10,9 +11,19 @@ import (
 	"time"
 )
 
+// mcsUDPDefaultRecvTimeout is how long a UDP peer may stay silent (no accepted
+// battle message) before Serve gives up on it with close reason
+// "sv_recv_timeout". Tests shorten it via McsUDPServer.recvTimeout, which is
+// fixed before the read loop starts so peer goroutines never race on it.
+const mcsUDPDefaultRecvTimeout = 10 * time.Second
+
 type McsUDPServer struct {
 	mcs  *Mcs
 	conn *net.UDPConn
+
+	// recvTimeout is copied into every peer at creation. It must only be set
+	// before ListenAndServe/readLoop is started.
+	recvTimeout time.Duration
 
 	mtx   sync.Mutex
 	peers map[string]*McsUDPPeer
@@ -20,8 +31,9 @@ type McsUDPServer struct {
 
 func NewUDPServer(mcs *Mcs) *McsUDPServer {
 	return &McsUDPServer{
-		mcs:   mcs,
-		peers: map[string]*McsUDPPeer{},
+		mcs:         mcs,
+		peers:       map[string]*McsUDPPeer{},
+		recvTimeout: mcsUDPDefaultRecvTimeout,
 	}
 }
 
@@ -64,6 +76,10 @@ func (s *McsUDPServer) readLoop() error {
 		mcsMessageRecv.Add(1)
 		recvTime := time.Now()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				// The socket is gone; spinning on it would only burn CPU.
+				return err
+			}
 			logger.Error("ReadFromUDP", zap.Error(err))
 			continue
 		}
@@ -85,7 +101,9 @@ func (s *McsUDPServer) readLoop() error {
 		fin := false
 		switch pkt.GetType() {
 		case proto.MessageType_Ping:
-			ts := pkt.PingData.Timestamp
+			// ping_data is optional on the wire; a Ping without it must not
+			// crash the server, so go through the nil-safe getters.
+			ts := pkt.GetPingData().GetTimestamp()
 			pkt.Reset()
 			pkt.Type = proto.MessageType_Pong
 			pkt.PongData = &proto.PongMessage{
@@ -107,6 +125,7 @@ func (s *McsUDPServer) readLoop() error {
 
 			if !found && sessionID != "" {
 				peer := NewMcsUDPPeer(s.conn, addr)
+				peer.recvTimeout = s.recvTimeout
 				peer.room = s.mcs.Join(peer, sessionID)
 				if peer.room != nil {
 					peer.logger.Info("join udp peer", zap.Any("key", key))
@@ -229,6 +248,9 @@ type McsUDPPeer struct {
 
 	closeMtx  sync.Mutex
 	closeFunc func()
+
+	// recvTimeout is set once by the server before Serve is started.
+	recvTimeout time.Duration
 }
 
 func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
@@ -239,6 +261,8 @@ func NewMcsUDPPeer(conn *net.UDPConn, addr *net.UDPAddr) *McsUDPPeer {
 		chRecv:  make(chan struct{}, 1),
 		rudp:    proto.NewBattleBuffer(""),
 		filter:  proto.NewMessageFilter([]string{""}),
+
+		recvTimeout: mcsUDPDefaultRecvTimeout,
 	}
 	u.logger = logger.With(
 		zap.String("proto", "udp"),
@@ -280,6 +304,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	defer timer.Stop()
 	lastRecv := time.Now()
 	lastSend := time.Now()
+	recvTimeout := u.recvTimeout
 
 	pbBuf := make([]byte, 0)
 	pbm := pb.MarshalOptions{Deterministic: true}
@@ -289,7 +314,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			timeout := time.Since(lastRecv).Seconds() > 10.0
+			timeout := time.Since(lastRecv) > recvTimeout
 			if timeout {
 				u.SetCloseReason("sv_recv_timeout")
 				return
@@ -356,8 +381,15 @@ func (u *McsUDPPeer) OnReceive(pkt *proto.Packet) {
 	u.rudp.ApplySeqAck(pkt.GetSeq(), pkt.GetAck())
 
 	hasNewMsg := false
+	userID := u.UserID()
 	u.readingMtx.Lock()
 	for _, msg := range pkt.GetBattleData() {
+		// Only relay messages that this peer is allowed to send: a nil entry or
+		// a message claiming another user's ID (or no ID at all) is dropped
+		// before it can reach the room, the battle log, or the filter state.
+		if msg == nil || msg.GetUserId() != userID {
+			continue
+		}
 		if u.filter.Filter(msg) {
 			u.reading = append(u.reading, msg)
 			hasNewMsg = true
