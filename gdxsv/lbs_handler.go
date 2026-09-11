@@ -1531,25 +1531,48 @@ func r16(a int) uint16 {
 }
 
 var _ = register(lbsAskPlayerInfo, func(p *LbsPeer, m *LbsMessage) {
-	if p.Battle == nil {
+	b := p.Battle
+	if b == nil {
 		p.SendMessage(NewServerAnswer(m).SetErr())
 		return
 	}
 
+	// A client can send any pos; GetUserByPos returns nil for 0 or anything past
+	// the participants, and the event loop has no recover, so answer with an
+	// error instead of dereferencing nil and taking down the whole lobby.
 	pos := m.Reader().Read8()
-	u := p.Battle.GetUserByPos(pos)
-	p.SendMessage(writePlayerInfo(NewServerAnswer(m).Writer(), p.Battle, pos,
-		r16(u.WinCount), r16(u.LoseCount), r16(u.BattleCount-u.WinCount-u.LoseCount)).Msg())
+	u := b.GetUserByPos(pos)
+	if u == nil {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+
+	w, ok := writePlayerInfo(NewServerAnswer(m).Writer(), b, pos,
+		r16(u.WinCount), r16(u.LoseCount), r16(u.BattleCount-u.WinCount-u.LoseCount))
+	if !ok {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
+	p.SendMessage(w.Msg())
 })
 
 // Keep the legacy layout and encodings shared by both player-info commands.
-func writePlayerInfo(w *MessageBodyWriter, b *LbsBattle, pos byte, wins, losses, invalid uint16) *MessageBodyWriter {
+//
+// It reports false without writing anything when pos does not name a player
+// of b, so no caller can dereference a nil *DBUser; callers must then answer
+// with an error.
+func writePlayerInfo(w *MessageBodyWriter, b *LbsBattle, pos byte, wins, losses, invalid uint16) (*MessageBodyWriter, bool) {
+	if b == nil {
+		return w, false
+	}
 	u := b.GetUserByPos(pos)
+	if u == nil {
+		return w, false
+	}
 	param := b.GetGameParamByPos(pos)
 	team := b.GetUserTeam(u.UserID)
 	grade := decideGrade(u.WinCount, b.GetUserRankByPos(pos))
-	return w.
-		Write8(pos).
+	w.Write8(pos).
 		WriteString(u.UserID).
 		WriteString(u.Name).
 		WriteBytes(param).
@@ -1561,6 +1584,7 @@ func writePlayerInfo(w *MessageBodyWriter, b *LbsBattle, pos byte, wins, losses,
 		Write16(0). // Unknown
 		Write16(team).
 		Write16(0) // Unknown
+	return w, true
 }
 
 var _ = register(lbsAskPlayerInfo32, func(p *LbsPeer, m *LbsMessage) {
@@ -1593,8 +1617,12 @@ var _ = register(lbsAskPlayerInfo32, func(p *LbsPeer, m *LbsMessage) {
 		return
 	}
 
-	w := writePlayerInfo(NewServerAnswer(m).Writer(), b, pos,
+	w, ok := writePlayerInfo(NewServerAnswer(m).Writer(), b, pos,
 		uint16(min(wins, math.MaxUint16)), uint16(min(losses, math.MaxUint16)), uint16(min(invalid, math.MaxUint16)))
+	if !ok {
+		p.SendMessage(NewServerAnswer(m).SetErr())
+		return
+	}
 	w.Write32(uint32(battles)).Write32(uint32(wins)).Write32(uint32(losses))
 	if w.BodyLen() > math.MaxUint16 {
 		p.SendMessage(NewServerAnswer(m).SetErr())

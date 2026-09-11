@@ -298,3 +298,95 @@ func TestLbsAskPlayerInfoLegacy(t *testing.T) {
 		})
 	}
 }
+
+// A client can send any pos byte; the legacy command must answer with an error
+// for anything that is not a participant instead of dereferencing nil (which
+// used to panic and, with no recover in eventLoop, kill the whole server).
+func TestLbsAskPlayerInfoErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(*LbsPeer, *LbsMessage)
+	}{
+		{"no match", func(p *LbsPeer, m *LbsMessage) { p.Battle = nil }},
+		{"empty match", func(p *LbsPeer, m *LbsMessage) { p.Battle.Users = nil }},
+		{"missing position", func(p *LbsPeer, m *LbsMessage) { m.Body = nil; m.BodySize = 0 }},
+		{"zero position", func(p *LbsPeer, m *LbsMessage) { m.Body[0] = 0 }},
+		{"position five", func(p *LbsPeer, m *LbsMessage) { m.Body[0] = 5 }},
+		{"position 255", func(p *LbsPeer, m *LbsMessage) { m.Body[0] = 255 }},
+		{"position outside current match", func(p *LbsPeer, m *LbsMessage) { p.Battle.Users = p.Battle.Users[:2] }},
+		{"nil player", func(p *LbsPeer, m *LbsMessage) { p.Battle.Users[3] = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := playerInfoTestMatch()[0]
+			request := NewClientQuestion(lbsAskPlayerInfo).Writer().Write8(4).Msg()
+			request.Seq = 0xabcd
+			tt.change(p, request)
+			reply := playerInfoTestReply(t, p, request)
+			assertEq(t, StatusError, reply.Status)
+			assertEq(t, NewServerAnswer(request).SetErr().Serialize(), p.outbuf)
+			assertEq(t, hexbytes("ffffffff"), p.outbuf[8:12])
+		})
+	}
+}
+
+// Sweep every possible pos byte against matches of every size: exactly the
+// participant positions succeed and every other value is a clean error.
+func TestLbsAskPlayerInfoEveryPosition(t *testing.T) {
+	for _, cmd := range []CmdID{lbsAskPlayerInfo, lbsAskPlayerInfo32} {
+		for players := 0; players <= 4; players++ {
+			t.Run(fmt.Sprintf("%s/%dplayers", cmd, players), func(t *testing.T) {
+				p := playerInfoTestMatch()[0]
+				p.Battle.Users = p.Battle.Users[:players]
+				for pos := 0; pos <= math.MaxUint8; pos++ {
+					request := NewClientQuestion(cmd).Writer().Write8(byte(pos)).Msg()
+					reply := playerInfoTestReply(t, p, request)
+					if 1 <= pos && pos <= players {
+						assertEq(t, StatusSuccess, reply.Status)
+						assertEq(t, byte(pos), reply.Reader().Read8())
+					} else {
+						assertEq(t, StatusError, reply.Status)
+						assertEq(t, NewServerAnswer(request).SetErr().Serialize(), p.outbuf)
+					}
+				}
+			})
+		}
+	}
+}
+
+// writePlayerInfo is shared by both commands, so it guards the nil player
+// itself rather than trusting every caller to remember.
+func TestWritePlayerInfoGuardsMissingPlayer(t *testing.T) {
+	p := playerInfoTestMatch()[0]
+	b := p.Battle
+	for _, tc := range []struct {
+		name string
+		b    *LbsBattle
+		pos  byte
+	}{
+		{"nil battle", nil, 1},
+		{"zero position", b, 0},
+		{"position five", b, 5},
+		{"position 255", b, 255},
+		{"empty match", &LbsBattle{Rule: &DefaultRule}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := NewServerAnswer(NewClientQuestion(lbsAskPlayerInfo)).Writer()
+			got, ok := writePlayerInfo(w, tc.b, tc.pos, 1, 2, 3)
+			assertEq(t, false, ok)
+			assertEq(t, w, got)
+			assertEq(t, 0, w.BodyLen()) // nothing was written
+		})
+	}
+
+	t.Run("nil player", func(t *testing.T) {
+		b.Users[2] = nil
+		w := NewServerAnswer(NewClientQuestion(lbsAskPlayerInfo)).Writer()
+		_, ok := writePlayerInfo(w, b, 3, 1, 2, 3)
+		assertEq(t, false, ok)
+		assertEq(t, 0, w.BodyLen())
+		_, ok = writePlayerInfo(w, b, 4, 1, 2, 3)
+		assertEq(t, true, ok)
+		assertEq(t, byte(4), w.Msg().Reader().Read8())
+	})
+}
