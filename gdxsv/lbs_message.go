@@ -103,13 +103,16 @@ func Deserialize(data []byte) (int, *LbsMessage) {
 	_ = binary.Read(r, binary.BigEndian, &m.Seq)
 	_ = binary.Read(r, binary.BigEndian, &m.Status)
 
-	if len(data) < HeaderSize+int(m.BodySize) {
+	// Compute in int: HeaderSize+m.BodySize would wrap in uint16 for bodies
+	// of 65524 bytes or more and panic on the slice expression below.
+	end := HeaderSize + int(m.BodySize)
+	if len(data) < end {
 		return 0, nil
 	}
 
-	m.Body = data[HeaderSize : HeaderSize+m.BodySize]
+	m.Body = data[HeaderSize:end]
 
-	return int(HeaderSize + m.BodySize), &m
+	return end, &m
 }
 
 func WriteLbsMessage(w io.Writer, m *LbsMessage) error {
