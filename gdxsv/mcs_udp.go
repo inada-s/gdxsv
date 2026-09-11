@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"gdxsv/gdxsv/proto"
 	"go.uber.org/zap"
 	pb "google.golang.org/protobuf/proto"
@@ -9,6 +10,11 @@ import (
 	"sync"
 	"time"
 )
+
+// mcsUDPRecvTimeout is how long a UDP peer may stay silent (no accepted battle
+// message) before Serve gives up on it with close reason "sv_recv_timeout".
+// It is a variable so tests can shorten it.
+var mcsUDPRecvTimeout = 10 * time.Second
 
 type McsUDPServer struct {
 	mcs  *Mcs
@@ -64,6 +70,10 @@ func (s *McsUDPServer) readLoop() error {
 		mcsMessageRecv.Add(1)
 		recvTime := time.Now()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				// The socket is gone; spinning on it would only burn CPU.
+				return err
+			}
 			logger.Error("ReadFromUDP", zap.Error(err))
 			continue
 		}
@@ -85,7 +95,9 @@ func (s *McsUDPServer) readLoop() error {
 		fin := false
 		switch pkt.GetType() {
 		case proto.MessageType_Ping:
-			ts := pkt.PingData.Timestamp
+			// ping_data is optional on the wire; a Ping without it must not
+			// crash the server, so go through the nil-safe getters.
+			ts := pkt.GetPingData().GetTimestamp()
 			pkt.Reset()
 			pkt.Type = proto.MessageType_Pong
 			pkt.PongData = &proto.PongMessage{
@@ -280,6 +292,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 	defer timer.Stop()
 	lastRecv := time.Now()
 	lastSend := time.Now()
+	recvTimeout := mcsUDPRecvTimeout
 
 	pbBuf := make([]byte, 0)
 	pbm := pb.MarshalOptions{Deterministic: true}
@@ -289,7 +302,7 @@ func (u *McsUDPPeer) Serve(mcs *Mcs) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			timeout := time.Since(lastRecv).Seconds() > 10.0
+			timeout := time.Since(lastRecv) > recvTimeout
 			if timeout {
 				u.SetCloseReason("sv_recv_timeout")
 				return
@@ -356,8 +369,15 @@ func (u *McsUDPPeer) OnReceive(pkt *proto.Packet) {
 	u.rudp.ApplySeqAck(pkt.GetSeq(), pkt.GetAck())
 
 	hasNewMsg := false
+	userID := u.UserID()
 	u.readingMtx.Lock()
 	for _, msg := range pkt.GetBattleData() {
+		// Only relay messages that this peer is allowed to send: a nil entry or
+		// a message claiming another user's ID (or no ID at all) is dropped
+		// before it can reach the room, the battle log, or the filter state.
+		if msg == nil || msg.GetUserId() != userID {
+			continue
+		}
 		if u.filter.Filter(msg) {
 			u.reading = append(u.reading, msg)
 			hasNewMsg = true
