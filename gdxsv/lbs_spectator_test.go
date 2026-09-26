@@ -39,7 +39,7 @@ func testAddr(port int) *net.UDPAddr {
 	return &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port}
 }
 
-func newTestSpectatorSession() *SpectatorSession {
+func newTestSpectatorSession(patches ...*proto.GamePatch) *SpectatorSession {
 	matching := &proto.P2PMatching{
 		BattleCode: "test-battle-code",
 		SessionId:  42,
@@ -48,7 +48,7 @@ func newTestSpectatorSession() *SpectatorSession {
 			{UserId: "u1"}, {UserId: "u2"}, {UserId: "u3"}, {UserId: "u4"},
 		},
 	}
-	return newSpectatorSession(matching, "dc2", nil)
+	return newSpectatorSession(matching, "dc2", &proto.GamePatchList{Patches: patches})
 }
 
 func TestSpectatorSession_PushInputs_InOrder(t *testing.T) {
@@ -565,7 +565,7 @@ func TestSpectatorSession_Subscribe_ReArmsHeaderWhileBootstrapping(t *testing.T)
 // so they stream as their own acked chunks. See maxPatchChunkBytes.
 
 func newTestSpectatorSessionWithPatches(n, codesEach int) *SpectatorSession {
-	s := newTestSpectatorSession()
+	var patches []*proto.GamePatch
 	for i := 0; i < n; i++ {
 		p := &proto.GamePatch{GameDisk: "dc2", Name: fmt.Sprintf("patch%d", i)}
 		for j := 0; j < codesEach; j++ {
@@ -573,9 +573,9 @@ func newTestSpectatorSessionWithPatches(n, codesEach int) *SpectatorSession {
 				Size: 4, Address: uint32(0x0c000000 + j), Original: 1, Changed: 2,
 			})
 		}
-		s.log.Patches = append(s.log.Patches, p)
+		patches = append(patches, p)
 	}
-	return s
+	return newTestSpectatorSession(patches...)
 }
 
 func admittedSubWithHeaderSent(s *SpectatorSession, addr *net.UDPAddr) *downlinkSubscriber {
@@ -600,7 +600,7 @@ func TestSpectatorSession_BuildPush_HeaderExcludesPatches(t *testing.T) {
 
 func TestSpectatorSession_BuildPush_ChunksPatchesUnderByteBudget(t *testing.T) {
 	// Each patch is far too big to share a datagram, so every chunk holds one.
-	s := newTestSpectatorSessionWithPatches(3, 80)
+	s := newTestSpectatorSessionWithPatches(3, 60)
 	sub := admittedSubWithHeaderSent(s, testAddr(40000))
 
 	for i := 0; i < 3; i++ {
@@ -609,8 +609,9 @@ func TestSpectatorSession_BuildPush_ChunksPatchesUnderByteBudget(t *testing.T) {
 		assertEq(t, int32(i), push.PatchStart)
 		assertEq(t, int32(3), push.PatchTotal)
 		assertEq(t, 1, len(push.Patches))
-		if pb.Size(push) > 1400 {
-			t.Fatalf("patch chunk %d is %d bytes, would fragment", i, pb.Size(push))
+		packet := &proto.Packet{Type: proto.MessageType_SpectatorInputPushType, SpectatorInputPushData: push}
+		if pb.Size(packet) > 1200 {
+			t.Fatalf("patch datagram %d is %d bytes, exceeds budget", i, pb.Size(packet))
 		}
 		// Not acked yet, so the same chunk is what gets resent.
 		again, _ := s.buildPush(sub)
@@ -634,6 +635,111 @@ func TestSpectatorSession_BuildPush_PacksSmallPatchesTogether(t *testing.T) {
 	push, ok := s.buildPush(sub)
 	assertEq(t, true, ok)
 	assertEq(t, 4, len(push.Patches)) // all four fit in one datagram
+}
+
+func TestSpectatorSession_BuildPush_SplitsLargePatchForExistingClients(t *testing.T) {
+	large := &proto.GamePatch{GameDisk: "dc2", Name: "ac", WriteOnce: true}
+	for i := 0; i < 770; i++ {
+		// Repeated addresses make code order significant, not just membership.
+		large.Codes = append(large.Codes, &proto.GamePatchCode{
+			Size: 32, Address: uint32(0x0c4f0000 + (i%64)*4),
+			Original: uint32(0xabcdef00 + i), Changed: uint32(0xfedcba00 + i),
+		})
+	}
+	if pb.Size(large) <= 8192 {
+		t.Fatal("fixture must exceed the released client's receive buffer")
+	}
+	original := &proto.GamePatchList{Patches: []*proto.GamePatch{
+		{GameDisk: "dc2", Name: "fix", WriteOnce: true, Codes: []*proto.GamePatchCode{{Size: 16, Address: 0x0c000010, Changed: 9}}},
+		large,
+		{GameDisk: "dc2", Name: "ac", Codes: []*proto.GamePatchCode{{Size: 32, Address: 0x0c4f0000, Changed: 123}}},
+		{GameDisk: "dc2", Name: "empty"},
+	}}
+	before := pb.Clone(original)
+	s := newTestSpectatorSession(original.Patches...)
+	s.PushInputs(0, []uint64{11, 22, 33})
+	if len(s.log.Patches) <= len(original.Patches) {
+		t.Fatal("large patch was not split")
+	}
+
+	addr := testAddr(40000)
+	subscribeTestSpectator(s, addr, 0)
+	sub := s.downlinks[addr.String()]
+	header, ok := s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, int32(len(s.log.Patches)), header.PatchTotal)
+	assertEq(t, 0, len(header.Header.Patches))
+
+	// Model the released client: store entries only at patch_start, ACK their
+	// count, and wait for patch_total before applying anything or taking inputs.
+	var received []*proto.GamePatch
+	maxDatagram := 0
+	for int32(len(received)) < header.PatchTotal {
+		push, ok := s.buildPush(sub)
+		assertEq(t, true, ok)
+		assertEq(t, int32(len(received)), push.PatchStart)
+		assertEq(t, header.PatchTotal, push.PatchTotal)
+		assertEq(t, 0, len(push.Inputs))
+		if len(push.Patches) == 0 {
+			t.Fatal("patch transfer made no progress")
+		}
+		wire, err := pb.Marshal(&proto.Packet{
+			Type: proto.MessageType_SpectatorInputPushType, SpectatorInputPushData: push,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(wire) > 1200 {
+			t.Fatalf("patch datagram is %d bytes, exceeds budget", len(wire))
+		}
+		maxDatagram = max(maxDatagram, len(wire))
+		var packet proto.Packet
+		if err := pb.Unmarshal(wire, &packet); err != nil {
+			t.Fatal(err)
+		}
+		received = append(received, packet.GetSpectatorInputPushData().GetPatches()...)
+
+		// Dropping the ACK must resend exactly the same entries. The client's
+		// patch_start check ignores this duplicate without duplicating codes.
+		retry, ok := s.buildPush(sub)
+		assertEq(t, true, ok)
+		if !pb.Equal(push, retry) {
+			t.Fatal("unacknowledged patch chunk changed on retry")
+		}
+		if retry.PatchStart == int32(len(received)) {
+			t.Fatal("client would append a duplicate chunk")
+		}
+		s.Ack(addr.String(), 0, int32(len(received)), 0)
+	}
+
+	// One entry per code compares metadata and ordering across chunk boundaries.
+	flatten := func(patches []*proto.GamePatch) []*proto.GamePatch {
+		var entries []*proto.GamePatch
+		for _, patch := range patches {
+			if len(patch.Codes) == 0 {
+				entries = append(entries, patch)
+			}
+			for _, code := range patch.Codes {
+				entries = append(entries, &proto.GamePatch{
+					GameDisk: patch.GameDisk, Name: patch.Name, WriteOnce: patch.WriteOnce,
+					Codes: []*proto.GamePatchCode{code},
+				})
+			}
+		}
+		return entries
+	}
+	expected, actual := flatten(original.Patches), flatten(received)
+	if !pb.Equal(&proto.GamePatchList{Patches: expected}, &proto.GamePatchList{Patches: actual}) {
+		t.Fatal("reassembled codes or patch metadata differ from the original")
+	}
+	if !pb.Equal(original, before) {
+		t.Fatal("splitting changed the original participant patch list")
+	}
+	push, ok := s.buildPush(sub)
+	assertEq(t, true, ok)
+	assertEq(t, 0, len(push.Patches))
+	assertEq(t, []uint64{11, 22, 33}, push.Inputs)
+	t.Logf("%d-byte patch delivered as %d entries; largest datagram %d bytes", pb.Size(large), len(received), maxDatagram)
 }
 
 // admittedSub starts the taper tests after admission and header delivery.

@@ -35,9 +35,8 @@ const defaultSpectatorMaxSubscribersPerBattle = 512
 // maxPatchChunkBytes keeps one patch chunk inside a single datagram, under a
 // 1500 byte MTU with room for IP/UDP and the Packet around it.
 //
-// A chunk always carries at least one patch even if that patch busts the
-// budget. Patches are indivisible, and one of them fragmenting beats the
-// whole list doing so.
+// Large code lists are split into smaller GamePatch entries at session
+// creation. Metadata and an individual code remain indivisible.
 const maxPatchChunkBytes = 1000
 
 // spectatorSessionRetention is the minimum time a closed session's assembled
@@ -195,6 +194,41 @@ func (sub *downlinkSubscriber) notePushSent() {
 	sub.skipFanouts = 1 << shift
 }
 
+// spectatorPatchSize includes the repeated field's tag and length prefix.
+func spectatorPatchSize(patch *proto.GamePatch) int {
+	return pb.Size(&proto.SpectatorInputPush{Patches: []*proto.GamePatch{patch}})
+}
+
+// splitSpectatorPatches only changes the spectator copy. Existing clients
+// count/ACK entries and apply all their codes in order, even when names repeat.
+// The original list, also sent to battle participants over TCP, is untouched.
+func splitSpectatorPatches(patches []*proto.GamePatch) []*proto.GamePatch {
+	var chunks []*proto.GamePatch
+	for _, patch := range patches {
+		if len(patch.GetCodes()) <= 1 || spectatorPatchSize(patch) <= maxPatchChunkBytes {
+			chunks = append(chunks, patch)
+			continue
+		}
+		for start := 0; start < len(patch.Codes); {
+			chunk := &proto.GamePatch{
+				GameDisk:  patch.GameDisk,
+				Name:      patch.Name,
+				WriteOnce: patch.WriteOnce,
+			}
+			for end := start; end < len(patch.Codes); end++ {
+				chunk.Codes = patch.Codes[start : end+1]
+				if end > start && spectatorPatchSize(chunk) > maxPatchChunkBytes {
+					chunk.Codes = patch.Codes[start:end]
+					break
+				}
+			}
+			chunks = append(chunks, chunk)
+			start += len(chunk.Codes)
+		}
+	}
+	return chunks
+}
+
 func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *proto.GamePatchList) *SpectatorSession {
 	log := &proto.BattleLogFile{
 		GameDisk:       gameDisk,
@@ -205,7 +239,7 @@ func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *
 		StartAt:        time.Now().Unix(),
 	}
 	if patches != nil {
-		log.Patches = patches.GetPatches()
+		log.Patches = splitSpectatorPatches(patches.GetPatches())
 	}
 	return &SpectatorSession{
 		battleCode:     matching.GetBattleCode(),
@@ -478,7 +512,7 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 		)
 		for i := sub.ackedPatches; i < int32(len(s.log.Patches)); i++ {
 			p := s.log.Patches[i]
-			n := pb.Size(p)
+			n := spectatorPatchSize(p)
 			if 0 < len(chunk) && maxPatchChunkBytes < bytes+n {
 				break
 			}
