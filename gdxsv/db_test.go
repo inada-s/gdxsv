@@ -440,7 +440,7 @@ func Test400Replay(t *testing.T) {
 
 	foundReplay, err = getDB().FindReplay(&FindReplayQuery{
 		BattleCode: "",
-		UserID:     "ABC123",
+		UserIDs:    []string{"ABC123"},
 		Aggregate:  -1,
 		LobbyID:    -1,
 		Players:    -1,
@@ -679,9 +679,9 @@ func TestNewFindReplayQuery(t *testing.T) {
 	x := NewFindReplayQuery()
 	assertEq(t, "", x.BattleCode)
 	assertEq(t, "", x.Disk)
-	assertEq(t, "", x.UserID)
-	assertEq(t, "", x.UserName)
-	assertEq(t, "", x.PilotName)
+	assertEq(t, []string(nil), x.UserIDs)
+	assertEq(t, []string(nil), x.UserNames)
+	assertEq(t, []string(nil), x.PilotNames)
 	assertEq(t, -1, x.LobbyID)
 	assertEq(t, -1, x.Players)
 	assertEq(t, -1, x.Aggregate)

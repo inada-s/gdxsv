@@ -116,15 +116,17 @@ type RankingRecord struct {
 type FindReplayQuery struct {
 	BattleCode string `db:"battle_code" json:"battle_code"`
 	Disk       string `db:"disk" json:"disk"`
-	UserID     string `db:"user_id" json:"user_id"`
-	UserName   string `db:"user_name" json:"user_name"`
-	PilotName  string `db:"pilot_name" json:"pilot_name"`
-	LobbyID    int    `db:"lobby_id" json:"lobby_id"`
-	Players    int    `db:"players" json:"players"`
-	Aggregate  int    `db:"aggregate" json:"aggregate"`
-	UsedMs     int    `db:"used_ms" json:"used_ms"`
-	Reverse    bool   `db:"reverse" json:"reverse"`
-	Page       int    `db:"page" json:"page"`
+	// Each player filter must match a participant in the battle, not
+	// necessarily the same participant as the other filters.
+	UserIDs    []string `json:"user_id"`
+	UserNames  []string `json:"user_name"`
+	PilotNames []string `json:"pilot_name"`
+	LobbyID    int      `db:"lobby_id" json:"lobby_id"`
+	Players    int      `db:"players" json:"players"`
+	Aggregate  int      `db:"aggregate" json:"aggregate"`
+	UsedMs     int      `db:"used_ms" json:"used_ms"`
+	Reverse    bool     `db:"reverse" json:"reverse"`
+	Page       int      `db:"page" json:"page"`
 }
 
 func NewFindReplayQuery() *FindReplayQuery {

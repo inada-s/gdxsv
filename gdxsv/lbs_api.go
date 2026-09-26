@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,11 @@ import (
 )
 
 var httpRequestGroup singleflight.Group
+
+const (
+	maxReplayPlayerFilters = 4 // Per field; at most 12 participant conditions.
+	maxReplayFilterBytes   = 256
+)
 
 func (lbs *Lbs) RegisterHTTPHandlers() {
 	teamName := func(team int) string {
@@ -176,9 +182,27 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		q := NewFindReplayQuery()
 		q.BattleCode = r.FormValue("battle_code")
 		q.Disk = r.FormValue("disk")
-		q.UserID = r.FormValue("user_id")
-		q.UserName = r.FormValue("user_name")
-		q.PilotName = r.FormValue("pilot_name")
+		// Repeated keys extend the existing GET format: a single value from
+		// an older client is just a one-element list. Keep name LIKE patterns.
+		for _, filter := range []struct {
+			name string
+			dst  *[]string
+		}{
+			{"user_id", &q.UserIDs},
+			{"user_name", &q.UserNames},
+			{"pilot_name", &q.PilotNames},
+		} {
+			for _, value := range r.Form[filter.name] {
+				if value == "" || slices.Contains(*filter.dst, value) {
+					continue
+				}
+				if len(value) > maxReplayFilterBytes || len(*filter.dst) >= maxReplayPlayerFilters {
+					http.Error(w, "invalid "+filter.name+" filters", http.StatusBadRequest)
+					return
+				}
+				*filter.dst = append(*filter.dst, value)
+			}
+		}
 		if r.FormValue("lobby_id") != "" {
 			if q.LobbyID, err = strconv.Atoi(r.FormValue("lobby_id")); err != nil {
 				http.Error(w, "invalid query", http.StatusBadRequest)
