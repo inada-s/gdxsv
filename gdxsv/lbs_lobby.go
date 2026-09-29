@@ -803,6 +803,17 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer, pat
 		}
 	}
 
+	if l.app != nil && allSupportRelay(participants) {
+		if relay := l.app.selectRelay(participants); relay != nil {
+			server, err := openRelaySession(relay, uint32(matching.SessionId))
+			if err != nil {
+				logger.Warn("openRelaySession failed", zap.Error(err))
+			} else {
+				matching.Relays = append(matching.Relays, server)
+			}
+		}
+	}
+
 	spectatorRegistry.Open(matching, l.GameDisk, patchList)
 
 	var msgs []*LbsMessage

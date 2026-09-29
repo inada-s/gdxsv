@@ -99,12 +99,18 @@ func McsFuncEnabled() bool {
 }
 
 func McsFuncAlloc(region string) error {
+	return mcsFuncAllocRole(region, "")
+}
+
+// mcsFuncAllocRole starts a VM of the given role ("" for mcs, "relay") in the region.
+func mcsFuncAllocRole(region, role string) error {
+	key := "alloc/" + role + "/" + region
 	mtxFuncRequestTime.Lock()
-	if time.Since(mcsFuncRequestTime["alloc/"+region]).Seconds() <= 30 {
+	if time.Since(mcsFuncRequestTime[key]).Seconds() <= 30 {
 		mtxFuncRequestTime.Unlock()
 		return nil
 	}
-	mcsFuncRequestTime["alloc/"+region] = time.Now()
+	mcsFuncRequestTime[key] = time.Now()
 	mtxFuncRequestTime.Unlock()
 
 	client, err := getMcsFuncClient()
@@ -112,7 +118,11 @@ func McsFuncAlloc(region string) error {
 		return err
 	}
 
-	resp, err := client.Get(conf.McsFuncURL + fmt.Sprintf("/alloc?region=%s&version=%s", region, "latest"))
+	query := fmt.Sprintf("/alloc?region=%s&version=%s", region, "latest")
+	if role != "" {
+		query += "&role=" + role
+	}
+	resp, err := client.Get(conf.McsFuncURL + query)
 	if err != nil {
 		return err
 	}
@@ -127,17 +137,22 @@ func McsFuncAlloc(region string) error {
 }
 
 func GoMcsFuncAlloc(region string) bool {
+	return GoMcsFuncAllocRole(region, "")
+}
+
+func GoMcsFuncAllocRole(region, role string) bool {
+	key := "alloc/" + role + "/" + region
 	mtxFuncRequestTime.Lock()
-	if time.Since(mcsFuncRequestTime["alloc/"+region]).Seconds() <= 30 {
+	if time.Since(mcsFuncRequestTime[key]).Seconds() <= 30 {
 		mtxFuncRequestTime.Unlock()
 		return false
 	}
 	mtxFuncRequestTime.Unlock()
 
 	go func() {
-		err := McsFuncAlloc(region)
+		err := mcsFuncAllocRole(region, role)
 		if err != nil {
-			logger.Error("mcsfunc alloc failed", zap.Error(err))
+			logger.Error("mcsfunc alloc failed", zap.String("role", role), zap.Error(err))
 		}
 	}()
 

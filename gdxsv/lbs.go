@@ -51,6 +51,9 @@ type Lbs struct {
 	chEvent   chan interface{}
 	chQuit    chan interface{}
 	reload    bool
+
+	relayPeers      map[string]*LbsPeer
+	relayLastNeeded map[string]time.Time // by region
 }
 
 func NewLbs() *Lbs {
@@ -61,6 +64,9 @@ func NewLbs() *Lbs {
 		lobbies:   make(map[string]map[uint16]*LbsLobby),
 		chEvent:   make(chan interface{}, 64),
 		chQuit:    make(chan interface{}),
+
+		relayPeers:      make(map[string]*LbsPeer),
+		relayLastNeeded: make(map[string]time.Time),
 	}
 
 	for _, pf := range []string{PlatformConsole, PlatformEmuX8664} {
@@ -361,6 +367,12 @@ func (lbs *Lbs) cleanPeer(p *LbsPeer) {
 		p.mcsStatus = nil
 	}
 
+	if p.relayStatus != nil {
+		p.logger.Info("relay left", zap.String("public_addr", p.relayStatus.PublicAddr))
+		delete(p.app.relayPeers, p.relayStatus.PublicAddr)
+		p.relayStatus = nil
+	}
+
 	p.conn.Close()
 	p.cleaned = true
 }
@@ -369,6 +381,7 @@ func (lbs *Lbs) eventLoop() {
 	tick := time.Tick(1 * time.Second)
 	peers := map[string]*LbsPeer{}
 	battleUserCount := 0
+	lastRelayUpdate := time.Now()
 
 	for {
 		select {
@@ -429,6 +442,11 @@ func (lbs *Lbs) eventLoop() {
 			}
 
 			sharedData.RemoveStaleData()
+
+			if relayUpdateInterval <= time.Since(lastRelayUpdate) {
+				lastRelayUpdate = time.Now()
+				lbs.updateRelay(lastRelayUpdate)
+			}
 
 			reload := lbs.reload
 			lbs.reload = false
@@ -704,6 +722,9 @@ type LbsPeer struct {
 
 	// used only mcs peer
 	mcsStatus *McsStatus
+
+	// used only relay peer
+	relayStatus *RelayStatus
 }
 
 func (p *LbsPeer) InLobbyChat() bool {

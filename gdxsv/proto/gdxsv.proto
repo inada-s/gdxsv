@@ -34,6 +34,7 @@ message P2PMatching {
   bytes rule_bin = 8;
   repeated BattleLogUser users = 9;
   repeated PlayerAddress candidates = 10;
+  repeated RelayServer relays = 11;
 }
 
 message PlayerAddress {
@@ -42,6 +43,15 @@ message PlayerAddress {
   string ip = 3;
   int32 port = 4;
   int32 team = 5;
+}
+
+// A relay the players may route their rollback packets through.
+// The token admits them to this match's relay session, whose id is P2PMatching.session_id.
+message RelayServer {
+  string region = 1;
+  string ip = 2;
+  int32 port = 3;
+  uint64 token = 4;
 }
 
 message GamePatch {
