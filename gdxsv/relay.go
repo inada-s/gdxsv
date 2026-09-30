@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,7 +59,7 @@ func mainRelay() {
 	}
 
 	// Without a host in the address, this takes IPv4 and IPv6 alike, so it can relay between the two.
-	conn, err := net.ListenPacket("udp", conf.RelayAddr)
+	conn, err := listenRelay(conf.RelayAddr)
 	if err != nil {
 		logger.Fatal("relay listen failed", zap.Error(err))
 	}
@@ -216,7 +217,7 @@ func parseRelayTestSession(s string) (uint32, uint64, error) {
 type relaySession struct {
 	id         uint32
 	token      uint64
-	peers      [relayMaxPeers]*net.UDPAddr
+	peers      [relayMaxPeers]netip.AddrPort // zero value while unbound
 	created    time.Time
 	lastActive time.Time
 	forwarded  uint64
@@ -227,20 +228,29 @@ type relayBinding struct {
 	peer    uint8
 }
 
+// Relay keys everything by netip.AddrPort, a plain value, so forwarding a packet allocates nothing.
 type Relay struct {
 	mtx      sync.Mutex
-	conn     net.PacketConn
 	sessions map[uint32]*relaySession
-	bindings map[string]relayBinding
+	bindings map[netip.AddrPort]relayBinding
 	now      func() time.Time
 }
 
 func NewRelay() *Relay {
 	return &Relay{
 		sessions: map[uint32]*relaySession{},
-		bindings: map[string]relayBinding{},
+		bindings: map[netip.AddrPort]relayBinding{},
 		now:      time.Now,
 	}
+}
+
+// listenRelay opens the relay socket. Without a host in addr it takes IPv4 and IPv6 alike.
+func listenRelay(addr string) (*net.UDPConn, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return net.ListenUDP("udp", udpAddr)
 }
 
 // RegisterSession allows the players of a match to use the relay. Registering again replaces the token.
@@ -263,8 +273,8 @@ func (r *Relay) ActiveSessions() int {
 
 func (r *Relay) removeSessionLocked(s *relaySession) {
 	for _, addr := range s.peers {
-		if addr != nil {
-			delete(r.bindings, addr.String())
+		if addr.IsValid() {
+			delete(r.bindings, addr)
 		}
 	}
 	delete(r.sessions, s.id)
@@ -282,28 +292,24 @@ func (r *Relay) RemoveStaleSessions() {
 	}
 }
 
-func (r *Relay) Serve(conn net.PacketConn) {
-	r.conn = conn
+func (r *Relay) Serve(conn *net.UDPConn) {
 	buf := make([]byte, 2048)
 	for {
-		n, addr, err := conn.ReadFrom(buf)
+		n, from, err := conn.ReadFromUDPAddrPort(buf)
 		if err != nil {
 			logger.Error("relay read failed", zap.Error(err))
 			return
 		}
-		udpAddr, ok := addr.(*net.UDPAddr)
-		if !ok {
-			continue
-		}
-		dst, out := r.handle(buf[:n], udpAddr)
-		if dst != nil {
-			_, _ = conn.WriteTo(out, dst)
+		// A dual-stack socket reports IPv4 senders as IPv4-mapped IPv6; key them as plain IPv4.
+		from = netip.AddrPortFrom(from.Addr().Unmap(), from.Port())
+		if dst, out := r.handle(buf[:n], from); dst.IsValid() {
+			_, _ = conn.WriteToUDPAddrPort(out, dst)
 		}
 	}
 }
 
-// handle processes one datagram and returns where to send the reply or forwarded packet, if anywhere.
-func (r *Relay) handle(p []byte, from *net.UDPAddr) (*net.UDPAddr, []byte) {
+// handle processes one datagram in place and returns where to send it (the pong or the forwarded packet), if anywhere.
+func (r *Relay) handle(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
 	if len(p) == relayPingSize && binary.LittleEndian.Uint32(p[0:]) == relayPingMagic {
 		return r.handlePing(p, from)
 	}
@@ -313,64 +319,63 @@ func (r *Relay) handle(p []byte, from *net.UDPAddr) (*net.UDPAddr, []byte) {
 		binary.LittleEndian.Uint16(p[8:]) == ggpoRelayMagic {
 		return r.handleGgpo(p, from)
 	}
-	return nil, nil
+	return netip.AddrPort{}, nil
 }
 
-func (r *Relay) handlePing(p []byte, from *net.UDPAddr) (*net.UDPAddr, []byte) {
+func (r *Relay) handlePing(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
 	if p[4] != relayTypePing {
-		return nil, nil
+		return netip.AddrPort{}, nil
 	}
 	peer := p[5]
 	sessionID := binary.LittleEndian.Uint32(p[8:])
 	token := binary.LittleEndian.Uint64(p[12:])
 	if relayMaxPeers <= peer {
-		return nil, nil
+		return netip.AddrPort{}, nil
 	}
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	s, ok := r.sessions[sessionID]
 	if !ok || s.token != token {
-		return nil, nil
+		return netip.AddrPort{}, nil
 	}
 
-	key := from.String()
-	if old := s.peers[peer]; old == nil || old.String() != key {
-		if old != nil {
-			delete(r.bindings, old.String())
+	if old := s.peers[peer]; old != from {
+		if old.IsValid() {
+			delete(r.bindings, old)
 		}
-		if b, ok := r.bindings[key]; ok {
+		if b, ok := r.bindings[from]; ok {
 			// The address moved to another peer or session; forget where it was.
-			b.session.peers[b.peer] = nil
+			b.session.peers[b.peer] = netip.AddrPort{}
 		}
 		s.peers[peer] = from
-		r.bindings[key] = relayBinding{session: s, peer: peer}
-		logger.Info("relay peer bound", zap.Uint32("session_id", sessionID), zap.Uint8("peer", peer), zap.String("addr", key))
+		r.bindings[from] = relayBinding{session: s, peer: peer}
+		logger.Info("relay peer bound", zap.Uint32("session_id", sessionID), zap.Uint8("peer", peer),
+			zap.String("addr", from.String()))
 	}
 	s.lastActive = r.now()
 
-	pong := make([]byte, relayPingSize)
-	copy(pong, p)
-	pong[4] = relayTypePong
-	return from, pong
+	// The pong is the ping with its type changed.
+	p[4] = relayTypePong
+	return from, p
 }
 
-func (r *Relay) handleGgpo(p []byte, from *net.UDPAddr) (*net.UDPAddr, []byte) {
+func (r *Relay) handleGgpo(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
 	to := p[10]
 	orgType := p[11]
 	if relayMaxPeers <= to || orgType < ggpoMinType || ggpoMaxType < orgType {
-		return nil, nil
+		return netip.AddrPort{}, nil
 	}
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	b, ok := r.bindings[from.String()]
+	b, ok := r.bindings[from]
 	if !ok {
-		return nil, nil
+		return netip.AddrPort{}, nil
 	}
 	dst := b.session.peers[to]
-	if dst == nil || to == b.peer {
-		return nil, nil
+	if !dst.IsValid() || to == b.peer {
+		return netip.AddrPort{}, nil
 	}
 	b.session.lastActive = r.now()
 	b.session.forwarded++

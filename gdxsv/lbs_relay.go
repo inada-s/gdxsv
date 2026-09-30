@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"math"
 	"net"
 	"sort"
 	"strconv"
@@ -18,11 +19,11 @@ import (
 
 const (
 	// Estimates below add up the GCP latencies each client measured at login, a close stand-in for a relayed RTT.
-	relayPairMinRTT  = 50  // players closer than this through every region rarely suffer from long routes
-	relayViaMaxRTT   = 120 // a relayed match slower than this is not worth a VM
+	relayPairMinRTT  = 40  // players closer than this through every region rarely suffer from long routes
+	relayViaMaxRTT   = 150 // a relayed match slower than this is not worth a VM
 	relayRegionSlack = 10  // the relay region must be about as good as the pair's best meeting point
 
-	relayIdleShutdown   = 15 * time.Minute
+	relayIdleShutdown   = 30 * time.Minute
 	relayUpdateInterval = 10 * time.Second
 
 	localRelayRegion  = "lbs"
@@ -50,7 +51,7 @@ func peerRelayEndpoint(p *LbsPeer) *relayEndpoint {
 
 // StartLocalRelay runs a relay inside the lobby process. Matches get it when no relay VM is running.
 func (lbs *Lbs) StartLocalRelay(addr, publicAddr, publicAddr6 string) error {
-	conn, err := net.ListenPacket("udp", addr)
+	conn, err := listenRelay(addr)
 	if err != nil {
 		return err
 	}
@@ -100,64 +101,99 @@ func gcpLatency(p *LbsPeer, region string) int {
 	return v
 }
 
-// relayUseful reports whether a relay in region could help u and v play each other:
-// they are far apart, and the region is about their best meeting point.
-func relayUseful(u, v *LbsPeer, region string) bool {
-	best := 0
+// relayRegionNames indexes the GCP regions whose latency clients report.
+var relayRegionNames = func() []string {
+	names := make([]string, 0, len(gcpLocationName))
 	for r := range gcpLocationName {
-		a, b := gcpLatency(u, r), gcpLatency(v, r)
-		if 0 < a && 0 < b && (best == 0 || a+b < best) {
+		names = append(names, r)
+	}
+	sort.Strings(names)
+	if relayMaxRegions < len(names) {
+		panic("relayMaxRegions is too small")
+	}
+	return names
+}()
+
+const relayMaxRegions = 32
+
+// relayUser is what the relay decision needs of an online player, copied out of the lobby's state so it can be
+// worked on outside the event loop. lat[i] is the latency to relayRegionNames[i] in ms, 0 when unknown.
+type relayUser struct {
+	disk string
+	lat  [relayMaxRegions]uint16
+}
+
+// newRelayUser returns the player's latencies, or false if the player can't use a relay or reported none.
+func newRelayUser(p *LbsPeer) (relayUser, bool) {
+	if p.PlatformInfo["relay_server"] != "1" {
+		return relayUser{}, false
+	}
+	u := relayUser{disk: p.GameDisk}
+	known := false
+	for i, r := range relayRegionNames {
+		if v := gcpLatency(p, r); 0 < v && v <= math.MaxUint16 {
+			u.lat[i] = uint16(v)
+			known = true
+		}
+	}
+	return u, known
+}
+
+// relayRegionFor returns the allowed region (an index into relayRegionNames) that would help u and v most, if any:
+// they are far apart through every region, and the allowed region is about their best meeting point.
+func relayRegionFor(u, v *relayUser, regions []int) (int, bool) {
+	best := 0
+	for i := range relayRegionNames {
+		if a, b := int(u.lat[i]), int(v.lat[i]); 0 < a && 0 < b && (best == 0 || a+b < best) {
 			best = a + b
 		}
 	}
-	a, b := gcpLatency(u, region), gcpLatency(v, region)
-	if best == 0 || a == 0 || b == 0 {
-		return false
+	if best < relayPairMinRTT {
+		return 0, false
 	}
-	via := a + b
-	return relayPairMinRTT <= best && via <= best+relayRegionSlack && via <= relayViaMaxRTT
-}
-
-// relayRegions returns the regions GDXSV_RELAY_REGIONS allows relay VMs in.
-func relayRegions() []string {
-	var regions []string
-	for _, r := range strings.Split(conf.RelayRegions, ",") {
-		if r = strings.TrimSpace(r); r != "" {
-			regions = append(regions, r)
-		}
-	}
-	return regions
-}
-
-// relayRegionFor returns the allowed region that would help u and v most, if any would.
-func relayRegionFor(u, v *LbsPeer, regions []string) (string, bool) {
-	found, bestVia := "", 0
-	for _, r := range regions {
-		if !relayUseful(u, v, r) {
+	found, foundVia := -1, 0
+	for _, i := range regions {
+		a, b := int(u.lat[i]), int(v.lat[i])
+		if a == 0 || b == 0 {
 			continue
 		}
-		if via := gcpLatency(u, r) + gcpLatency(v, r); found == "" || via < bestVia {
-			found, bestVia = r, via
+		if via := a + b; via <= best+relayRegionSlack && via <= relayViaMaxRTT && (found == -1 || via < foundVia) {
+			found, foundVia = i, via
 		}
 	}
-	return found, found != ""
+	return found, found != -1
 }
 
-// relayNeededRegions returns the allowed regions some online players could use a relay in.
-func (lbs *Lbs) relayNeededRegions(regions []string) map[string]bool {
-	peers := make([]*LbsPeer, 0, len(lbs.userPeers))
-	for _, p := range lbs.userPeers {
-		peers = append(peers, p)
-	}
-	needed := map[string]bool{}
-	for i := range peers {
-		for j := i + 1; j < len(peers); j++ {
-			if r, ok := relayRegionFor(peers[i], peers[j], regions); ok {
+// relayNeededRegions returns the allowed regions (indexes into relayRegionNames) some pair of users on the same
+// game disk could use a relay in.
+func relayNeededRegions(users []relayUser, regions []int) map[int]bool {
+	sort.Slice(users, func(i, j int) bool { return users[i].disk < users[j].disk })
+	needed := map[int]bool{}
+	for i := range users {
+		for j := i + 1; j < len(users) && users[j].disk == users[i].disk; j++ {
+			if r, ok := relayRegionFor(&users[i], &users[j], regions); ok && !needed[r] {
 				needed[r] = true
+				if len(needed) == len(regions) {
+					return needed
+				}
 			}
 		}
 	}
 	return needed
+}
+
+// relayRegionIndexes returns the indexes of the regions GDXSV_RELAY_REGIONS allows relay VMs in.
+func relayRegionIndexes() []int {
+	var regions []int
+	for _, r := range strings.Split(conf.RelayRegions, ",") {
+		r = strings.TrimSpace(r)
+		if i := sort.SearchStrings(relayRegionNames, r); i < len(relayRegionNames) && relayRegionNames[i] == r {
+			regions = append(regions, i)
+		} else if r != "" {
+			logger.Warn("unknown relay region", zap.String("region", r))
+		}
+	}
+	return regions
 }
 
 func (lbs *Lbs) findRelay(region string) *LbsPeer {
@@ -214,17 +250,12 @@ func (lbs *Lbs) matchRelays(participants []*LbsPeer) []*relayEndpoint {
 	return relays
 }
 
-// updateRelay starts relay VMs in the regions that may be needed and stops each once it has been unneeded and idle for a while.
+// updateRelay stops relays that have been unneeded and idle for a while, and starts working out which regions are
+// needed. That runs outside the event loop, which only copies the players' latencies; the result starts relay VMs.
 func (lbs *Lbs) updateRelay(now time.Time) {
-	regions := relayRegions()
+	regions := relayRegionIndexes()
 	if len(regions) == 0 {
 		return
-	}
-	for r := range lbs.relayNeededRegions(regions) {
-		lbs.relayLastNeeded[r] = now
-		if lbs.findRelay(r) == nil && McsFuncEnabled() {
-			GoMcsFuncAllocRole(r, "relay")
-		}
 	}
 	for _, p := range lbs.relayPeers {
 		if now.Sub(lbs.relayLastNeeded[p.relayStatus.Region]) < relayIdleShutdown || p.relayStatus.Sessions != 0 {
@@ -232,6 +263,37 @@ func (lbs *Lbs) updateRelay(now time.Time) {
 		}
 		p.logger.Info("relay no longer needed, shutting it down", zap.String("region", p.relayStatus.Region))
 		sendRelayControl(p, &RelayControl{Shutdown: true})
+	}
+
+	if lbs.relayComputing {
+		return
+	}
+	users := make([]relayUser, 0, len(lbs.userPeers))
+	for _, p := range lbs.userPeers {
+		if u, ok := newRelayUser(p); ok {
+			users = append(users, u)
+		}
+	}
+	lbs.relayComputing = true
+	go func() {
+		needed := relayNeededRegions(users, regions)
+		c := make(chan interface{})
+		select {
+		case lbs.chEvent <- eventFunc{f: func(lbs *Lbs) { lbs.applyRelayNeeded(needed, now) }, c: c}:
+			<-c
+		case <-lbs.chQuit:
+		}
+	}()
+}
+
+func (lbs *Lbs) applyRelayNeeded(needed map[int]bool, at time.Time) {
+	lbs.relayComputing = false
+	for i := range needed {
+		r := relayRegionNames[i]
+		lbs.relayLastNeeded[r] = at
+		if lbs.findRelay(r) == nil && McsFuncEnabled() {
+			GoMcsFuncAllocRole(r, "relay")
+		}
 	}
 }
 
@@ -263,22 +325,10 @@ func openRelaySession(relay *relayEndpoint, sessionID uint32) (*proto.RelayServe
 	if err != nil {
 		return nil, err
 	}
-	// Clients take a numeric IPv4 address.
+	// Clients take a numeric IPv4 address. No name lookup here: this runs in the event loop.
 	ip := net.ParseIP(host)
-	if ip == nil {
-		ips, err := net.LookupIP(host)
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range ips {
-			if a.To4() != nil {
-				ip = a
-				break
-			}
-		}
-	}
 	if ip == nil || ip.To4() == nil {
-		return nil, errors.New("relay has no IPv4 address")
+		return nil, errors.New("relay address is not a numeric IPv4 address")
 	}
 
 	var b [8]byte

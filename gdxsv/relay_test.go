@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 )
@@ -33,12 +34,8 @@ func ggpoRelayPacket(from, to, orgType uint8) []byte {
 	return p
 }
 
-func udpAddr(s string) *net.UDPAddr {
-	a, err := net.ResolveUDPAddr("udp", s)
-	if err != nil {
-		panic(err)
-	}
-	return a
+func udpAddr(s string) netip.AddrPort {
+	return netip.MustParseAddrPort(s)
 }
 
 func TestRelay_PingBindsPeer(t *testing.T) {
@@ -73,7 +70,7 @@ func TestRelay_PingRejected(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dst, _ := r.handle(tt.p, a)
-			if dst != nil {
+			if dst.IsValid() {
 				t.Fatalf("expected no reply")
 			}
 			assertEq(t, 0, len(r.bindings))
@@ -113,7 +110,7 @@ func TestRelay_ForwardDropped(t *testing.T) {
 	tests := []struct {
 		name string
 		p    []byte
-		from *net.UDPAddr
+		from netip.AddrPort
 	}{
 		{"unbound sender", ggpoRelayPacket(0, 1, 3), udpAddr("8.8.8.8:1")},
 		{"to itself", ggpoRelayPacket(0, 0, 3), a},
@@ -129,7 +126,7 @@ func TestRelay_ForwardDropped(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dst, _ := r.handle(tt.p, tt.from)
-			if dst != nil {
+			if dst.IsValid() {
 				t.Fatalf("expected drop, sent to %v", dst)
 			}
 		})
@@ -147,7 +144,7 @@ func TestRelay_Rebind(t *testing.T) {
 
 	// The NAT mapping of peer 0 changed.
 	r.handle(relayPing(0, 100, 1, 0), a2)
-	if dst, _ := r.handle(ggpoRelayPacket(0, 1, 3), a); dst != nil {
+	if dst, _ := r.handle(ggpoRelayPacket(0, 1, 3), a); dst.IsValid() {
 		t.Fatalf("old address still forwards")
 	}
 	dst, _ := r.handle(ggpoRelayPacket(1, 0, 3), b)
@@ -176,4 +173,88 @@ func TestRelay_RemoveStaleSessions(t *testing.T) {
 	r.RemoveStaleSessions()
 	assertEq(t, 0, r.ActiveSessions())
 	assertEq(t, 0, len(r.bindings))
+}
+
+// The hot path must not allocate, so a busy relay never makes the garbage collector run.
+func TestRelay_NoAllocations(t *testing.T) {
+	r := NewRelay()
+	r.RegisterSession(100, 1)
+	a := udpAddr("1.2.3.4:5000")
+	b := udpAddr("[2001:db8::2]:6000")
+	r.handle(relayPing(0, 100, 1, 0), a)
+	r.handle(relayPing(1, 100, 1, 0), b)
+
+	forward, ping := ggpoRelayPacket(0, 1, 3), relayPing(0, 100, 1, 0)
+	buf := make([]byte, 2048)
+	assertEq(t, 0.0, testing.AllocsPerRun(1000, func() {
+		n := copy(buf, forward)
+		if dst, _ := r.handle(buf[:n], a); dst != b {
+			t.Fatal("not forwarded")
+		}
+	}))
+	assertEq(t, 0.0, testing.AllocsPerRun(1000, func() {
+		n := copy(buf, ping)
+		if dst, _ := r.handle(buf[:n], a); dst != a {
+			t.Fatal("no pong")
+		}
+	}))
+}
+
+// Forwarding through a real socket, IPv4 in and IPv6 out, as a dual-stack relay does.
+func TestRelay_ServeDualStack(t *testing.T) {
+	conn, err := listenRelay("[::]:0")
+	if err != nil {
+		t.Skip("no dual-stack socket:", err)
+	}
+	defer conn.Close()
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+	r := NewRelay()
+	r.RegisterSession(100, 1)
+	go r.Serve(conn)
+
+	v4, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	must(t, err)
+	defer v4.Close()
+	v6, err := net.ListenUDP("udp6", &net.UDPAddr{IP: net.IPv6loopback})
+	if err != nil {
+		t.Skip("no IPv6 loopback:", err)
+	}
+	defer v6.Close()
+	relay4 := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port}
+	relay6 := &net.UDPAddr{IP: net.IPv6loopback, Port: port}
+
+	buf := make([]byte, 2048)
+	bind := func(c *net.UDPConn, to *net.UDPAddr, peer uint8) {
+		t.Helper()
+		_, err := c.WriteToUDP(relayPing(peer, 100, 1, 0), to)
+		must(t, err)
+		must(t, c.SetReadDeadline(time.Now().Add(2*time.Second)))
+		n, _, err := c.ReadFromUDP(buf)
+		must(t, err)
+		assertEq(t, byte(relayTypePong), buf[:n][4])
+	}
+	bind(v4, relay4, 0)
+	bind(v6, relay6, 1)
+
+	_, err = v4.WriteToUDP(ggpoRelayPacket(0, 1, 3), relay4)
+	must(t, err)
+	must(t, v6.SetReadDeadline(time.Now().Add(2*time.Second)))
+	n, _, err := v6.ReadFromUDP(buf)
+	must(t, err)
+	assertEq(t, byte(3), buf[:n][7])
+}
+
+func BenchmarkRelay_Forward(b *testing.B) {
+	r := NewRelay()
+	r.RegisterSession(100, 1)
+	a, c := udpAddr("1.2.3.4:5000"), udpAddr("5.6.7.8:6000")
+	r.handle(relayPing(0, 100, 1, 0), a)
+	r.handle(relayPing(1, 100, 1, 0), c)
+	forward := ggpoRelayPacket(0, 1, 3)
+	buf := make([]byte, 2048)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		n := copy(buf, forward)
+		r.handle(buf[:n], a)
+	}
 }

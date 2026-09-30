@@ -25,36 +25,131 @@ var (
 	relayTestEU = latencies("asia-east2", 190, "asia-east1", 230, "asia-northeast1", 230, "asia-northeast2", 240, "asia-southeast1", 160, "europe-west2", 10)
 )
 
+// relayTestKR is close enough to Japan that only the lowered minimum distance counts the pair.
+var relayTestKR = latencies("asia-east2", 50, "asia-east1", 40, "asia-northeast1", 30, "asia-northeast2", 28, "asia-southeast1", 80, "europe-west2", 240)
+
+func relayTestUser(info map[string]string, disk string) relayUser {
+	m := map[string]string{"relay_server": "1"}
+	for k, v := range info {
+		m[k] = v
+	}
+	u, _ := newRelayUser(&LbsPeer{PlatformInfo: m, GameDisk: disk})
+	return u
+}
+
+func relayTestRegions(names ...string) []int {
+	var r []int
+	for _, n := range names {
+		r = append(r, sort.SearchStrings(relayRegionNames, n))
+	}
+	return r
+}
+
 func TestLbsRelay_NeededRegions(t *testing.T) {
-	hkOnly := []string{"asia-east2"}
-	hkOsaka := []string{"asia-east2", "asia-northeast2"}
+	hkOnly := relayTestRegions("asia-east2")
+	hkOsaka := relayTestRegions("asia-east2", "asia-northeast2")
+	osaka := relayTestRegions("asia-northeast2")
+	dc2 := func(infos ...map[string]string) []relayUser {
+		var users []relayUser
+		for _, info := range infos {
+			users = append(users, relayTestUser(info, GameDiskDC2))
+		}
+		return users
+	}
 	tests := []struct {
 		name    string
-		regions []string
-		peers   []map[string]string
+		regions []int
+		users   []relayUser
 		want    []string
 	}{
-		{"jp and hk", hkOnly, []map[string]string{relayTestJP, relayTestHK}, []string{"asia-east2"}},
-		{"jp and hk among others", hkOnly, []map[string]string{relayTestJP, relayTestJP, relayTestHK, {}}, []string{"asia-east2"}},
-		{"jp and hk: the closer allowed region", hkOsaka, []map[string]string{relayTestJP, relayTestHK}, []string{"asia-northeast2"}},
-		{"jp only", hkOnly, []map[string]string{relayTestJP, relayTestJP}, nil},
-		{"hk only", hkOnly, []map[string]string{relayTestHK, relayTestHK}, nil},
-		{"jp and tw: hong kong is a detour", hkOnly, []map[string]string{relayTestJP, relayTestTW}, nil},
-		{"jp and eu: too far", hkOsaka, []map[string]string{relayTestJP, relayTestEU}, nil},
-		{"no latency info", hkOsaka, []map[string]string{{}, {}}, nil},
+		{"jp and hk", hkOnly, dc2(relayTestJP, relayTestHK), []string{"asia-east2"}},
+		{"jp and hk among others", hkOnly, dc2(relayTestJP, relayTestJP, relayTestHK, relayTestEU), []string{"asia-east2"}},
+		{"jp and hk: the closer allowed region", hkOsaka, dc2(relayTestJP, relayTestHK), []string{"asia-northeast2"}},
+		{"jp only", hkOnly, dc2(relayTestJP, relayTestJP), nil},
+		{"hk only", hkOnly, dc2(relayTestHK, relayTestHK), nil},
+		{"jp and kr: far enough at 40 ms", osaka, dc2(relayTestJP, relayTestKR), []string{"asia-northeast2"}},
+		{"jp and tw: hong kong is a detour", hkOnly, dc2(relayTestJP, relayTestTW), nil},
+		{"jp and eu: too far", hkOsaka, dc2(relayTestJP, relayTestEU), nil},
+		{"jp and hk on different disks", hkOnly, []relayUser{relayTestUser(relayTestJP, GameDiskDC2), relayTestUser(relayTestHK, GameDiskDC1)}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lbs := &Lbs{userPeers: map[string]*LbsPeer{}}
-			for i, info := range tt.peers {
-				lbs.userPeers[strconv.Itoa(i)] = &LbsPeer{PlatformInfo: info}
-			}
 			var got []string
-			for r := range lbs.relayNeededRegions(tt.regions) {
-				got = append(got, r)
+			for i := range relayNeededRegions(tt.users, tt.regions) {
+				got = append(got, relayRegionNames[i])
 			}
 			sort.Strings(got)
 			assertEq(t, tt.want, got)
+		})
+	}
+}
+
+func TestLbsRelay_NewRelayUser(t *testing.T) {
+	if _, ok := newRelayUser(&LbsPeer{PlatformInfo: relayTestJP}); ok {
+		t.Fatal("a client without relay support was counted")
+	}
+	if _, ok := newRelayUser(&LbsPeer{PlatformInfo: map[string]string{"relay_server": "1"}}); ok {
+		t.Fatal("a client without latencies was counted")
+	}
+	u := relayTestUser(relayTestHK, GameDiskDC2)
+	assertEq(t, uint16(9), u.lat[relayTestRegions("asia-east2")[0]])
+}
+
+// The region decision runs outside the event loop and comes back to mark the region as needed.
+func TestLbsRelay_UpdateMarksNeeded(t *testing.T) {
+	oldRegions := conf.RelayRegions
+	conf.RelayRegions = "asia-east2"
+	defer func() { conf.RelayRegions = oldRegions }()
+
+	lbsAddr := freeTCPAddr(t)
+	lbs := NewLbs()
+	defer lbs.Quit()
+	go lbs.ListenAndServe(lbsAddr)
+	dialWithRetry(t, lbsAddr, 5*time.Second).Close()
+
+	withRelay := func(info map[string]string) map[string]string {
+		m := map[string]string{"relay_server": "1"}
+		for k, v := range info {
+			m[k] = v
+		}
+		return m
+	}
+	lbs.Locked(func(lbs *Lbs) {
+		lbs.userPeers["jp"] = &LbsPeer{PlatformInfo: withRelay(relayTestJP), GameDisk: GameDiskDC2}
+		lbs.userPeers["hk"] = &LbsPeer{PlatformInfo: withRelay(relayTestHK), GameDisk: GameDiskDC2}
+		lbs.updateRelay(time.Now())
+	})
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		marked := false
+		lbs.Locked(func(lbs *Lbs) { _, marked = lbs.relayLastNeeded["asia-east2"] })
+		if marked {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("asia-east2 was not marked as needed")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	lbs.Locked(func(lbs *Lbs) {
+		delete(lbs.userPeers, "jp")
+		delete(lbs.userPeers, "hk")
+	})
+}
+
+func BenchmarkLbsRelay_NeededRegions(b *testing.B) {
+	for _, n := range []int{100, 400, 1000} {
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			users := make([]relayUser, n)
+			for i := range users {
+				// Every pair is checked in full: all of them in Japan, none needs a relay.
+				users[i] = relayTestUser(relayTestJP, GameDiskDC2)
+			}
+			regions := relayTestRegions("asia-east2")
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				relayNeededRegions(users, regions)
+			}
 		})
 	}
 }
@@ -130,7 +225,7 @@ func TestLbsRelay_Integration(t *testing.T) {
 	go lbs.ListenAndServe(lbsAddr)
 	dialWithRetry(t, lbsAddr, 5*time.Second).Close()
 
-	udp, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	udp, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	must(t, err)
 	defer udp.Close()
 	relay := NewRelay()
