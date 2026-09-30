@@ -52,6 +52,7 @@ message RelayServer {
   string ip = 2;
   int32 port = 3;
   uint64 token = 4;
+  string ip6 = 5; // empty when the relay has no IPv6 address
 }
 
 message GamePatch {

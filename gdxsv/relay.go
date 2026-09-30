@@ -57,7 +57,8 @@ func mainRelay() {
 		relay.RegisterSession(testSessionID, testToken)
 	}
 
-	conn, err := net.ListenPacket("udp4", conf.RelayAddr)
+	// Without a host in the address, this takes IPv4 and IPv6 alike, so it can relay between the two.
+	conn, err := net.ListenPacket("udp", conf.RelayAddr)
 	if err != nil {
 		logger.Fatal("relay listen failed", zap.Error(err))
 	}
@@ -81,7 +82,8 @@ func mainRelay() {
 	// Without it for a while, stop anyway so an orphaned VM does not keep running.
 	lastConnected := time.Now()
 	for {
-		err := relay.DialAndSyncWithLbs(conf.LobbyPublicAddr, conf.RelayPublicAddr, conf.RelayRegion, &lastConnected)
+		status := RelayStatus{Region: conf.RelayRegion, PublicAddr: conf.RelayPublicAddr, PublicAddr6: conf.RelayPublicAddr6}
+		err := relay.DialAndSyncWithLbs(conf.LobbyPublicAddr, status, &lastConnected)
 		if err == ErrRelayShutdown {
 			logger.Info("relay shutdown requested by lbs")
 			return
@@ -101,9 +103,10 @@ const relayLbsLostTimeout = 15 * time.Minute
 
 // RelayStatus is sent by a relay to the lobby.
 type RelayStatus struct {
-	Region     string `json:"region,omitempty"`
-	PublicAddr string `json:"public_addr,omitempty"`
-	Sessions   int    `json:"sessions"`
+	Region      string `json:"region,omitempty"`
+	PublicAddr  string `json:"public_addr,omitempty"`
+	PublicAddr6 string `json:"public_addr6,omitempty"`
+	Sessions    int    `json:"sessions"`
 }
 
 // RelayControl is sent by the lobby to a relay.
@@ -117,7 +120,7 @@ type RelayControlSession struct {
 	Token     uint64 `json:"token"`
 }
 
-func (r *Relay) DialAndSyncWithLbs(lobbyAddr, publicAddr, region string, lastConnected *time.Time) error {
+func (r *Relay) DialAndSyncWithLbs(lobbyAddr string, status RelayStatus, lastConnected *time.Time) error {
 	conn, err := net.Dial("tcp4", lobbyAddr)
 	if err != nil {
 		return err
@@ -127,7 +130,8 @@ func (r *Relay) DialAndSyncWithLbs(lobbyAddr, publicAddr, region string, lastCon
 	logger.Info("relay connected to lbs", zap.String("lobby_addr", lobbyAddr))
 
 	sendStatus := func() error {
-		body, err := json.Marshal(RelayStatus{Region: region, PublicAddr: publicAddr, Sessions: r.ActiveSessions()})
+		status.Sessions = r.ActiveSessions()
+		body, err := json.Marshal(status)
 		if err != nil {
 			return err
 		}
@@ -341,7 +345,7 @@ func (r *Relay) handlePing(p []byte, from *net.UDPAddr) (*net.UDPAddr, []byte) {
 		}
 		s.peers[peer] = from
 		r.bindings[key] = relayBinding{session: s, peer: peer}
-		logger.Info("relay peer bound", zap.Uint32("session_id", sessionID), zap.Uint8("peer", peer))
+		logger.Info("relay peer bound", zap.Uint32("session_id", sessionID), zap.Uint8("peer", peer), zap.String("addr", key))
 	}
 	s.lastActive = r.now()
 

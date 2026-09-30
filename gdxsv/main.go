@@ -72,8 +72,9 @@ type Config struct {
 	BattleLogPath    string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
 	RelayAddr        string `env:"GDXSV_RELAY_ADDR" envDefault:":9879"`
 	RelayPublicAddr  string `env:"GDXSV_RELAY_PUBLIC_ADDR" envDefault:"127.0.0.1:9879"`
-	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`  // relay: where it runs
-	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""` // lbs: comma separated regions it may start relays in
+	RelayPublicAddr6 string `env:"GDXSV_RELAY_PUBLIC_ADDR6" envDefault:""` // [ipv6]:port, same port
+	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`       // relay: where it runs
+	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""`      // lbs: comma separated regions it may start relays in
 
 	SpectatorMaxSubscribers          int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS" envDefault:"4096"`
 	SpectatorMaxSubscribersPerBattle int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS_PER_BATTLE" envDefault:"512"`
@@ -99,6 +100,7 @@ Usage: gdxsv <Flags...> [lbs, mcs, relay, initdb, migratedb]
 
   lbs: Serve lobby server and default battle server.
     A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.
+    It also serves a default rollback relay on GDXSV_RELAY_ADDR (empty to disable).
 
   mcs: Serve battle server.
     The mcs attempts to register itself with a lbs.
@@ -211,6 +213,11 @@ func mainLbs() {
 	defer stop()
 
 	lbs := NewLbs()
+	if conf.RelayAddr != "" {
+		if err := lbs.StartLocalRelay(conf.RelayAddr, conf.RelayPublicAddr, conf.RelayPublicAddr6); err != nil {
+			logger.Error("local relay not started", zap.Error(err))
+		}
+	}
 	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
 
 	mcs := NewMcs(*mcsdelay)

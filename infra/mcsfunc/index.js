@@ -5,6 +5,9 @@ const url = require('url');
 
 const usePreemptibleVM = false;
 
+// Relay VMs run in a custom-mode network whose subnets are dual-stack, so they get an external IPv6 address.
+const relayNetwork = "gdxsv-relay";
+
 // https://cloud.google.com/compute/docs/regions-zones
 const gcpRegions = {
     "asia-east1": {"zones": ["a", "b", "c"], "location": "Changhua County, Taiwan"},
@@ -160,6 +163,11 @@ export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
 export GDXSV_RELAY_ADDR=:9879
 export GDXSV_RELAY_REGION=\${ZONE%-*}
 export GDXSV_RELAY_PUBLIC_ADDR=$(curl -s -H "Metadata-Flavor: Google" $METADATA/network-interfaces/0/access-configs/0/external-ip):9879
+# The VM's external IPv6 address is on its interface. Skip temporary and deprecated ones.
+readonly IPV6=$(ip -6 -o addr show scope global | grep -v -e temporary -e deprecated | awk '{print $4}' | cut -d/ -f1 | head -n1)
+if [[ -n $IPV6 ]]; then
+  export GDXSV_RELAY_PUBLIC_ADDR6="[$IPV6]:9879"
+fi
 
 "$TAG_NAME"/bin/gdxsv -prodlog relay >> /var/log/gdxsv-relay.log 2>&1
 EOF
@@ -319,9 +327,18 @@ async function getAlloc(req, res) {
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
                 os: "ubuntu-2204-jammy-v",
-                http: true,
-                tags: ["gdxsv-mcs"],
+                ...(role === "relay" ? {} : {http: true}),
+                tags: [role === "relay" ? "gdxsv-relay" : "gdxsv-mcs"],
                 machineType: role === "relay" ? "e2-micro" : "e2-medium",
+                ...(role === "relay" ? {
+                    networkInterfaces: [{
+                        network: `global/networks/${relayNetwork}`,
+                        subnetwork: `regions/${region}/subnetworks/${relayNetwork}-${region}`,
+                        stackType: "IPV4_IPV6",
+                        accessConfigs: [{type: "ONE_TO_ONE_NAT", name: "External NAT", networkTier: "PREMIUM"}],
+                        ipv6AccessConfigs: [{type: "DIRECT_IPV6", name: "External IPv6", networkTier: "PREMIUM"}],
+                    }],
+                } : {}),
                 scheduling: scheduling,
                 metadata: {
                     items: [

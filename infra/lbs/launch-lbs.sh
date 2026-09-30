@@ -13,6 +13,13 @@ export GDXSV_LOBBY_ADDR=":9876"
 export GDXSV_LOBBY_HTTP_ADDR=":9880"
 export GDXSV_BATTLE_PUBLIC_ADDR="153.121.44.150:9877"
 export GDXSV_BATTLE_ADDR=":9877"
+export GDXSV_RELAY_PUBLIC_ADDR="153.121.44.150:9879"
+export GDXSV_RELAY_ADDR=":9879"
+# The VPS's own stable IPv6 address, not a temporary one.
+readonly IPV6=$(ip -6 -o addr show scope global | grep -v -e temporary -e deprecated | awk '{print $4}' | cut -d/ -f1 | head -n1)
+if [[ -n $IPV6 ]]; then
+  export GDXSV_RELAY_PUBLIC_ADDR6="[$IPV6]:9879"
+fi
 export GDXSV_DB_NAME="gdxsv.db"
 export GDXSV_GCP_PROJECT_ID="gdxsv-274515"
 export GDXSV_GCP_KEY_PATH="/etc/google/auth/application_default_credentials.json"

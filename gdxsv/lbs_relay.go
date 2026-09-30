@@ -24,7 +24,53 @@ const (
 
 	relayIdleShutdown   = 15 * time.Minute
 	relayUpdateInterval = 10 * time.Second
+
+	localRelayRegion  = "lbs"
+	maxRelaysPerMatch = 4 // what clients accept
 )
+
+// relayEndpoint is a relay a match can be offered: a relay VM registered with the lobby, or the lobby's own.
+type relayEndpoint struct {
+	region      string
+	publicAddr  string
+	publicAddr6 string
+	register    func(sessionID uint32, token uint64)
+}
+
+func peerRelayEndpoint(p *LbsPeer) *relayEndpoint {
+	return &relayEndpoint{
+		region:      p.relayStatus.Region,
+		publicAddr:  p.relayStatus.PublicAddr,
+		publicAddr6: p.relayStatus.PublicAddr6,
+		register: func(sessionID uint32, token uint64) {
+			sendRelayControl(p, &RelayControl{Sessions: []RelayControlSession{{SessionID: sessionID, Token: token}}})
+		},
+	}
+}
+
+// StartLocalRelay runs a relay inside the lobby process. Matches get it when no relay VM is running.
+func (lbs *Lbs) StartLocalRelay(addr, publicAddr, publicAddr6 string) error {
+	conn, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return err
+	}
+	relay := NewRelay()
+	go relay.Serve(conn)
+	go func() {
+		for range time.Tick(10 * time.Second) {
+			relay.RemoveStaleSessions()
+		}
+	}()
+	lbs.localRelay = &relayEndpoint{
+		region:      localRelayRegion,
+		publicAddr:  publicAddr,
+		publicAddr6: publicAddr6,
+		register:    relay.RegisterSession,
+	}
+	logger.Info("local relay listening", zap.String("addr", addr),
+		zap.String("public_addr", publicAddr), zap.String("public_addr6", publicAddr6))
+	return nil
+}
 
 var _ = register(lbsExtRelayStatus, func(p *LbsPeer, m *LbsMessage) {
 	var status RelayStatus
@@ -123,18 +169,16 @@ func (lbs *Lbs) findRelay(region string) *LbsPeer {
 	return nil
 }
 
-// selectRelay picks the one relay offered to a match: the one whose worst relayed RTT between participants is the lowest.
-// A single relay keeps every pair of peers on the same server, so the server's NAT mappings stay open on both sides.
-func (lbs *Lbs) selectRelay(participants []*LbsPeer) *LbsPeer {
-	addrs := make([]string, 0, len(lbs.relayPeers))
-	for addr := range lbs.relayPeers {
-		addrs = append(addrs, addr)
+// matchRelays lists the relays offered to a match, best first: relay VMs by their worst relayed RTT between
+// participants, then the lobby's own relay. Clients pick the relay for each peer by the lowest sum of both RTTs to
+// it, and settle disagreements on the earlier one, so the order must be the same for every participant.
+func (lbs *Lbs) matchRelays(participants []*LbsPeer) []*relayEndpoint {
+	type scored struct {
+		p     *LbsPeer
+		worst int
 	}
-	sort.Strings(addrs)
-	var found *LbsPeer
-	bestWorst := 0
-	for _, addr := range addrs {
-		p := lbs.relayPeers[addr]
+	var vms []scored
+	for _, p := range lbs.relayPeers {
 		worst := 0
 		for i := range participants {
 			for j := i + 1; j < len(participants); j++ {
@@ -148,11 +192,26 @@ func (lbs *Lbs) selectRelay(participants []*LbsPeer) *LbsPeer {
 				}
 			}
 		}
-		if found == nil || worst < bestWorst {
-			found, bestWorst = p, worst
-		}
+		vms = append(vms, scored{p, worst})
 	}
-	return found
+	sort.Slice(vms, func(i, j int) bool {
+		if vms[i].worst != vms[j].worst {
+			return vms[i].worst < vms[j].worst
+		}
+		return vms[i].p.relayStatus.PublicAddr < vms[j].p.relayStatus.PublicAddr
+	})
+
+	var relays []*relayEndpoint
+	for _, v := range vms {
+		relays = append(relays, peerRelayEndpoint(v.p))
+	}
+	if lbs.localRelay != nil {
+		relays = append(relays, lbs.localRelay)
+	}
+	if maxRelaysPerMatch < len(relays) {
+		relays = relays[:maxRelaysPerMatch]
+	}
+	return relays
 }
 
 // updateRelay starts relay VMs in the regions that may be needed and stops each once it has been unneeded and idle for a while.
@@ -195,8 +254,8 @@ func allSupportRelay(participants []*LbsPeer) bool {
 }
 
 // openRelaySession admits the players of a match to the relay and returns what they need to use it.
-func openRelaySession(relay *LbsPeer, sessionID uint32) (*proto.RelayServer, error) {
-	host, portStr, err := net.SplitHostPort(relay.relayStatus.PublicAddr)
+func openRelaySession(relay *relayEndpoint, sessionID uint32) (*proto.RelayServer, error) {
+	host, portStr, err := net.SplitHostPort(relay.publicAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -228,11 +287,30 @@ func openRelaySession(relay *LbsPeer, sessionID uint32) (*proto.RelayServer, err
 	}
 	token := binary.LittleEndian.Uint64(b[:])
 
-	sendRelayControl(relay, &RelayControl{Sessions: []RelayControlSession{{SessionID: sessionID, Token: token}}})
+	relay.register(sessionID, token)
 	return &proto.RelayServer{
-		Region: relay.relayStatus.Region,
+		Region: relay.region,
 		Ip:     ip.To4().String(),
+		Ip6:    relayIPv6(relay.publicAddr6, port),
 		Port:   int32(port),
 		Token:  token,
 	}, nil
+}
+
+// relayIPv6 returns the relay's numeric IPv6 address, or "" if it has none on the same port.
+func relayIPv6(publicAddr6 string, port int) string {
+	if publicAddr6 == "" {
+		return ""
+	}
+	host, portStr, err := net.SplitHostPort(publicAddr6)
+	if err != nil || portStr != strconv.Itoa(port) {
+		logger.Warn("ignoring relay IPv6 address", zap.String("public_addr6", publicAddr6))
+		return ""
+	}
+	ip := net.ParseIP(host)
+	if ip == nil || ip.To4() != nil {
+		logger.Warn("ignoring relay IPv6 address", zap.String("public_addr6", publicAddr6))
+		return ""
+	}
+	return ip.String()
 }

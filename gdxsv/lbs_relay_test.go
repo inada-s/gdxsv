@@ -59,23 +59,55 @@ func TestLbsRelay_NeededRegions(t *testing.T) {
 	}
 }
 
-func TestLbsRelay_SelectRelay(t *testing.T) {
+func TestLbsRelay_MatchRelays(t *testing.T) {
 	relay := func(region string) *LbsPeer {
 		return &LbsPeer{relayStatus: &RelayStatus{Region: region, PublicAddr: region + ":9879"}}
 	}
-	hk, sg := relay("asia-east2"), relay("asia-southeast1")
-	lbs := &Lbs{relayPeers: map[string]*LbsPeer{"hk": hk, "sg": sg}}
-	jp1, jp2 := &LbsPeer{PlatformInfo: relayTestJP}, &LbsPeer{PlatformInfo: relayTestJP}
-	hk1, sg1 := &LbsPeer{PlatformInfo: relayTestHK}, &LbsPeer{PlatformInfo: relayTestSG}
-	if lbs.selectRelay([]*LbsPeer{jp1, jp2, hk1, hk1}) != hk {
-		t.Fatal("jp vs hk should use the hong kong relay")
+	regionsOf := func(relays []*relayEndpoint) []string {
+		var r []string
+		for _, e := range relays {
+			r = append(r, e.region)
+		}
+		return r
 	}
-	if lbs.selectRelay([]*LbsPeer{sg1, sg1, hk1, sg1}) != sg {
-		t.Fatal("sg vs hk should use the singapore relay")
+	local := &relayEndpoint{region: localRelayRegion, publicAddr: "127.0.0.1:9879"}
+	lbs := &Lbs{
+		relayPeers: map[string]*LbsPeer{"hk": relay("asia-east2"), "sg": relay("asia-southeast1")},
+		localRelay: local,
 	}
-	if (&Lbs{relayPeers: map[string]*LbsPeer{}}).selectRelay([]*LbsPeer{jp1, hk1}) != nil {
-		t.Fatal("no relay to select")
+	jp, hk, sg := &LbsPeer{PlatformInfo: relayTestJP}, &LbsPeer{PlatformInfo: relayTestHK}, &LbsPeer{PlatformInfo: relayTestSG}
+
+	// Best estimate first, the lobby's own relay last.
+	assertEq(t, []string{"asia-east2", "asia-southeast1", "lbs"}, regionsOf(lbs.matchRelays([]*LbsPeer{jp, jp, hk, hk})))
+	assertEq(t, []string{"asia-southeast1", "asia-east2", "lbs"}, regionsOf(lbs.matchRelays([]*LbsPeer{sg, sg, hk, sg})))
+	// Only the lobby's own relay while no VM runs.
+	assertEq(t, []string{"lbs"}, regionsOf((&Lbs{relayPeers: map[string]*LbsPeer{}, localRelay: local}).matchRelays([]*LbsPeer{jp, hk})))
+	assertEq(t, 0, len((&Lbs{relayPeers: map[string]*LbsPeer{}}).matchRelays([]*LbsPeer{jp, hk})))
+
+	// Capped at what clients accept.
+	for _, r := range []string{"asia-east1", "asia-northeast1", "asia-northeast2"} {
+		lbs.relayPeers[r] = relay(r)
 	}
+	assertEq(t, maxRelaysPerMatch, len(lbs.matchRelays([]*LbsPeer{jp, hk})))
+}
+
+func TestLbsRelay_IPv6(t *testing.T) {
+	assertEq(t, "2001:db8::1", relayIPv6("[2001:db8::1]:9879", 9879))
+	assertEq(t, "", relayIPv6("", 9879))
+	assertEq(t, "", relayIPv6("[2001:db8::1]:9870", 9879)) // must share the IPv4 port
+	assertEq(t, "", relayIPv6("192.0.2.1:9879", 9879))
+	assertEq(t, "", relayIPv6("relay.example:9879", 9879))
+}
+
+func TestLbsRelay_LocalRelaySession(t *testing.T) {
+	relay := NewRelay()
+	ep := &relayEndpoint{region: localRelayRegion, publicAddr: "203.0.113.5:9879", register: relay.RegisterSession}
+	server, err := openRelaySession(ep, 555)
+	must(t, err)
+	assertEq(t, "203.0.113.5", server.GetIp())
+	assertEq(t, int32(9879), server.GetPort())
+	assertEq(t, "lbs", server.GetRegion())
+	assertEq(t, server.GetToken(), relay.sessions[555].token)
 }
 
 func TestLbsRelay_AllSupportRelay(t *testing.T) {
@@ -107,7 +139,9 @@ func TestLbsRelay_Integration(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		var lastConnected time.Time
-		done <- relay.DialAndSyncWithLbs(lbsAddr, udp.LocalAddr().String(), "asia-east2", &lastConnected)
+		status := RelayStatus{Region: "asia-east2", PublicAddr: udp.LocalAddr().String(), PublicAddr6: "[2001:db8::7]:" +
+			strconv.Itoa(udp.LocalAddr().(*net.UDPAddr).Port)}
+		done <- relay.DialAndSyncWithLbs(lbsAddr, status, &lastConnected)
 	}()
 
 	waitFor := func(what string, cond func() bool) {
@@ -139,15 +173,17 @@ func TestLbsRelay_Integration(t *testing.T) {
 
 	var server interface {
 		GetIp() string
+		GetIp6() string
 		GetPort() int32
 		GetToken() uint64
 	}
 	lbs.Locked(func(lbs *Lbs) {
-		s, err := openRelaySession(lbs.findRelay("asia-east2"), 777)
+		s, err := openRelaySession(peerRelayEndpoint(lbs.findRelay("asia-east2")), 777)
 		must(t, err)
 		server = s
 	})
 	assertEq(t, "127.0.0.1", server.GetIp())
+	assertEq(t, "2001:db8::7", server.GetIp6())
 	assertEq(t, int32(udp.LocalAddr().(*net.UDPAddr).Port), server.GetPort())
 	waitFor("session on the relay", func() bool {
 		relay.mtx.Lock()

@@ -54,6 +54,7 @@ type Lbs struct {
 
 	relayPeers      map[string]*LbsPeer
 	relayLastNeeded map[string]time.Time // by region
+	localRelay      *relayEndpoint
 }
 
 func NewLbs() *Lbs {
