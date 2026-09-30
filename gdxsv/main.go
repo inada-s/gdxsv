@@ -54,6 +54,8 @@ var (
 	prodlog  = flag.Bool("prodlog", false, "use production logging mode")
 	loglevel = flag.Int("v", 2, "logging level. 1:error, 2:info, 3:debug")
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
+
+	relayTestSession = flag.String("relay_test_session", "", "relay: always accept this session, as <session_id>:<hex token> (local test)")
 )
 
 var (
@@ -68,6 +70,12 @@ type Config struct {
 	BattlePublicAddr string `env:"GDXSV_BATTLE_PUBLIC_ADDR" envDefault:"127.0.0.1:3334"`
 	BattleRegion     string `env:"GDXSV_BATTLE_REGION" envDefault:""`
 	BattleLogPath    string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
+	RelayAddr        string `env:"GDXSV_RELAY_ADDR" envDefault:":9879"`
+	RelayPublicAddr  string `env:"GDXSV_RELAY_PUBLIC_ADDR" envDefault:"127.0.0.1:9879"`
+	RelayPublicAddr6 string `env:"GDXSV_RELAY_PUBLIC_ADDR6" envDefault:""` // [ipv6]:port, same port
+	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`       // relay: where it runs
+	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""`      // lbs: comma separated regions it may start relays in
+	RelaySecret      string `env:"GDXSV_RELAY_SECRET" envDefault:""`       // shared by lbs and relays; lbs accepts no relay without it
 
 	SpectatorMaxSubscribers          int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS" envDefault:"4096"`
 	SpectatorMaxSubscribersPerBattle int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS_PER_BATTLE" envDefault:"512"`
@@ -89,15 +97,19 @@ func printHeader() {
 
 func printUsage() {
 	fmt.Print(`
-Usage: gdxsv <Flags...> [lbs, mcs, initdb, migratedb]
+Usage: gdxsv <Flags...> [lbs, mcs, relay, initdb, migratedb]
 
   lbs: Serve lobby server and default battle server.
     A lbs hosts PS2, DC1 and DC2 version, but their lobbies are separated internally.
+    It also serves a default rollback relay on GDXSV_RELAY_ADDR (empty to disable).
 
   mcs: Serve battle server.
     The mcs attempts to register itself with a lbs.
     When the mcs is vacant for a certain period, it will automatically end.
     It is supposed to host mcs in a different location than the lobby server.
+
+  relay: Serve rollback packet relay.
+    It relays GGPO packets between players whose direct route is poor.
 
   initdb: Initialize database.
     It is supposed to run this command before you run lbs first time.
@@ -202,6 +214,11 @@ func mainLbs() {
 	defer stop()
 
 	lbs := NewLbs()
+	if conf.RelayAddr != "" {
+		if err := lbs.StartLocalRelay(conf.RelayAddr, conf.RelayPublicAddr, conf.RelayPublicAddr6); err != nil {
+			logger.Error("local relay not started", zap.Error(err))
+		}
+	}
 	go lbs.ListenAndServe(stripHost(conf.LobbyAddr))
 
 	mcs := NewMcs(*mcsdelay)
@@ -315,6 +332,8 @@ func main() {
 		mainLbs()
 	case "mcs":
 		mainMcs()
+	case "relay":
+		mainRelay()
 	case "initdb":
 		_ = os.Remove(conf.DBName)
 		prepareDB()

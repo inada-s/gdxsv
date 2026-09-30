@@ -14,7 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "@google-cloud/compute": "^2.6.0",
-    "@google-cloud/functions-framework": "^1.9.0",
+    "@google-cloud/functions-framework": "^3.5.1",
     "npm-watch": "^0.10.0",
     "querystring": "^0.2.1"
   }

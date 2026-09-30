@@ -5,6 +5,14 @@ const url = require('url');
 
 const usePreemptibleVM = false;
 
+// Relay VMs run in a custom-mode network whose subnets are dual-stack, so they get an external IPv6 address.
+const relayNetwork = "gdxsv-relay";
+
+// Shared with the lobby (GDXSV_RELAY_SECRET): the lobby only accepts relays that know it. It is written into the
+// startup script, so it must be plain.
+const relaySecret = process.env.GDXSV_RELAY_SECRET || "";
+const relaySecretValid = /^[A-Za-z0-9_-]{16,}$/.test(relaySecret);
+
 // https://cloud.google.com/compute/docs/regions-zones
 const gcpRegions = {
     "asia-east1": {"zones": ["a", "b", "c"], "location": "Changhua County, Taiwan"},
@@ -117,6 +125,70 @@ echo "startup-script done"
 `
 }
 
+function getRelayStartupScript(version) {
+    return `\
+#!/bin/bash
+echo "startup-script"
+
+snap install jq
+
+cat << 'EOF' > /home/ubuntu/launch-relay.sh
+#!/bin/bash -eux
+
+# The lobby stops the relay once no match needs it; stop the VM with it.
+function finish {
+  echo "relay finished" | logger
+  sleep 1
+  sudo /sbin/shutdown now
+}
+trap finish EXIT
+
+readonly VERSION=${version}
+
+if [[ -z $VERSION || $VERSION == "latest" ]]; then
+  readonly TAG_NAME=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
+  readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
+else
+  readonly TAG_NAME=$VERSION
+  readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/tags/$TAG_NAME | jq -r '.assets[].browser_download_url')
+fi
+
+if [[ ! -d $TAG_NAME/bin ]]; then
+  echo "Downloading $TAG_NAME"
+  mkdir -p "$TAG_NAME"
+  pushd "$TAG_NAME"
+    wget "$DOWNLOAD_URL"
+    tar xzvf bin.tgz && rm bin.tgz
+  popd
+fi
+
+readonly METADATA=http://metadata.google.internal/computeMetadata/v1/instance
+readonly ZONE=$(basename $(curl -s -H "Metadata-Flavor: Google" $METADATA/zone))
+export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
+export GDXSV_RELAY_ADDR=:9879
+export GDXSV_RELAY_SECRET=${relaySecret}
+export GDXSV_RELAY_REGION=\${ZONE%-*}
+export GDXSV_RELAY_PUBLIC_ADDR=$(curl -s -H "Metadata-Flavor: Google" $METADATA/network-interfaces/0/access-configs/0/external-ip):9879
+# The VM's external IPv6 address is on its interface. Skip temporary and deprecated ones.
+readonly IPV6=$(ip -6 -o addr show scope global | grep -v -e temporary -e deprecated | awk '{print $4}' | cut -d/ -f1 | head -n1)
+if [[ -n $IPV6 ]]; then
+  export GDXSV_RELAY_PUBLIC_ADDR6="[$IPV6]:9879"
+fi
+
+"$TAG_NAME"/bin/gdxsv -prodlog relay >> /var/log/gdxsv-relay.log 2>&1
+EOF
+
+touch /var/log/gdxsv-relay.log
+truncate -s0 /var/log/gdxsv-relay.log
+chown ubuntu:ubuntu /var/log/gdxsv-relay.log
+
+chmod +x /home/ubuntu/launch-relay.sh
+
+su ubuntu -c 'cd /home/ubuntu && nohup ./launch-relay.sh &'
+echo "startup-script done"
+`
+}
+
 const forResponse = (vm) => {
     const v = {};
     try {
@@ -185,8 +257,10 @@ async function getAlloc(req, res) {
     const query = url.parse(req.url, true).query
     const region = query["region"];
     const version = query["version"] ? query["version"] : "latest";
+    const role = query["role"] ? query["role"] : "mcs";
     const regionInfo = gcpRegions[region];
-    const vmName = "gdxsv-mcs-" + region + "-" + version.replace(/\./g, "-");
+    const vmName = "gdxsv-" + role + "-" + region + "-" + version.replace(/\./g, "-");
+    const startupScript = role === "relay" ? getRelayStartupScript(version) : getStartupScript(version);
     const scheduling = {
         "onHostMaintenance": usePreemptibleVM ? "TERMINATE": "MIGRATE",
         "preemptible": usePreemptibleVM,
@@ -195,6 +269,17 @@ async function getAlloc(req, res) {
 
     if (!regionInfo) {
         res.status(400).send('invalid region');
+        return;
+    }
+
+    if (role !== "mcs" && role !== "relay") {
+        res.status(400).send('invalid role');
+        return;
+    }
+
+    if (role === "relay" && !relaySecretValid) {
+        console.log("GDXSV_RELAY_SECRET is not set or not plain [A-Za-z0-9_-]{16,}");
+        res.status(500).send('relay secret not configured');
         return;
     }
 
@@ -221,7 +306,7 @@ async function getAlloc(req, res) {
         try {
             console.log("starting vm...", vm);
             let [operation] = await vm.setMetadata({
-                "startup-script": getStartupScript(version),
+                "startup-script": startupScript,
                 "enable-osconfig": "TRUE",
                 "enable-guest-attributes": "TRUE",
             });
@@ -254,13 +339,22 @@ async function getAlloc(req, res) {
             const zone = compute.zone(zoneName);
             const [vm, operation] = await zone.createVM(vmName, {
                 os: "ubuntu-2204-jammy-v",
-                http: true,
-                tags: ["gdxsv-mcs"],
-                machineType: "e2-medium",
+                ...(role === "relay" ? {} : {http: true}),
+                tags: [role === "relay" ? "gdxsv-relay" : "gdxsv-mcs"],
+                machineType: role === "relay" ? "e2-micro" : "e2-medium",
+                ...(role === "relay" ? {
+                    networkInterfaces: [{
+                        network: `global/networks/${relayNetwork}`,
+                        subnetwork: `regions/${region}/subnetworks/${relayNetwork}-${region}`,
+                        stackType: "IPV4_IPV6",
+                        accessConfigs: [{type: "ONE_TO_ONE_NAT", name: "External NAT", networkTier: "PREMIUM"}],
+                        ipv6AccessConfigs: [{type: "DIRECT_IPV6", name: "External IPv6", networkTier: "PREMIUM"}],
+                    }],
+                } : {}),
                 scheduling: scheduling,
                 metadata: {
                     items: [
-                        {key: "startup-script", value: getStartupScript(version)},
+                        {key: "startup-script", value: startupScript},
                         {key: "enable-osconfig", value: "TRUE"},
                         {key: "enable-guest-attributes", value: "TRUE"},
                     ],

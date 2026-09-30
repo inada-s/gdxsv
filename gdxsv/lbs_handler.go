@@ -163,6 +163,8 @@ const (
 
 	// gdxsv extended commands
 	lbsExtSyncSharedData CmdID = 0x9900
+	lbsExtRelayStatus    CmdID = 0x9901
+	lbsExtRelayControl   CmdID = 0x9902
 	lbsPlatformInfo      CmdID = 0x9950
 	lbsGamePatch         CmdID = 0x9960
 	lbsP2PMatching       CmdID = 0x9961
