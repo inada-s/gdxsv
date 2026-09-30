@@ -22,6 +22,7 @@ import (
 //	uint32 session_id, uint64 token, uint64 timestamp
 //
 // The relay answers with a pong carrying the same fields and binds the sender address to (session, peer).
+// A player may ping from IPv4 and IPv6 alike; packets for it go to the address it last sent a game packet from.
 // Game packets use GGPO's own relay header, the same one peers use to relay for each other:
 //
 //	uint16 const_magic, uint16 magic, uint16 sequence, uint8 remote_endpoint, uint8 type,
@@ -217,10 +218,33 @@ func parseRelayTestSession(s string) (uint32, uint64, error) {
 type relaySession struct {
 	id         uint32
 	token      uint64
-	peers      [relayMaxPeers]netip.AddrPort // zero value while unbound
+	peers      [relayMaxPeers]relayPeer
 	created    time.Time
 	lastActive time.Time
 	forwarded  uint64
+}
+
+// relayPeer is a player bound to a session, by up to one address per IP family.
+type relayPeer struct {
+	addrs   [2]netip.AddrPort // IPv4, IPv6; zero value while unbound
+	active  netip.AddrPort    // where packets for this player go
+	playing bool              // active is where it sends game packets from, not just where it last pinged from
+}
+
+func relayFamily(addr netip.AddrPort) int {
+	if addr.Addr().Is4() {
+		return 0
+	}
+	return 1
+}
+
+// unbind forgets addr, one of the player's addresses.
+func (p *relayPeer) unbind(addr netip.AddrPort) {
+	p.addrs[relayFamily(addr)] = netip.AddrPort{}
+	if p.active == addr {
+		p.active = netip.AddrPort{}
+		p.playing = false
+	}
 }
 
 type relayBinding struct {
@@ -272,9 +296,11 @@ func (r *Relay) ActiveSessions() int {
 }
 
 func (r *Relay) removeSessionLocked(s *relaySession) {
-	for _, addr := range s.peers {
-		if addr.IsValid() {
-			delete(r.bindings, addr)
+	for _, p := range s.peers {
+		for _, addr := range p.addrs {
+			if addr.IsValid() {
+				delete(r.bindings, addr)
+			}
 		}
 	}
 	delete(r.sessions, s.id)
@@ -340,18 +366,23 @@ func (r *Relay) handlePing(p []byte, from netip.AddrPort) (netip.AddrPort, []byt
 		return netip.AddrPort{}, nil
 	}
 
-	if old := s.peers[peer]; old != from {
+	sp := &s.peers[peer]
+	if old := sp.addrs[relayFamily(from)]; old != from {
 		if old.IsValid() {
 			delete(r.bindings, old)
+			sp.unbind(old)
 		}
 		if b, ok := r.bindings[from]; ok {
 			// The address moved to another peer or session; forget where it was.
-			b.session.peers[b.peer] = netip.AddrPort{}
+			b.session.peers[b.peer].unbind(from)
 		}
-		s.peers[peer] = from
+		sp.addrs[relayFamily(from)] = from
 		r.bindings[from] = relayBinding{session: s, peer: peer}
 		logger.Info("relay peer bound", zap.Uint32("session_id", sessionID), zap.Uint8("peer", peer),
 			zap.String("addr", from.String()))
+	}
+	if !sp.playing {
+		sp.active = from
 	}
 	s.lastActive = r.now()
 
@@ -370,11 +401,14 @@ func (r *Relay) handleGgpo(p []byte, from netip.AddrPort) (netip.AddrPort, []byt
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	b, ok := r.bindings[from]
-	if !ok {
+	if !ok || to == b.peer {
 		return netip.AddrPort{}, nil
 	}
-	dst := b.session.peers[to]
-	if !dst.IsValid() || to == b.peer {
+	// Answer the sender where it sends from, so its NAT mapping for that family stays open.
+	src := &b.session.peers[b.peer]
+	src.active, src.playing = from, true
+	dst := b.session.peers[to].active
+	if !dst.IsValid() {
 		return netip.AddrPort{}, nil
 	}
 	b.session.lastActive = r.now()

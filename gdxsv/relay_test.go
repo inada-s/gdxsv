@@ -49,7 +49,7 @@ func TestRelay_PingBindsPeer(t *testing.T) {
 	assertEq(t, byte(2), pong[5])
 	assertEq(t, byte(1), pong[6])
 	assertEq(t, uint64(777), binary.LittleEndian.Uint64(pong[20:]))
-	assertEq(t, a.String(), r.sessions[100].peers[2].String())
+	assertEq(t, a.String(), r.sessions[100].peers[2].active.String())
 }
 
 func TestRelay_PingRejected(t *testing.T) {
@@ -257,4 +257,30 @@ func BenchmarkRelay_Forward(b *testing.B) {
 		n := copy(buf, forward)
 		r.handle(buf[:n], a)
 	}
+}
+
+// A player pings from both IP families; packets for it follow the family it sends game packets from.
+func TestRelay_BothFamilies(t *testing.T) {
+	r := NewRelay()
+	r.RegisterSession(100, 1)
+	a4, a6 := udpAddr("1.2.3.4:5000"), udpAddr("[2001:db8::1]:5000")
+	b := udpAddr("5.6.7.8:6000")
+	r.handle(relayPing(0, 100, 1, 0), a4)
+	r.handle(relayPing(0, 100, 1, 0), a6)
+	r.handle(relayPing(1, 100, 1, 0), b)
+
+	// Before peer 0 sends game packets, its last ping decides.
+	dst, _ := r.handle(ggpoRelayPacket(1, 0, 3), b)
+	assertEq(t, a6, dst)
+
+	// Peer 0 plays over IPv4: packets for it go there, even if a late IPv6 ping arrives.
+	dst, _ = r.handle(ggpoRelayPacket(0, 1, 3), a4)
+	assertEq(t, b, dst)
+	r.handle(relayPing(0, 100, 1, 0), a6)
+	dst, _ = r.handle(ggpoRelayPacket(1, 0, 3), b)
+	assertEq(t, a4, dst)
+
+	// Both of its addresses are accepted.
+	dst, _ = r.handle(ggpoRelayPacket(0, 1, 3), a6)
+	assertEq(t, b, dst)
 }

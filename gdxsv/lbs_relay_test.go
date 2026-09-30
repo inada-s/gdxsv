@@ -2,7 +2,6 @@ package main
 
 import (
 	"net"
-	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -16,142 +15,54 @@ func latencies(kv ...interface{}) map[string]string {
 	return m
 }
 
-// GCP latencies close to what real players report.
+// GCP latencies close to what real players report, for ordering relays.
 var (
 	relayTestJP = latencies("asia-east2", 67, "asia-east1", 53, "asia-northeast1", 26, "asia-northeast2", 18, "asia-southeast1", 99, "europe-west2", 230)
 	relayTestHK = latencies("asia-east2", 9, "asia-east1", 35, "asia-northeast1", 67, "asia-northeast2", 56, "asia-southeast1", 42, "europe-west2", 190)
-	relayTestTW = latencies("asia-east2", 25, "asia-east1", 8, "asia-northeast1", 45, "asia-northeast2", 40, "asia-southeast1", 50, "europe-west2", 220)
 	relayTestSG = latencies("asia-east2", 35, "asia-east1", 50, "asia-northeast1", 70, "asia-northeast2", 75, "asia-southeast1", 5, "europe-west2", 160)
-	relayTestEU = latencies("asia-east2", 190, "asia-east1", 230, "asia-northeast1", 230, "asia-northeast2", 240, "asia-southeast1", 160, "europe-west2", 10)
 )
 
-// relayTestKR is close enough to Japan that only the lowered minimum distance counts the pair.
-var relayTestKR = latencies("asia-east2", 50, "asia-east1", 40, "asia-northeast1", 30, "asia-northeast2", 28, "asia-southeast1", 80, "europe-west2", 240)
-
-func relayTestUser(info map[string]string, disk string) relayUser {
-	m := map[string]string{"relay_server": "1"}
-	for k, v := range info {
-		m[k] = v
+func TestLbsRelay_Needed(t *testing.T) {
+	user := func(bestRegion string) *LbsPeer {
+		return &LbsPeer{PlatformInfo: map[string]string{"relay_server": "1"}, bestRegion: bestRegion}
 	}
-	u, _ := newRelayUser(&LbsPeer{PlatformInfo: m, GameDisk: disk})
-	return u
-}
-
-func relayTestRegions(names ...string) []int {
-	var r []int
-	for _, n := range names {
-		r = append(r, sort.SearchStrings(relayRegionNames, n))
-	}
-	return r
-}
-
-func TestLbsRelay_NeededRegions(t *testing.T) {
-	hkOnly := relayTestRegions("asia-east2")
-	hkOsaka := relayTestRegions("asia-east2", "asia-northeast2")
-	osaka := relayTestRegions("asia-northeast2")
-	dc2 := func(infos ...map[string]string) []relayUser {
-		var users []relayUser
-		for _, info := range infos {
-			users = append(users, relayTestUser(info, GameDiskDC2))
-		}
-		return users
-	}
+	old := &LbsPeer{PlatformInfo: map[string]string{}, bestRegion: "asia-east2"}
 	tests := []struct {
-		name    string
-		regions []int
-		users   []relayUser
-		want    []string
+		name  string
+		peers []*LbsPeer
+		want  bool
 	}{
-		{"jp and hk", hkOnly, dc2(relayTestJP, relayTestHK), []string{"asia-east2"}},
-		{"jp and hk among others", hkOnly, dc2(relayTestJP, relayTestJP, relayTestHK, relayTestEU), []string{"asia-east2"}},
-		{"jp and hk: the closer allowed region", hkOsaka, dc2(relayTestJP, relayTestHK), []string{"asia-northeast2"}},
-		{"jp only", hkOnly, dc2(relayTestJP, relayTestJP), nil},
-		{"hk only", hkOnly, dc2(relayTestHK, relayTestHK), nil},
-		{"jp and kr: far enough at 40 ms", osaka, dc2(relayTestJP, relayTestKR), []string{"asia-northeast2"}},
-		{"jp and tw: hong kong is a detour", hkOnly, dc2(relayTestJP, relayTestTW), nil},
-		{"jp and eu: too far", hkOsaka, dc2(relayTestJP, relayTestEU), nil},
-		{"jp and hk on different disks", hkOnly, []relayUser{relayTestUser(relayTestJP, GameDiskDC2), relayTestUser(relayTestHK, GameDiskDC1)}, nil},
+		{"japan and hong kong", []*LbsPeer{user("asia-northeast1"), user("asia-northeast2"), user("asia-east2"), user("asia-east2")}, true},
+		{"japan only", []*LbsPeer{user("asia-northeast1"), user("asia-northeast2"), user("asia-northeast1"), user("asia-northeast2")}, false},
+		{"japan and korea: one group", []*LbsPeer{user("asia-northeast1"), user("asia-northeast1"), user("asia-northeast3"), user("asia-northeast3")}, false},
+		{"hong kong and taiwan: one group", []*LbsPeer{user("asia-east2"), user("asia-east2"), user("asia-east1"), user("asia-east1")}, false},
+		{"too few players", []*LbsPeer{user("asia-northeast1"), user("asia-east2"), user("asia-east2")}, false},
+		{"older clients don't count", []*LbsPeer{user("asia-northeast1"), user("asia-northeast1"), user("asia-northeast2"), old}, false},
+		{"unknown regions don't count", []*LbsPeer{user("asia-northeast1"), user(""), user(""), user("")}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got []string
-			for i := range relayNeededRegions(tt.users, tt.regions) {
-				got = append(got, relayRegionNames[i])
+			lbs := &Lbs{userPeers: map[string]*LbsPeer{}}
+			for i, p := range tt.peers {
+				lbs.userPeers[strconv.Itoa(i)] = p
 			}
-			sort.Strings(got)
-			assertEq(t, tt.want, got)
+			assertEq(t, tt.want, lbs.relayNeeded())
 		})
 	}
 }
 
-func TestLbsRelay_NewRelayUser(t *testing.T) {
-	if _, ok := newRelayUser(&LbsPeer{PlatformInfo: relayTestJP}); ok {
-		t.Fatal("a client without relay support was counted")
-	}
-	if _, ok := newRelayUser(&LbsPeer{PlatformInfo: map[string]string{"relay_server": "1"}}); ok {
-		t.Fatal("a client without latencies was counted")
-	}
-	u := relayTestUser(relayTestHK, GameDiskDC2)
-	assertEq(t, uint16(9), u.lat[relayTestRegions("asia-east2")[0]])
-}
-
-// The region decision runs outside the event loop and comes back to mark the region as needed.
-func TestLbsRelay_UpdateMarksNeeded(t *testing.T) {
+func TestLbsRelay_UpdateStartsEveryRegion(t *testing.T) {
 	oldRegions := conf.RelayRegions
-	conf.RelayRegions = "asia-east2"
+	conf.RelayRegions = "asia-east2, asia-northeast2"
 	defer func() { conf.RelayRegions = oldRegions }()
 
-	lbsAddr := freeTCPAddr(t)
-	lbs := NewLbs()
-	defer lbs.Quit()
-	go lbs.ListenAndServe(lbsAddr)
-	dialWithRetry(t, lbsAddr, 5*time.Second).Close()
-
-	withRelay := func(info map[string]string) map[string]string {
-		m := map[string]string{"relay_server": "1"}
-		for k, v := range info {
-			m[k] = v
-		}
-		return m
+	lbs := &Lbs{userPeers: map[string]*LbsPeer{}, relayPeers: map[string]*LbsPeer{}, relayLastNeeded: map[string]time.Time{}}
+	for i, r := range []string{"asia-northeast1", "asia-northeast2", "asia-east2", "asia-east2"} {
+		lbs.userPeers[strconv.Itoa(i)] = &LbsPeer{PlatformInfo: map[string]string{"relay_server": "1"}, bestRegion: r}
 	}
-	lbs.Locked(func(lbs *Lbs) {
-		lbs.userPeers["jp"] = &LbsPeer{PlatformInfo: withRelay(relayTestJP), GameDisk: GameDiskDC2}
-		lbs.userPeers["hk"] = &LbsPeer{PlatformInfo: withRelay(relayTestHK), GameDisk: GameDiskDC2}
-		lbs.updateRelay(time.Now())
-	})
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		marked := false
-		lbs.Locked(func(lbs *Lbs) { _, marked = lbs.relayLastNeeded["asia-east2"] })
-		if marked {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("asia-east2 was not marked as needed")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	lbs.Locked(func(lbs *Lbs) {
-		delete(lbs.userPeers, "jp")
-		delete(lbs.userPeers, "hk")
-	})
-}
-
-func BenchmarkLbsRelay_NeededRegions(b *testing.B) {
-	for _, n := range []int{100, 400, 1000} {
-		b.Run(strconv.Itoa(n), func(b *testing.B) {
-			users := make([]relayUser, n)
-			for i := range users {
-				// Every pair is checked in full: all of them in Japan, none needs a relay.
-				users[i] = relayTestUser(relayTestJP, GameDiskDC2)
-			}
-			regions := relayTestRegions("asia-east2")
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				relayNeededRegions(users, regions)
-			}
-		})
-	}
+	now := time.Now()
+	lbs.updateRelay(now)
+	assertEq(t, map[string]time.Time{"asia-east2": now, "asia-northeast2": now}, lbs.relayLastNeeded)
 }
 
 func TestLbsRelay_MatchRelays(t *testing.T) {
