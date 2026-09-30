@@ -84,7 +84,8 @@ func mainRelay() {
 	// Without it for a while, stop anyway so an orphaned VM does not keep running.
 	lastConnected := time.Now()
 	for {
-		status := RelayStatus{Region: conf.RelayRegion, PublicAddr: conf.RelayPublicAddr, PublicAddr6: conf.RelayPublicAddr6}
+		status := RelayStatus{Region: conf.RelayRegion, PublicAddr: conf.RelayPublicAddr, PublicAddr6: conf.RelayPublicAddr6,
+			Secret: conf.RelaySecret}
 		err := relay.DialAndSyncWithLbs(conf.LobbyPublicAddr, status, &lastConnected)
 		if err == ErrRelayShutdown {
 			logger.Info("relay shutdown requested by lbs")
@@ -109,6 +110,7 @@ type RelayStatus struct {
 	PublicAddr  string `json:"public_addr,omitempty"`
 	PublicAddr6 string `json:"public_addr6,omitempty"`
 	Sessions    int    `json:"sessions"`
+	Secret      string `json:"secret,omitempty"` // GDXSV_RELAY_SECRET, so a stranger can't pose as a relay
 }
 
 // RelayControl is sent by the lobby to a relay.

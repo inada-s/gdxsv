@@ -8,6 +8,11 @@ const usePreemptibleVM = false;
 // Relay VMs run in a custom-mode network whose subnets are dual-stack, so they get an external IPv6 address.
 const relayNetwork = "gdxsv-relay";
 
+// Shared with the lobby (GDXSV_RELAY_SECRET): the lobby only accepts relays that know it. It is written into the
+// startup script, so it must be plain.
+const relaySecret = process.env.GDXSV_RELAY_SECRET || "";
+const relaySecretValid = /^[A-Za-z0-9_-]{16,}$/.test(relaySecret);
+
 // https://cloud.google.com/compute/docs/regions-zones
 const gcpRegions = {
     "asia-east1": {"zones": ["a", "b", "c"], "location": "Changhua County, Taiwan"},
@@ -161,6 +166,7 @@ readonly METADATA=http://metadata.google.internal/computeMetadata/v1/instance
 readonly ZONE=$(basename $(curl -s -H "Metadata-Flavor: Google" $METADATA/zone))
 export GDXSV_LOBBY_PUBLIC_ADDR=zdxsv.net:9876
 export GDXSV_RELAY_ADDR=:9879
+export GDXSV_RELAY_SECRET=${relaySecret}
 export GDXSV_RELAY_REGION=\${ZONE%-*}
 export GDXSV_RELAY_PUBLIC_ADDR=$(curl -s -H "Metadata-Flavor: Google" $METADATA/network-interfaces/0/access-configs/0/external-ip):9879
 # The VM's external IPv6 address is on its interface. Skip temporary and deprecated ones.
@@ -268,6 +274,12 @@ async function getAlloc(req, res) {
 
     if (role !== "mcs" && role !== "relay") {
         res.status(400).send('invalid role');
+        return;
+    }
+
+    if (role === "relay" && !relaySecretValid) {
+        console.log("GDXSV_RELAY_SECRET is not set or not plain [A-Za-z0-9_-]{16,}");
+        res.status(500).send('relay secret not configured');
         return;
     }
 

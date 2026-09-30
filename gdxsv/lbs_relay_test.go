@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net"
 	"strconv"
 	"testing"
@@ -97,6 +98,40 @@ func TestLbsRelay_MatchRelays(t *testing.T) {
 	assertEq(t, maxRelaysPerMatch, len(lbs.matchRelays([]*LbsPeer{jp, hk})))
 }
 
+func TestLbsRelay_StatusNeedsSecret(t *testing.T) {
+	oldSecret := conf.RelaySecret
+	defer func() { conf.RelaySecret = oldSecret }()
+
+	status := func(secret string) *LbsMessage {
+		body, err := json.Marshal(RelayStatus{Region: "asia-east2", PublicAddr: "192.0.2.1:9879", Secret: secret})
+		must(t, err)
+		return NewServerNotice(lbsExtRelayStatus).Writer().WriteBytes(body).Msg()
+	}
+	tests := []struct {
+		name       string
+		lbsSecret  string
+		sentSecret string
+		accepted   bool
+	}{
+		{"right secret", "s3cret", "s3cret", true},
+		{"wrong secret", "s3cret", "guess", false},
+		{"no secret sent", "s3cret", "", false},
+		{"lobby has no secret", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf.RelaySecret = tt.lbsSecret
+			lbs := &Lbs{relayPeers: map[string]*LbsPeer{}, relayLastNeeded: map[string]time.Time{}}
+			p := &LbsPeer{app: lbs, logger: logger}
+			defaultLbsHandlers[lbsExtRelayStatus](p, status(tt.sentSecret))
+			assertEq(t, tt.accepted, lbs.relayPeers["192.0.2.1:9879"] != nil)
+			if tt.accepted {
+				assertEq(t, "", p.relayStatus.Secret)
+			}
+		})
+	}
+}
+
 func TestLbsRelay_IPv6(t *testing.T) {
 	assertEq(t, "2001:db8::1", relayIPv6("[2001:db8::1]:9879", 9879))
 	assertEq(t, "", relayIPv6("", 9879))
@@ -126,9 +161,9 @@ func TestLbsRelay_AllSupportRelay(t *testing.T) {
 // A relay registers with a real lobby over TCP, receives a session the lobby opens,
 // and is shut down once the lobby no longer needs it and it is idle.
 func TestLbsRelay_Integration(t *testing.T) {
-	oldRegions := conf.RelayRegions
-	conf.RelayRegions = "asia-east2"
-	defer func() { conf.RelayRegions = oldRegions }()
+	oldRegions, oldSecret := conf.RelayRegions, conf.RelaySecret
+	conf.RelayRegions, conf.RelaySecret = "asia-east2", "s3cret"
+	defer func() { conf.RelayRegions, conf.RelaySecret = oldRegions, oldSecret }()
 
 	lbsAddr := freeTCPAddr(t)
 	lbs := NewLbs()
@@ -146,7 +181,7 @@ func TestLbsRelay_Integration(t *testing.T) {
 	go func() {
 		var lastConnected time.Time
 		status := RelayStatus{Region: "asia-east2", PublicAddr: udp.LocalAddr().String(), PublicAddr6: "[2001:db8::7]:" +
-			strconv.Itoa(udp.LocalAddr().(*net.UDPAddr).Port)}
+			strconv.Itoa(udp.LocalAddr().(*net.UDPAddr).Port), Secret: "s3cret"}
 		done <- relay.DialAndSyncWithLbs(lbsAddr, status, &lastConnected)
 	}()
 

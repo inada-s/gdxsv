@@ -75,6 +75,7 @@ type Config struct {
 	RelayPublicAddr6 string `env:"GDXSV_RELAY_PUBLIC_ADDR6" envDefault:""` // [ipv6]:port, same port
 	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`       // relay: where it runs
 	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""`      // lbs: comma separated regions it may start relays in
+	RelaySecret      string `env:"GDXSV_RELAY_SECRET" envDefault:""`       // shared by lbs and relays; lbs accepts no relay without it
 
 	SpectatorMaxSubscribers          int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS" envDefault:"4096"`
 	SpectatorMaxSubscribersPerBattle int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS_PER_BATTLE" envDefault:"512"`

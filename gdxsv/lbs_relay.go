@@ -2,6 +2,7 @@ package main
 
 import (
 	crand "crypto/rand"
+	"crypto/subtle"
 	"encoding/binary"
 	"encoding/json"
 	"net"
@@ -78,6 +79,13 @@ var _ = register(lbsExtRelayStatus, func(p *LbsPeer, m *LbsMessage) {
 	if status.PublicAddr == "" {
 		return
 	}
+	// Anyone can connect to the lobby, and the lobby hands relays to players, so only accept the ones that know the
+	// secret.
+	if conf.RelaySecret == "" || subtle.ConstantTimeCompare([]byte(status.Secret), []byte(conf.RelaySecret)) != 1 {
+		p.logger.Warn("relay status with a wrong secret", zap.String("public_addr", status.PublicAddr))
+		return
+	}
+	status.Secret = ""
 	if p.relayStatus == nil {
 		p.logger.Info("relay registered", zap.String("public_addr", status.PublicAddr), zap.String("region", status.Region))
 		// A relay that was already running when the lobby started gets the full grace period.
