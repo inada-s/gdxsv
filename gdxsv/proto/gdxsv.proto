@@ -35,6 +35,9 @@ message P2PMatching {
   repeated BattleLogUser users = 9;
   repeated PlayerAddress candidates = 10;
   repeated RelayServer relays = 11;
+  // Set for the one participant, nearest lbs, that streams its confirmed
+  // inputs to lbs for live spectators. The others do not.
+  bool spectator_uplink = 12;
 }
 
 message PlayerAddress {
@@ -93,11 +96,10 @@ message BattleLogRound {
   repeated int32 used_ms = 2;
 }
 
-// Legacy participants send confirmed inputs with participant-local absolute
-// start_frame indexes, NOT shared GGPO frames. LBS ACKs each publisher's raw
-// receive position, holds inputs for 500ms, then aligns them using that
-// publisher's ordered round starts before merging into the spectator log.
-// A future round-tagged uplink can bypass this legacy-only holdback.
+// Participants send confirmed inputs indexed by their own input count (their
+// replay's indexes), NOT shared GGPO frames. These counts differ slightly
+// between peers, so LBS records one participant, the first whose upload
+// arrives, and drops the others' uploads after acknowledging them.
 //
 // Fields 5 onward are downlink-only (LBS -> spectator). Input, patch and
 // round-state progress are acknowledged independently in SpectatorInputAck.
@@ -137,9 +139,9 @@ message SpectatorInputPush {
 }
 
 // Sent by LBS back to a streaming peer, or by a spectator back to LBS. The
-// sender may discard buffered inputs strictly below ack_frame. For a legacy
-// participant this is its OWN contiguous received count, including inputs
-// held for normalization. For a spectator it is the canonical log position.
+// sender may discard buffered inputs strictly below ack_frame. For the
+// recorded participant it is the log's contiguous length; for the others,
+// everything they sent. For a spectator it is the canonical log position.
 message SpectatorInputAck {
   string battle_code = 1;
   int32 ack_frame = 2;
@@ -177,11 +179,9 @@ message SpectatorSubscribeChallenge {
   bytes cookie = 2;
 }
 
-// Legacy participants retry one round start at a time in order (mirrors
-// GdxsvBackendRollback's start_msg_indexes/start_msg_randoms). Its ordinal
-// within that publisher's list identifies the round; frame is a LOCAL input
-// index. Repeated seeds or equal indexes from different publishers are not
-// sufficient to identify retries.
+// Participants retry one round start at a time in order (mirrors
+// GdxsvBackendRollback's start_msg_indexes/start_msg_randoms). frame is the
+// sender's own input index; only the recorded participant's are used.
 message SpectatorRoundEvent {
   string battle_code = 1;
   int32 session_id = 2;

@@ -83,9 +83,8 @@ const spectatorSubscriberTimeout = 10 * time.Second
 const spectatorFanoutInterval = 50 * time.Millisecond
 
 // SpectatorSession holds the live battle log for one in-progress P2P battle,
-// keyed by battle_code. Participants use local replay-input ordinals, not a
-// shared GGPO frame number. The legacy adapter aligns each publisher's rounds
-// before adding inputs to the common recording.
+// keyed by battle_code. Inputs and round starts come from one participant,
+// the publisher (see lbs_spectator_publisher.go), indexed as in its replay.
 // Round outcomes still use every participant's report to reconcile draws.
 type SpectatorSession struct {
 	mtx sync.RWMutex
@@ -95,9 +94,9 @@ type SpectatorSession struct {
 
 	log *proto.BattleLogFile
 
-	// Only the current, absolute-index uplink uses the timed legacy adapter.
-	// The canonical recording and spectator downlink have no holdback policy.
-	legacy spectatorLegacyRecorder
+	// publisher is the UDP source address of the participant the recording
+	// follows: the first whose upload arrived. Empty until then.
+	publisher string
 
 	// pendingFrames holds input frames received ahead of the current
 	// contiguous frontier (log.Inputs), keyed by frame index, until the
@@ -106,7 +105,7 @@ type SpectatorSession struct {
 	// limits this map to maxSpectatorPendingFrames positions.
 	pendingFrames map[int32]uint64
 
-	// roundEventSeen dedups canonical starts (legacy retries are per publisher).
+	// roundEventSeen dedups round starts by frame (retries after a lost ACK).
 	roundEventSeen map[int32]bool
 
 	// roundStateVersion increments every time StartMsgIndexes/StartMsgRandoms/
@@ -252,9 +251,8 @@ func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *
 	}
 }
 
-// PushInputs accepts inputs already in the canonical recording's coordinates,
-// such as a local replay injection. It has no protocol-specific holdback.
-// Legacy UDP traffic MUST use PushLegacyInputs, not this entry point.
+// PushInputs appends inputs in the recording's own coordinates, such as a
+// local replay injection. Participant uploads go through PushParticipantInputs.
 func (s *SpectatorSession) PushInputs(startFrame int32, inputs []uint64) (ackFrame int32, advanced bool) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -311,8 +309,8 @@ func (s *SpectatorSession) appendInputsLocked(startFrame int32, inputs []uint64)
 	return int32(len(s.log.Inputs)), len(s.log.Inputs) > before
 }
 
-// PushRoundEvent records an already-normalized round start. The legacy UDP
-// adapter must first identify its ordinal and translate its local position.
+// PushRoundEvent records a round start in the recording's coordinates.
+// Participant uploads go through PushParticipantRoundEvent.
 func (s *SpectatorSession) PushRoundEvent(frame int32, randomValue uint64) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -539,7 +537,7 @@ func (s *SpectatorSession) buildPush(sub *downlinkSubscriber) (*proto.SpectatorI
 	// Only once this subscriber holds every input and round update. The
 	// spectator stops its downlink on close, so sending it early truncates
 	// the match to whatever had arrived. Resent because close is never acked.
-	needsClose := s.closed && s.legacy.finished() && sub.ackedFrame >= have && !needsRoundState
+	needsClose := s.publisherFinishedLocked(time.Now()) && sub.ackedFrame >= have && !needsRoundState
 
 	if !needsInputs && !needsRoundState && !needsClose {
 		return nil, false
@@ -752,10 +750,6 @@ func (r *SpectatorRegistry) fanoutOnce(udpConn *net.UDPConn) {
 		}
 		r.mtx.Unlock()
 
-		// Time-based release runs even without subscribers or new packets,
-		// including the final buffered tail after a close report.
-		s.flushLegacyLocked(now)
-
 		// buildPush is a pure function of the session log plus one
 		// subscriber's progress (sentHeader/ackedFrame/ackedPatches/
 		// ackedRoundStateVersion): subscribers at the same progress get
@@ -883,8 +877,7 @@ func (r *SpectatorRegistry) GetAny(battleCode string) (*SpectatorSession, bool) 
 //
 // Producing, not merely open: a session is created for every battle, but only
 // peers running a build with the spectator uplink actually push. One such peer
-// is enough. Legacy input must first pass marker gating and the holdback, so
-// report live once the canonical recording has playable input to publish.
+// is enough, so report live once the recording has input to publish.
 func (r *SpectatorRegistry) LiveStatus(battleCode string) (live bool, spectators int) {
 	r.mtx.RLock()
 	s, ok := r.sessions[battleCode]
@@ -922,7 +915,7 @@ func handleSpectatorInputPush(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *
 	if !ok {
 		return
 	}
-	ackFrame, advanced := s.PushLegacyInputs(remoteAddr.String(), m.GetStartFrame(), m.GetInputs())
+	ackFrame, advanced := s.PushParticipantInputs(remoteAddr.String(), m.GetStartFrame(), m.GetInputs())
 	if advanced {
 		spectatorRegistry.wakeFanout()
 	}
@@ -950,7 +943,7 @@ func sendSpectatorAck(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, ack *proto.
 // handleSpectatorRoundEvent processes one SpectatorRoundEvent datagram.
 func handleSpectatorRoundEvent(udpConn *net.UDPConn, remoteAddr *net.UDPAddr, m *proto.SpectatorRoundEvent) {
 	s, ok := spectatorRegistry.Get(m.GetBattleCode(), m.GetSessionId())
-	if !ok || !s.PushLegacyRoundEvent(remoteAddr.String(), m.GetFrame(), m.GetRandomValue()) {
+	if !ok || !s.PushParticipantRoundEvent(remoteAddr.String(), m.GetFrame(), m.GetRandomValue()) {
 		return
 	}
 	sendSpectatorAck(udpConn, remoteAddr, &proto.SpectatorInputAck{
