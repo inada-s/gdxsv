@@ -56,6 +56,8 @@ var (
 	mcsdelay = flag.Duration("mcsdelay", 0, "mcs room delay for network lag emulation")
 
 	relayTestSession = flag.String("relay_test_session", "", "relay: always accept this session, as <session_id>:<hex token> (local test)")
+
+	spectatorTestSession = flag.String("spectator_test_session", "", "lbs: open a live spectator session from this replay file, for session id 12345 (flycast local test)")
 )
 
 var (
@@ -72,10 +74,11 @@ type Config struct {
 	BattleLogPath    string `env:"GDXSV_BATTLE_LOG_PATH" envDefault:"./battlelog"`
 	RelayAddr        string `env:"GDXSV_RELAY_ADDR" envDefault:":9879"`
 	RelayPublicAddr  string `env:"GDXSV_RELAY_PUBLIC_ADDR" envDefault:"127.0.0.1:9879"`
-	RelayPublicAddr6 string `env:"GDXSV_RELAY_PUBLIC_ADDR6" envDefault:""` // [ipv6]:port, same port
-	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`       // relay: where it runs
-	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""`      // lbs: comma separated regions it may start relays in
-	RelaySecret      string `env:"GDXSV_RELAY_SECRET" envDefault:""`       // shared by lbs and relays; lbs accepts no relay without it
+	RelayPublicAddr6 string `env:"GDXSV_RELAY_PUBLIC_ADDR6" envDefault:""`          // [ipv6]:port, same port
+	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`                // relay: where it runs
+	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""`               // lbs: comma separated regions it may start relays in
+	RelaySecret      string `env:"GDXSV_RELAY_SECRET" envDefault:""`                // shared by lbs and relays; lbs accepts no relay without it
+	LobbyRegion      string `env:"GDXSV_LOBBY_REGION" envDefault:"asia-northeast1"` // lbs: the GCP region nearest lbs, to pick the live spectator uplink
 
 	SpectatorMaxSubscribers          int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS" envDefault:"4096"`
 	SpectatorMaxSubscribersPerBattle int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS_PER_BATTLE" envDefault:"512"`
@@ -212,6 +215,10 @@ func mainLbs() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
+
+	if *spectatorTestSession != "" {
+		openSpectatorTestSession(*spectatorTestSession, 12345)
+	}
 
 	lbs := NewLbs()
 	if conf.RelayAddr != "" {

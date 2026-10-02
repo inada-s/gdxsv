@@ -815,10 +815,12 @@ func (l *LbsLobby) makeP2PMatchingMsg(b *LbsBattle, participants []*LbsPeer, pat
 	}
 
 	spectatorRegistry.Open(matching, l.GameDisk, patchList)
+	uplink := pickSpectatorUplink(participants, conf.LobbyRegion)
 
 	var msgs []*LbsMessage
 	for i := range participants {
 		matching.PeerId = int32(i)
+		matching.SpectatorUplink = !matching.IsTrainingGame && i == uplink
 
 		bin, err := pb.Marshal(matching)
 		if err != nil {
