@@ -1,0 +1,6 @@
+lbs.gdxsv.net:8443 {
+	header Access-Control-Allow-Origin *
+	reverse_proxy /lbs/* 127.0.0.1:9880 {
+		flush_interval -1
+	}
+}

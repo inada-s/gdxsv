@@ -96,11 +96,14 @@ Using only the `lbs` command to act as a standalone lobby and match server. (Thi
 - `GDXSV_BATTLE_PUBLIC_ADDR` : Specifies the TCP/UDP address that a client will use to connect with TCP/UDP.
 - `GDXSV_BATTLE_ADDR` : Specifies the TCP/UDP address that the mcs listens on. Currently only the port number is used.
 - `GDXSV_BATTLE_LOG_PATH` : Specifies a file path that will be used to save battle log file.
-- `GDXSV_GCP_PROJECT_ID` : Specifies the project id of Google Cloud Platform. Required if you use mcsfunc or CloudProfiler.
-- `GDXSV_GCP_KEY_PATH` : Specifies a GCP Service Account keyfile that have permission for following roles.
-  - `roles/cloudfunctions.invoker`
+- `GDXSV_LOBBY_HTTP_ADDR` : The lobby's HTTP API (`/lbs/status`, `/lbs/replay`, `/lbs/replay_upload`, ...). Put a TLS reverse proxy in front of it for the internet (`infra/lbs/gdxsv.caddy`).
+- `GDXSV_GCP_PROJECT_ID` : Specifies the project id of Google Cloud Platform. Required for on-demand GCE servers and CloudProfiler.
+- `GDXSV_GCP_KEY_PATH` : Specifies a GCP Service Account keyfile (default credentials when empty). It needs:
+  - `roles/compute.instanceAdmin.v1` and `roles/iam.serviceAccountUser` (on-demand GCE servers)
+  - `roles/storage.objectCreator` + `roles/storage.objectViewer` on the replay bucket (replay upload)
   - `roles/cloudprofiler.agent`
-- `GDXSV_MCSFUNC_URL` : Specifies a URL of mcsfunc that you deployed.
+- `GDXSV_GCE_ONDEMAND` : `true` lets the lbs start mcs / relay VMs on GCE in the region nearest to the players (one VM per role and region, named `gdxsv-<role>-<region>-latest`, stopped VMs are restarted, unused ones deleted after 5 days). The VMs run as `gdxsv-service@<project>.iam.gserviceaccount.com` and connect back to `GDXSV_LOBBY_PUBLIC_ADDR`.
+- `GDXSV_REPLAY_BUCKET` : The GCS bucket that `/lbs/replay_upload` writes replays to (`replays/<battle_code>.pb`, gzip). Empty disables uploads.
 
 #### Commandline arguments
 ```

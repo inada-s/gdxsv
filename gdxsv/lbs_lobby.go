@@ -125,9 +125,9 @@ func chatMsg(userID, name, text string) *LbsMessage {
 		WriteString(userID).
 		WriteString(name).
 		WriteString(text).
-		Write8(0). // chat_type
-		Write8(0). // id color
-		Write8(0). // handle color
+		Write8(0).      // chat_type
+		Write8(0).      // id color
+		Write8(0).      // handle color
 		Write8(0).Msg() // msg color
 }
 
@@ -1137,17 +1137,17 @@ func (l *LbsLobby) prepareMcs(mcsRegion string) (newMcsRegion string, mcsPeer *L
 		}
 	}
 
-	if McsFuncEnabled() && mcsRegion != "" {
+	if GceAllocEnabled() && mcsRegion != "" {
 		stat := l.app.FindMcs(mcsRegion)
 		if stat == nil {
-			alloc = GoMcsFuncAlloc(mcsRegion)
+			alloc = GoGceAlloc(mcsRegion)
 			return
 		}
 
 		peer := l.app.FindMcsPeer(stat.PublicAddr)
 		if peer == nil {
 			logger.Info("mcs peer not found")
-			alloc = GoMcsFuncAlloc(mcsRegion)
+			alloc = GoGceAlloc(mcsRegion)
 			return
 		}
 

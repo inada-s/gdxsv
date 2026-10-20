@@ -8,7 +8,7 @@ readonly LATEST_TAG=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releas
 readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
 readonly GDXSV_BIN=$LATEST_TAG/bin/gdxsv
 
-export GDXSV_LOBBY_PUBLIC_ADDR="153.121.44.150:9876"
+export GDXSV_LOBBY_PUBLIC_ADDR="lbs.gdxsv.net:9876"
 export GDXSV_LOBBY_ADDR=":9876"
 export GDXSV_LOBBY_HTTP_ADDR=":9880"
 export GDXSV_BATTLE_PUBLIC_ADDR="153.121.44.150:9877"
@@ -23,7 +23,8 @@ fi
 export GDXSV_DB_NAME="gdxsv.db"
 export GDXSV_GCP_PROJECT_ID="gdxsv-274515"
 export GDXSV_GCP_KEY_PATH="/etc/google/auth/application_default_credentials.json"
-export GDXSV_MCSFUNC_URL="https://asia-northeast1-gdxsv-274515.cloudfunctions.net/mcsfunc"
+export GDXSV_GCE_ONDEMAND="true"
+export GDXSV_REPLAY_BUCKET="gdxsv"
 
 if [[ ! -d $LATEST_TAG/bin ]]; then
   echo "Downloading latest version..."

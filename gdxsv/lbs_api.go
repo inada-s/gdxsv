@@ -388,6 +388,10 @@ func (lbs *Lbs) RegisterHTTPHandlers() {
 		}
 	})
 
+	http.HandleFunc("/lbs/replay_upload", (&replayUploadHandler{store: replayStore, setURL: func(code, url string) error {
+		return getDB().SetReplayURL(code, url)
+	}}).ServeHTTP)
+
 	http.HandleFunc("/ops/reload", func(w http.ResponseWriter, r *http.Request) {
 		// Private API: Reloads settings from database
 

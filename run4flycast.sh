@@ -6,7 +6,7 @@ set -eux
 cd $(dirname "$0")
 
 readonly N=${N:-"4"}
-readonly GDXSV=${GDXSV:-"zdxsv.net"}
+readonly GDXSV=${GDXSV:-"lbs.gdxsv.net"}
 readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc2\gdx-disc2.gdi'}
 #readonly GDX_ROM_PATH=${GDX_ROM_PATH:-'C:\rom\gdx-disc1\gdx-disc1.gdi'}
 

@@ -201,8 +201,8 @@ func (lbs *Lbs) updateRelay(now time.Time) {
 	if lbs.relayNeeded() {
 		for _, r := range regions {
 			lbs.relayLastNeeded[r] = now
-			if lbs.findRelay(r) == nil && McsFuncEnabled() {
-				GoMcsFuncAllocRole(r, "relay")
+			if lbs.findRelay(r) == nil && GceAllocEnabled() {
+				GoGceAllocRole(r, "relay")
 			}
 		}
 	}
