@@ -36,8 +36,8 @@ func replayUploadRequest(t *testing.T, filename string, content []byte) *http.Re
 	if err != nil {
 		t.Fatal(err)
 	}
-	fw.Write(content)
-	mw.Close()
+	_, _ = fw.Write(content)
+	_ = mw.Close()
 	req := httptest.NewRequest("POST", "/lbs/replay_upload", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	return req

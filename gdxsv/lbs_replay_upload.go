@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
@@ -45,7 +46,7 @@ type gcsReplayStore struct {
 func newGCSReplayStore(ctx context.Context, bucketName, keyPath string) (*gcsReplayStore, error) {
 	var opts []option.ClientOption
 	if keyPath != "" {
-		opts = append(opts, option.WithCredentialsFile(keyPath))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, keyPath))
 	}
 	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
@@ -69,11 +70,11 @@ func (s *gcsReplayStore) Put(ctx context.Context, name string, r io.Reader) (str
 	w.CacheControl = "no-transform"
 	gw := gzip.NewWriter(w)
 	if _, err := io.Copy(gw, r); err != nil {
-		w.Close()
+		_ = w.Close()
 		return "", fmt.Errorf("copy: %w", err)
 	}
 	if err := gw.Close(); err != nil {
-		w.Close()
+		_ = w.Close()
 		return "", fmt.Errorf("gzip close: %w", err)
 	}
 	if err := w.Close(); err != nil {
@@ -101,43 +102,49 @@ func (h *replayUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Unable to parse form", http.StatusBadRequest)
 		return
 	}
-	defer r.MultipartForm.RemoveAll()
+	defer func() { _ = r.MultipartForm.RemoveAll() }()
 
+	// the first file of the form, whatever its field name
+	var fh *multipart.FileHeader
 	for _, headers := range r.MultipartForm.File {
-		for _, fh := range headers {
-			battleCode := strings.TrimSuffix(fh.Filename, ".pb")
-			if battleCode == "" || battleCode == fh.Filename || strings.ContainsAny(battleCode, "/\\") {
-				http.Error(w, "Invalid file name", http.StatusBadRequest)
-				return
-			}
-			file, err := fh.Open()
-			if err != nil {
-				http.Error(w, "Unable to open file", http.StatusBadRequest)
-				return
-			}
-			ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
-			url, err := h.store.Put(ctx, replayUploadPrefix+fh.Filename, file)
-			cancel()
-			file.Close()
-			if errors.Is(err, errReplayExists) {
-				http.Error(w, "Already uploaded", http.StatusConflict)
-				return
-			}
-			if err != nil {
-				logger.Warn("replay_upload: store failure", zap.String("battle_code", battleCode), zap.Error(err))
-				http.Error(w, "Failed to upload file", http.StatusInternalServerError)
-				return
-			}
-			if err := h.setURL(battleCode, url); err != nil {
-				logger.Warn("replay_upload: SetReplayURL failure", zap.String("battle_code", battleCode), zap.Error(err))
-				http.Error(w, "Failed to record replay", http.StatusInternalServerError)
-				return
-			}
-			logger.Info("replay uploaded", zap.String("battle_code", battleCode), zap.Int64("size", fh.Size))
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "File uploaded: %q (%v bytes)\n", fh.Filename, fh.Size)
-			return
+		if len(headers) > 0 {
+			fh = headers[0]
+			break
 		}
 	}
-	http.Error(w, "No file", http.StatusBadRequest)
+	if fh == nil {
+		http.Error(w, "No file", http.StatusBadRequest)
+		return
+	}
+	battleCode := strings.TrimSuffix(fh.Filename, ".pb")
+	if battleCode == "" || battleCode == fh.Filename || strings.ContainsAny(battleCode, "/\\") {
+		http.Error(w, "Invalid file name", http.StatusBadRequest)
+		return
+	}
+	file, err := fh.Open()
+	if err != nil {
+		http.Error(w, "Unable to open file", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	url, err := h.store.Put(ctx, replayUploadPrefix+fh.Filename, file)
+	cancel()
+	_ = file.Close()
+	if errors.Is(err, errReplayExists) {
+		http.Error(w, "Already uploaded", http.StatusConflict)
+		return
+	}
+	if err != nil {
+		logger.Warn("replay_upload: store failure", zap.String("battle_code", battleCode), zap.Error(err))
+		http.Error(w, "Failed to upload file", http.StatusInternalServerError)
+		return
+	}
+	if err := h.setURL(battleCode, url); err != nil {
+		logger.Warn("replay_upload: SetReplayURL failure", zap.String("battle_code", battleCode), zap.Error(err))
+		http.Error(w, "Failed to record replay", http.StatusInternalServerError)
+		return
+	}
+	logger.Info("replay uploaded", zap.String("battle_code", battleCode), zap.Int64("size", fh.Size))
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, "File uploaded: %q (%v bytes)\n", fh.Filename, fh.Size)
 }

@@ -220,7 +220,7 @@ func getGceAPI() (gceAPI, error) {
 	}
 	var opts []option.ClientOption
 	if conf.GCPKeyPath != "" {
-		opts = append(opts, option.WithCredentialsFile(conf.GCPKeyPath))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, conf.GCPKeyPath))
 	}
 	svc, err := compute.NewService(context.Background(), opts...)
 	if err != nil {
