@@ -58,7 +58,7 @@ export default class Status extends React.Component<Props, State> {
     }
 
     async updateLbsStatus() {
-        const resp = await axios.get("https://asia-northeast1-gdxsv-274515.cloudfunctions.net/lbsapi/status")
+        const resp = await axios.get("https://lbs.gdxsv.net:8443/lbs/status")
         const lobby_users = resp.data.lobby_users || []
         const battle_users = resp.data.battle_users || []
         const active_games = resp.data.active_games || []

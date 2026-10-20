@@ -84,8 +84,9 @@ type Config struct {
 	SpectatorMaxSubscribersPerBattle int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS_PER_BATTLE" envDefault:"512"`
 
 	GCPProjectID string `env:"GDXSV_GCP_PROJECT_ID" envDefault:""`
-	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`
-	McsFuncURL   string `env:"GDXSV_MCSFUNC_URL" envDefault:""`
+	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`      // service account key; default credentials when empty
+	GCEOnDemand  bool   `env:"GDXSV_GCE_ONDEMAND" envDefault:"false"` // lbs: start mcs / relay VMs on GCE (lbs_gce.go)
+	ReplayBucket string `env:"GDXSV_REPLAY_BUCKET" envDefault:""`     // lbs: GCS bucket for /lbs/replay_upload, off when empty
 	WebhookUrl   string `env:"GDXSV_WEBHOOK_URL" envDefault:""`
 
 	DBName string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
@@ -232,6 +233,13 @@ func mainLbs() {
 	go mcs.ListenAndServe(stripHost(conf.BattleAddr))
 
 	if conf.LobbyHttpAddr != "" {
+		if conf.ReplayBucket != "" {
+			store, err := newGCSReplayStore(context.Background(), conf.ReplayBucket, conf.GCPKeyPath)
+			if err != nil {
+				logger.Fatal("replay bucket client", zap.String("bucket", conf.ReplayBucket), zap.Error(err))
+			}
+			replayStore = store
+		}
 		lbs.RegisterHTTPHandlers()
 		go func() {
 			err := http.ListenAndServe(conf.LobbyHttpAddr, nil)
