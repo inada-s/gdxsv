@@ -302,7 +302,7 @@ func TestMcsRoom_FinalizeWritesSortedBattleLog(t *testing.T) {
 	var logFile proto.BattleLogFile
 	must(t, pb.Unmarshal(raw, &logFile))
 
-	assertEq(t, int32(20210803), logFile.GetLogFileVersion())
+	assertEq(t, int32(battleLogFileVersion), logFile.GetLogFileVersion())
 	assertEq(t, GameDiskDC2, logFile.GetGameDisk())
 	assertEq(t, "ROOMLOG", logFile.GetBattleCode())
 	assertEq(t, SerializeRule(&DefaultRule), logFile.GetRuleBin())
