@@ -56,7 +56,9 @@ func lbsApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := http.Get("http://zdxsv.net:9880/lbs/" + r.URL.RequestURI())
+	// Compatibility shim for flycast builds older than gdxsv-1.9.7: they call this
+	// function instead of https://lbs.gdxsv.net:8443/lbs/* directly.
+	resp, err := http.Get("http://lbs.gdxsv.net:9880/lbs/" + r.URL.RequestURI())
 	if err != nil {
 		http.Error(w, "Unable to request lobby", http.StatusBadRequest)
 		return
