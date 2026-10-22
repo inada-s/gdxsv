@@ -30,7 +30,7 @@ func newMcsRoom(mcs *Mcs, gameInfo *McsGame) *McsRoom {
 		mcs:  mcs,
 		game: gameInfo,
 		battleLog: &proto.BattleLogFile{
-			LogFileVersion: 20210803,
+			LogFileVersion: battleLogFileVersion,
 			GameDisk:       gameInfo.GameDisk,
 			BattleCode:     gameInfo.BattleCode,
 			RuleBin:        gameInfo.RuleBin,

@@ -26,6 +26,11 @@ const (
 	GameDiskPS2 = "ps2" // PS2 DX
 
 	McsAddrP2PGame = "255.255.255.255:255"
+
+	// BattleLogFile.log_file_version of the logs this server builds (MCS rooms, live spectating).
+	// Flycast's replay backend reads it like a replay file's version, so keep it equal to the
+	// version Flycast saves. 20261023: cost 300->295 is a game patch, Flycast no longer forces it.
+	battleLogFileVersion = 20261023
 )
 
 func lobbyKey(platform string, disk string) string {

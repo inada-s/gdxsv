@@ -232,7 +232,7 @@ func newSpectatorSession(matching *proto.P2PMatching, gameDisk string, patches *
 	log := &proto.BattleLogFile{
 		GameDisk:       gameDisk,
 		BattleCode:     matching.GetBattleCode(),
-		LogFileVersion: 20250101,
+		LogFileVersion: battleLogFileVersion,
 		RuleBin:        matching.GetRuleBin(),
 		Users:          matching.GetUsers(),
 		StartAt:        time.Now().Unix(),
