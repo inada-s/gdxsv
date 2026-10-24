@@ -20,6 +20,7 @@ import (
 	pb "google.golang.org/protobuf/proto"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/width"
@@ -1815,37 +1816,9 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 		spectatorRegistry.Close(report.BattleCode, report.CloseReason, report.DisconnectedPeerId)
 
 		if report.CloseReason == "game_end" {
-			p.logger.Info("P2PMatchingReport",
-				zap.String("close_reason", report.CloseReason),
-				zap.String("battle_code", report.BattleCode),
-				zap.Int32("session_id", report.SessionId),
-				zap.Int32("player_count", report.PlayerCount),
-				zap.Int32("peer_id", report.PeerId),
-				zap.Int32("frame_count", report.FrameCount),
-				zap.Int32("disconnected_peer_id", report.DisconnectedPeerId),
-				zap.Float32s("fps_history", report.FpsHistory),
-				zap.Int32("total_timesync", report.TotalTimesync),
-				zap.Int32("input_block_count_0", report.InputBlockCount_0),
-				zap.Int32("input_block_count_1", report.InputBlockCount_1),
-				zap.Int32("input_block_count_2", report.InputBlockCount_2),
-				zap.String("before_log", report.BeforeLog),
-				zap.String("after_log", report.AfterLog))
+			p.logger.Info("P2PMatchingReport", p2pMatchingReportFields(&report)...)
 		} else {
-			p.logger.Warn("P2PMatchingReport",
-				zap.String("close_reason", report.CloseReason),
-				zap.String("battle_code", report.BattleCode),
-				zap.Int32("session_id", report.SessionId),
-				zap.Int32("player_count", report.PlayerCount),
-				zap.Int32("peer_id", report.PeerId),
-				zap.Int32("frame_count", report.FrameCount),
-				zap.Int32("disconnected_peer_id", report.DisconnectedPeerId),
-				zap.Float32s("fps_history", report.FpsHistory),
-				zap.Int32("total_timesync", report.TotalTimesync),
-				zap.Int32("input_block_count_0", report.InputBlockCount_0),
-				zap.Int32("input_block_count_1", report.InputBlockCount_1),
-				zap.Int32("input_block_count_2", report.InputBlockCount_2),
-				zap.String("before_log", report.BeforeLog),
-				zap.String("after_log", report.AfterLog))
+			p.logger.Warn("P2PMatchingReport", p2pMatchingReportFields(&report)...)
 
 			if strings.HasPrefix(report.CloseReason, "player_disconnect") && report.PlayerCount == 4 {
 				WebhookPostSimpleText(fmt.Sprintf(":oncoming_police_car: battle_code:%v %v", report.BattleCode, report.CloseReason))
@@ -1905,3 +1878,101 @@ var _ = register(lbsP2PMatchingReport, func(p *LbsPeer, m *LbsMessage) {
 		}
 	}
 })
+
+// p2pMatchingReportFields: the log fields of a report, named as in the proto.
+func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
+	return []zap.Field{
+		zap.String("close_reason", r.CloseReason),
+		zap.String("battle_code", r.BattleCode),
+		zap.Int32("session_id", r.SessionId),
+		zap.Int32("player_count", r.PlayerCount),
+		zap.Int32("peer_id", r.PeerId),
+		zap.Int32("frame_count", r.FrameCount),
+		zap.Int32("disconnected_peer_id", r.DisconnectedPeerId),
+		zap.Float32s("fps_history", r.FpsHistory),
+		zap.Int32("total_timesync", r.TotalTimesync),
+		zap.Int32("input_block_count_0", r.InputBlockCount_0),
+		zap.Int32("input_block_count_1", r.InputBlockCount_1),
+		zap.Int32("input_block_count_2", r.InputBlockCount_2),
+		zap.String("before_log", r.BeforeLog),
+		zap.String("after_log", r.AfterLog),
+		zap.Int32("input_delay", r.InputDelay),
+		renderSettingsField("render", r.Render),
+		timingStatsField("socket_read_gap", r.SocketReadGap),
+		zap.Int32("rollback_count", r.RollbackCount),
+		zap.Int32s("rollback_depth_hist", r.RollbackDepthHist),
+		zap.Int32("rollback_max_us", r.RollbackMaxUs),
+		zap.Int32("late_frames_1", r.LateFrames_1),
+		zap.Int32("late_frames_1_5", r.LateFrames_1_5),
+		zap.Int32("late_frames_2", r.LateFrames_2),
+		zap.Int32("dropped_frames", r.DroppedFrames),
+		zap.Array("remote_peers", remotePeerReports(r.RemotePeers)),
+		zap.Int32("relay_forwarded", r.RelayForwarded),
+		zap.Int32s("timesync_frames", r.TimesyncFrames),
+		timingStatsField("input_read_interval", r.InputReadInterval),
+		timingStatsField("input_send_interval", r.InputSendInterval),
+		timingStatsField("present_interval", r.PresentInterval),
+		timingStatsField("rollback_budget", r.RollbackBudget),
+		zap.Int32("budget_exhausted_frames", r.BudgetExhaustedFrames),
+		zap.Int32s("budget_exhausted_depth_hist", r.BudgetExhaustedDepthHist),
+	}
+}
+
+type timingStatsLog struct{ s *proto.TimingStats }
+
+func (l timingStatsLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
+	e.AddInt32("count", l.s.Count)
+	e.AddInt32("mean_us", l.s.MeanUs)
+	e.AddInt32("min_us", l.s.MinUs)
+	e.AddInt32("p1_us", l.s.P1Us)
+	e.AddInt32("p5_us", l.s.P5Us)
+	e.AddInt32("p99_us", l.s.P99Us)
+	e.AddInt32("max_us", l.s.MaxUs)
+	e.AddInt32("off_period", l.s.OffPeriod)
+	return nil
+}
+
+// timingStatsField: skipped when an older client did not send it.
+func timingStatsField(key string, s *proto.TimingStats) zap.Field {
+	if s == nil {
+		return zap.Skip()
+	}
+	return zap.Object(key, timingStatsLog{s})
+}
+
+type renderSettingsLog struct{ s *proto.RenderSettings }
+
+func (l renderSettingsLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
+	e.AddBool("threaded_rendering", l.s.ThreadedRendering)
+	e.AddBool("vsync", l.s.Vsync)
+	e.AddInt32("renderer", l.s.Renderer)
+	return nil
+}
+
+func renderSettingsField(key string, s *proto.RenderSettings) zap.Field {
+	if s == nil {
+		return zap.Skip()
+	}
+	return zap.Object(key, renderSettingsLog{s})
+}
+
+type remotePeerReports []*proto.RemotePeerReport
+
+func (rs remotePeerReports) MarshalLogArray(e zapcore.ArrayEncoder) error {
+	for _, r := range rs {
+		err := e.AppendObject(zapcore.ObjectMarshalerFunc(func(o zapcore.ObjectEncoder) error {
+			o.AddInt32("peer_id", r.PeerId)
+			o.AddInt32("recv_loss", r.RecvLoss)
+			o.AddInt32("send_loss", r.SendLoss)
+			o.AddInt32("ping_min_ms", r.PingMinMs)
+			o.AddInt32("ping_median_ms", r.PingMedianMs)
+			o.AddInt32("ping_max_ms", r.PingMaxMs)
+			o.AddString("route", r.Route)
+			return nil
+		}))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
