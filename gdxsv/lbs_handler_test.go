@@ -9,6 +9,8 @@ import (
 
 	pb "gdxsv/gdxsv/proto"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -238,4 +240,42 @@ func TestLbs_P2PMatchingReport(t *testing.T) {
 	must(t, err)
 	assertEq(t, 1, replays[0].RenpoWin)
 	assertEq(t, 0, replays[0].ZeonWin)
+}
+
+func Test_p2pMatchingReportFields(t *testing.T) {
+	report := &pb.P2PMatchingReport{
+		BattleCode:        "testreporttiming",
+		CloseReason:       "game_end",
+		PlayerCount:       2,
+		InputDelay:        2,
+		Render:            &pb.RenderSettings{Vsync: true, Renderer: 2},
+		RollbackDepthHist: []int32{0, 120, 30, 4},
+		LateFrames_1_5:    7,
+		RemotePeers:       []*pb.RemotePeerReport{{PeerId: 1, RecvLoss: 4, PingMedianMs: 52, Route: "peer:2"}},
+		TimesyncFrames:    []int32{300, 1800},
+		PresentInterval:   &pb.TimingStats{Count: 5400, MeanUs: 16683, P99Us: 17100, OffPeriod: 3},
+	}
+	// Through the wire format, as the handler gets it.
+	bin, err := proto.Marshal(report)
+	must(t, err)
+	var got pb.P2PMatchingReport
+	must(t, proto.Unmarshal(bin, &got))
+
+	core, logs := observer.New(zap.InfoLevel)
+	zap.New(core).Info("P2PMatchingReport", p2pMatchingReportFields(&got)...)
+	f := logs.All()[0].ContextMap()
+	assertEq(t, int32(2), f["input_delay"])
+	assertEq(t, map[string]interface{}{"threaded_rendering": false, "vsync": true, "renderer": int32(2)}, f["render"])
+	assertEq(t, []interface{}{int32(0), int32(120), int32(30), int32(4)}, f["rollback_depth_hist"])
+	assertEq(t, int32(7), f["late_frames_1_5"])
+	assertEq(t, []interface{}{int32(300), int32(1800)}, f["timesync_frames"])
+	assertEq(t, []interface{}{map[string]interface{}{"peer_id": int32(1), "recv_loss": int32(4), "send_loss": int32(0),
+		"ping_min_ms": int32(0), "ping_median_ms": int32(52), "ping_max_ms": int32(0), "route": "peer:2"}}, f["remote_peers"])
+	present := f["present_interval"].(map[string]interface{})
+	assertEq(t, int32(16683), present["mean_us"])
+	assertEq(t, int32(17100), present["p99_us"])
+	assertEq(t, int32(3), present["off_period"])
+	// Not sent (an older client): not logged.
+	_, ok := f["rollback_budget"]
+	assertEq(t, false, ok)
 }

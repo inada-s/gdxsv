@@ -20,6 +20,54 @@ message P2PMatchingReport {
   int32 input_block_count_1 = 18;
   int32 input_block_count_2 = 19;
   repeated BattleLogRound round_data = 20;
+
+  // Rollback timing of this peer. Times in microseconds.
+  int32 input_delay = 21;
+  RenderSettings render = 22;
+  TimingStats socket_read_gap = 23; // between two reads of the rollback sockets
+  int32 rollback_count = 24;
+  repeated int32 rollback_depth_hist = 25; // [d]: rollbacks of d frames; the last bucket: d or more
+  int32 rollback_max_us = 26;
+  int32 late_frames_1 = 27; // Present intervals over 1 frame period
+  int32 late_frames_1_5 = 28; // over 1.5 periods
+  int32 late_frames_2 = 29; // over 2 periods
+  int32 dropped_frames = 30;
+  repeated RemotePeerReport remote_peers = 31;
+  int32 relay_forwarded = 32; // packets this peer forwarded for other peers
+  repeated int32 timesync_frames = 33; // frames where a timesync wait started, first ones only
+  TimingStats input_read_interval = 34; // between local pad samples
+  TimingStats input_send_interval = 35;
+  TimingStats present_interval = 36;
+  TimingStats rollback_budget = 37; // from a Present to the end of the next limiter sleep
+  int32 budget_exhausted_frames = 38; // frames with rollback_budget <= 0
+  repeated int32 budget_exhausted_depth_hist = 39; // rollback depth in those frames, as rollback_depth_hist
+}
+
+message TimingStats {
+  int32 count = 1;
+  int32 mean_us = 2;
+  int32 min_us = 3;
+  int32 p1_us = 4;
+  int32 p5_us = 5;
+  int32 p99_us = 6;
+  int32 max_us = 7;
+  int32 off_period = 8; // intervals outside +-2 ms of the frame period
+}
+
+message RemotePeerReport {
+  int32 peer_id = 1;
+  int32 recv_loss = 2;
+  int32 send_loss = 3;
+  int32 ping_min_ms = 4;
+  int32 ping_median_ms = 5;
+  int32 ping_max_ms = 6;
+  string route = 7; // "direct", "peer:<peer_id>" or "server:<region>"
+}
+
+message RenderSettings {
+  bool threaded_rendering = 1;
+  bool vsync = 2;
+  int32 renderer = 3; // pvr.rend
 }
 
 message P2PMatching {
