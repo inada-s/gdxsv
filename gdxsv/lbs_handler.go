@@ -1945,15 +1945,6 @@ func frameTimingField(key string, s *proto.FrameTiming) zap.Field {
 	return zap.Object(key, frameTimingLog{s})
 }
 
-type int32s []int32
-
-func (a int32s) MarshalLogArray(e zapcore.ArrayEncoder) error {
-	for _, v := range a {
-		e.AppendInt32(v)
-	}
-	return nil
-}
-
 // addTimingStats: skipped when not sent, like timingStatsField.
 func addTimingStats(e zapcore.ObjectEncoder, key string, s *proto.TimingStats) {
 	if s != nil {
