@@ -44,6 +44,12 @@ message P2PMatchingReport {
   repeated int32 present_depth_hist = 42;
   repeated int32 late_present_depth_hist = 43; // of those, over 1.5 periods: late_frames_1_5 by depth
   repeated int32 dropped_depth_hist = 44; // dropped_frames by depth
+  // Presents with display statistics (DXGI frame statistics; DX11 only, 0 elsewhere).
+  int32 display_stats_presents = 45;
+  // Of those: vsyncs that repeated the last image because the next Present came late, by the deepest rollback
+  // before that Present (buckets as rollback_depth_hist). Counts what was really shown; use it before
+  // late_present_depth_hist, which misses lateness that a non-blocking Present hides.
+  repeated int32 display_miss_depth_hist = 46;
   reserved 37 to 39;
   reserved "rollback_budget", "budget_exhausted_frames", "budget_exhausted_depth_hist";
 }

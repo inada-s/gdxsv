@@ -1917,6 +1917,8 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		zap.Int32s("present_depth_hist", r.PresentDepthHist),
 		zap.Int32s("late_present_depth_hist", r.LatePresentDepthHist),
 		zap.Int32s("dropped_depth_hist", r.DroppedDepthHist),
+		zap.Int32("display_stats_presents", r.DisplayStatsPresents),
+		zap.Int32s("display_miss_depth_hist", r.DisplayMissDepthHist),
 	}
 }
 
