@@ -259,11 +259,12 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 			Work:         &pb.TimingStats{Count: 5400, P50Us: 6100, P99Us: 15200, MaxUs: 21000},
 			RollbackRoom: &pb.TimingStats{Count: 5400, P1Us: -800, P5Us: 4200, P50Us: 9500},
 			RenderWait:   &pb.TimingStats{Count: 5380, P50Us: 900, MaxUs: 30500}},
-		PresentDepthHist:     []int32{5200, 120, 30, 4},
-		LatePresentDepthHist: []int32{3, 0, 1, 3},
-		DroppedDepthHist:     []int32{3, 0, 1, 4},
-		DisplayStatsPresents: 5354,
-		DisplayMissDepthHist: []int32{2, 0, 1, 5},
+		PresentDepthHist:        []int32{5200, 120, 30, 4},
+		LatePresentDepthHist:    []int32{3, 0, 1, 3},
+		DroppedDepthHist:        []int32{3, 0, 1, 4},
+		DisplayStatsPresents:    5354,
+		DisplayMissDepthHist:    []int32{2, 0, 1, 5},
+		DisplayComposedPresents: 40,
 	}
 	// Through the wire format, as the handler gets it.
 	bin, err := proto.Marshal(report)
@@ -306,6 +307,7 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	assertEq(t, []interface{}{int32(3), int32(0), int32(1), int32(4)}, f["dropped_depth_hist"])
 	assertEq(t, int32(5354), f["display_stats_presents"])
 	assertEq(t, []interface{}{int32(2), int32(0), int32(1), int32(5)}, f["display_miss_depth_hist"])
+	assertEq(t, int32(40), f["display_composed_presents"])
 
 	// A client after 1.10.2: no deprecated fields, the slack and elasticity instead.
 	report.FrameTiming = &pb.FrameTiming{PeriodUs: 16683, PresentWaitElasticity: 850,
