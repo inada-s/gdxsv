@@ -1928,15 +1928,6 @@ type frameTimingLog struct{ s *proto.FrameTiming }
 func (l frameTimingLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
 	e.AddInt32("period_us", l.s.PeriodUs)
 	addTimingStats(e, "work", l.s.Work)
-	// Deprecated fields: sent by 1.10.2 only, skipped when empty.
-	room, over, overHist := l.s.RollbackRoom, l.s.OverPeriod, l.s.OverPeriodDepthHist //nolint:staticcheck
-	addTimingStats(e, "rollback_room", room)
-	if over != 0 || len(overHist) != 0 {
-		e.AddInt32("over_period", over)
-		if err := e.AddArray("over_period_depth_hist", int32s(overHist)); err != nil {
-			return err
-		}
-	}
 	e.AddInt32("present_wait_elasticity", l.s.PresentWaitElasticity)
 	addTimingStats(e, "rollback_slack", l.s.RollbackSlack)
 	addTimingStats(e, "present_wait", l.s.PresentWait)

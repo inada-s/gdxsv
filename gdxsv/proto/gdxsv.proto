@@ -62,12 +62,8 @@ message P2PMatchingReport {
 message FrameTiming {
   int32 period_us = 1; // the limiter's frame period
   TimingStats work = 2; // busy - the waits below: emulation, rollback and render
-  // Deprecated, sent by 1.10.2 only: busy includes present_wait, which is a vsync wait that the next frames
-  // can absorb (DX11), so these count it as lost time. Read 1.10.2 data as: rollback_room is a lower bound
-  // when present_wait.p50_us is large; over_period is not a display miss (use late_frames_1_5).
-  TimingStats rollback_room = 3 [deprecated = true]; // period - (busy - rollback work)
-  int32 over_period = 4 [deprecated = true]; // frames with busy > period
-  repeated int32 over_period_depth_hist = 5 [deprecated = true]; // the deepest rollback of those frames
+  reserved 3 to 5;
+  reserved "rollback_room", "over_period", "over_period_depth_hist";
   TimingStats present_wait = 6; // threaded rendering off: time in Present (vsync, frame latency, GPU, driver)
   TimingStats render_wait = 7; // threaded rendering on: the render thread rendering this frame, after its last Present
   TimingStats rollback_wait = 8; // threaded rendering on: a rollback waiting for the render thread to release VRAM
