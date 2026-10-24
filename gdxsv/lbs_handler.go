@@ -1912,10 +1912,49 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		timingStatsField("input_read_interval", r.InputReadInterval),
 		timingStatsField("input_send_interval", r.InputSendInterval),
 		timingStatsField("present_interval", r.PresentInterval),
-		timingStatsField("rollback_budget", r.RollbackBudget),
-		zap.Int32("budget_exhausted_frames", r.BudgetExhaustedFrames),
-		zap.Int32s("budget_exhausted_depth_hist", r.BudgetExhaustedDepthHist),
 		timingStatsField("rollback_frame_time", r.RollbackFrameTime),
+		frameTimingField("frame_timing", r.FrameTiming),
+	}
+}
+
+type frameTimingLog struct{ s *proto.FrameTiming }
+
+func (l frameTimingLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
+	e.AddInt32("period_us", l.s.PeriodUs)
+	addTimingStats(e, "work", l.s.Work)
+	addTimingStats(e, "rollback_room", l.s.RollbackRoom)
+	e.AddInt32("over_period", l.s.OverPeriod)
+	if err := e.AddArray("over_period_depth_hist", int32s(l.s.OverPeriodDepthHist)); err != nil {
+		return err
+	}
+	addTimingStats(e, "present_wait", l.s.PresentWait)
+	addTimingStats(e, "render_wait", l.s.RenderWait)
+	addTimingStats(e, "rollback_wait", l.s.RollbackWait)
+	addTimingStats(e, "queue_wait", l.s.QueueWait)
+	return nil
+}
+
+// frameTimingField: skipped when an older client did not send it.
+func frameTimingField(key string, s *proto.FrameTiming) zap.Field {
+	if s == nil {
+		return zap.Skip()
+	}
+	return zap.Object(key, frameTimingLog{s})
+}
+
+type int32s []int32
+
+func (a int32s) MarshalLogArray(e zapcore.ArrayEncoder) error {
+	for _, v := range a {
+		e.AppendInt32(v)
+	}
+	return nil
+}
+
+// addTimingStats: skipped when not sent, like timingStatsField.
+func addTimingStats(e zapcore.ObjectEncoder, key string, s *proto.TimingStats) {
+	if s != nil {
+		_ = e.AddObject(key, timingStatsLog{s})
 	}
 }
 
