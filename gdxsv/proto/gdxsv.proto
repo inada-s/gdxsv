@@ -40,6 +40,10 @@ message P2PMatchingReport {
   TimingStats present_interval = 36;
   TimingStats rollback_frame_time = 40; // per rollback: its time / the frames it re-ran
   FrameTiming frame_timing = 41;
+  // Present intervals by the deepest rollback since the previous Present, as rollback_depth_hist.
+  repeated int32 present_depth_hist = 42;
+  repeated int32 late_present_depth_hist = 43; // of those, over 1.5 periods: late_frames_1_5 by depth
+  repeated int32 dropped_depth_hist = 44; // dropped_frames by depth
   reserved 37 to 39;
   reserved "rollback_budget", "budget_exhausted_frames", "budget_exhausted_depth_hist";
 }
@@ -49,13 +53,22 @@ message P2PMatchingReport {
 message FrameTiming {
   int32 period_us = 1; // the limiter's frame period
   TimingStats work = 2; // busy - the waits below: emulation, rollback and render
-  TimingStats rollback_room = 3; // period - (busy - rollback work): the time a rollback could use
-  int32 over_period = 4; // frames with busy > period
-  repeated int32 over_period_depth_hist = 5; // the deepest rollback of those frames, as rollback_depth_hist
+  // Deprecated, sent by 1.10.2 only: busy includes present_wait, which is a vsync wait that the next frames
+  // can absorb (DX11), so these count it as lost time. Read 1.10.2 data as: rollback_room is a lower bound
+  // when present_wait.p50_us is large; over_period is not a display miss (use late_frames_1_5).
+  TimingStats rollback_room = 3 [deprecated = true]; // period - (busy - rollback work)
+  int32 over_period = 4 [deprecated = true]; // frames with busy > period
+  repeated int32 over_period_depth_hist = 5 [deprecated = true]; // the deepest rollback of those frames
   TimingStats present_wait = 6; // threaded rendering off: time in Present (vsync, frame latency, GPU, driver)
   TimingStats render_wait = 7; // threaded rendering on: the render thread rendering this frame, after its last Present
   TimingStats rollback_wait = 8; // threaded rendering on: a rollback waiting for the render thread to release VRAM
   TimingStats queue_wait = 9; // threaded rendering on: a full render queue
+  // How much of the Present wait later work absorbs, per mille: minus the slope of the next frame's
+  // present_wait on this frame's rollback work (0: none, a GPU or swap wait; 1000: all, a vsync wait).
+  int32 present_wait_elasticity = 10;
+  // period - (busy - rollback work - present_wait * elasticity): the time a rollback could use. Uses the
+  // elasticity measured so far in the session (0 before the first rollbacks).
+  TimingStats rollback_slack = 11;
 }
 
 // Percentiles may be estimated from histogram buckets; count, mean, min, max and off_period are exact.

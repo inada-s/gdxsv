@@ -1914,6 +1914,9 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		timingStatsField("present_interval", r.PresentInterval),
 		timingStatsField("rollback_frame_time", r.RollbackFrameTime),
 		frameTimingField("frame_timing", r.FrameTiming),
+		zap.Int32s("present_depth_hist", r.PresentDepthHist),
+		zap.Int32s("late_present_depth_hist", r.LatePresentDepthHist),
+		zap.Int32s("dropped_depth_hist", r.DroppedDepthHist),
 	}
 }
 
@@ -1922,11 +1925,17 @@ type frameTimingLog struct{ s *proto.FrameTiming }
 func (l frameTimingLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
 	e.AddInt32("period_us", l.s.PeriodUs)
 	addTimingStats(e, "work", l.s.Work)
-	addTimingStats(e, "rollback_room", l.s.RollbackRoom)
-	e.AddInt32("over_period", l.s.OverPeriod)
-	if err := e.AddArray("over_period_depth_hist", int32s(l.s.OverPeriodDepthHist)); err != nil {
-		return err
+	// Deprecated fields: sent by 1.10.2 only, skipped when empty.
+	room, over, overHist := l.s.RollbackRoom, l.s.OverPeriod, l.s.OverPeriodDepthHist //nolint:staticcheck
+	addTimingStats(e, "rollback_room", room)
+	if over != 0 || len(overHist) != 0 {
+		e.AddInt32("over_period", over)
+		if err := e.AddArray("over_period_depth_hist", int32s(overHist)); err != nil {
+			return err
+		}
 	}
+	e.AddInt32("present_wait_elasticity", l.s.PresentWaitElasticity)
+	addTimingStats(e, "rollback_slack", l.s.RollbackSlack)
 	addTimingStats(e, "present_wait", l.s.PresentWait)
 	addTimingStats(e, "render_wait", l.s.RenderWait)
 	addTimingStats(e, "rollback_wait", l.s.RollbackWait)

@@ -255,10 +255,13 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		TimesyncFrames:    []int32{300, 1800},
 		PresentInterval:   &pb.TimingStats{Count: 5400, MeanUs: 16683, P99Us: 17100, OffPeriod: 3},
 		RollbackFrameTime: &pb.TimingStats{Count: 154, MeanUs: 3900, P50Us: 3700, P99Us: 6100, MaxUs: 7400},
-		FrameTiming: &pb.FrameTiming{PeriodUs: 16683, OverPeriod: 12, OverPeriodDepthHist: []int32{0, 1, 2, 9},
+		FrameTiming: &pb.FrameTiming{PeriodUs: 16683, OverPeriod: 12, OverPeriodDepthHist: []int32{0, 1, 2, 9}, //nolint:staticcheck // as 1.10.2 sends it
 			Work:         &pb.TimingStats{Count: 5400, P50Us: 6100, P99Us: 15200, MaxUs: 21000},
 			RollbackRoom: &pb.TimingStats{Count: 5400, P1Us: -800, P5Us: 4200, P50Us: 9500},
 			RenderWait:   &pb.TimingStats{Count: 5380, P50Us: 900, MaxUs: 30500}},
+		PresentDepthHist:     []int32{5200, 120, 30, 4},
+		LatePresentDepthHist: []int32{3, 0, 1, 3},
+		DroppedDepthHist:     []int32{3, 0, 1, 4},
 	}
 	// Through the wire format, as the handler gets it.
 	bin, err := proto.Marshal(report)
@@ -296,4 +299,24 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	// Not sent (an older client): not logged.
 	_, ok = f["socket_read_gap"]
 	assertEq(t, false, ok)
+	assertEq(t, []interface{}{int32(5200), int32(120), int32(30), int32(4)}, f["present_depth_hist"])
+	assertEq(t, []interface{}{int32(3), int32(0), int32(1), int32(3)}, f["late_present_depth_hist"])
+	assertEq(t, []interface{}{int32(3), int32(0), int32(1), int32(4)}, f["dropped_depth_hist"])
+
+	// A client after 1.10.2: no deprecated fields, the slack and elasticity instead.
+	report.FrameTiming = &pb.FrameTiming{PeriodUs: 16683, PresentWaitElasticity: 850,
+		RollbackSlack: &pb.TimingStats{Count: 5400, P1Us: 9800, P50Us: 12100}}
+	bin, err = proto.Marshal(report)
+	must(t, err)
+	var got2 pb.P2PMatchingReport
+	must(t, proto.Unmarshal(bin, &got2))
+	core, logs = observer.New(zap.InfoLevel)
+	zap.New(core).Info("P2PMatchingReport", p2pMatchingReportFields(&got2)...)
+	ft = logs.All()[0].ContextMap()["frame_timing"].(map[string]interface{})
+	assertEq(t, int32(850), ft["present_wait_elasticity"])
+	assertEq(t, int32(9800), ft["rollback_slack"].(map[string]interface{})["p1_us"])
+	for _, k := range []string{"rollback_room", "over_period", "over_period_depth_hist"} {
+		_, ok = ft[k]
+		assertEq(t, false, ok)
+	}
 }
