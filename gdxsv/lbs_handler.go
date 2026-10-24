@@ -1920,6 +1920,8 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		zap.Int32("display_stats_presents", r.DisplayStatsPresents),
 		zap.Int32s("display_miss_depth_hist", r.DisplayMissDepthHist),
 		zap.Int32("display_composed_presents", r.DisplayComposedPresents),
+		zap.Int32s("display_late_depth_hist", r.DisplayLateDepthHist),
+		zap.Int32("display_refresh_period_ns", r.DisplayRefreshPeriodNs),
 	}
 }
 
@@ -1981,6 +1983,7 @@ func (l renderSettingsLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
 	e.AddBool("threaded_rendering", l.s.ThreadedRendering)
 	e.AddBool("vsync", l.s.Vsync)
 	e.AddInt32("renderer", l.s.Renderer)
+	e.AddFloat32("refresh_rate", l.s.RefreshRate)
 	return nil
 }
 

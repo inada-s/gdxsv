@@ -249,7 +249,7 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		CloseReason:       "game_end",
 		PlayerCount:       2,
 		InputDelay:        2,
-		Render:            &pb.RenderSettings{Vsync: true, Renderer: 2},
+		Render:            &pb.RenderSettings{Vsync: true, Renderer: 2, RefreshRate: 144},
 		RollbackDepthHist: []int32{0, 120, 30, 4},
 		LateFrames_1_5:    7,
 		RemotePeers:       []*pb.RemotePeerReport{{PeerId: 1, RecvLoss: 4, PingMedianMs: 52, Route: "peer:2"}},
@@ -265,6 +265,8 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		DisplayStatsPresents:    5354,
 		DisplayMissDepthHist:    []int32{2, 0, 1, 5},
 		DisplayComposedPresents: 40,
+		DisplayLateDepthHist:    []int32{1, 0, 1, 4},
+		DisplayRefreshPeriodNs:  16683333,
 	}
 	// The removed fields as 1.10.2 still sends them: rollback_room = 3, over_period = 4, over_period_depth_hist = 5.
 	room, err := proto.Marshal(&pb.TimingStats{Count: 5400, P1Us: -800, P5Us: 4200, P50Us: 9500})
@@ -287,7 +289,8 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	zap.New(core).Info("P2PMatchingReport", p2pMatchingReportFields(&got)...)
 	f := logs.All()[0].ContextMap()
 	assertEq(t, int32(2), f["input_delay"])
-	assertEq(t, map[string]interface{}{"threaded_rendering": false, "vsync": true, "renderer": int32(2)}, f["render"])
+	assertEq(t, map[string]interface{}{"threaded_rendering": false, "vsync": true, "renderer": int32(2),
+		"refresh_rate": float32(144)}, f["render"])
 	assertEq(t, []interface{}{int32(0), int32(120), int32(30), int32(4)}, f["rollback_depth_hist"])
 	assertEq(t, int32(7), f["late_frames_1_5"])
 	assertEq(t, []interface{}{int32(300), int32(1800)}, f["timesync_frames"])
@@ -322,6 +325,8 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	assertEq(t, int32(5354), f["display_stats_presents"])
 	assertEq(t, []interface{}{int32(2), int32(0), int32(1), int32(5)}, f["display_miss_depth_hist"])
 	assertEq(t, int32(40), f["display_composed_presents"])
+	assertEq(t, []interface{}{int32(1), int32(0), int32(1), int32(4)}, f["display_late_depth_hist"])
+	assertEq(t, int32(16683333), f["display_refresh_period_ns"])
 
 	// A client after 1.10.2: the slack and elasticity.
 	report.FrameTiming = &pb.FrameTiming{PeriodUs: 16683, PresentWaitElasticity: 850,
@@ -335,4 +340,15 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	ft = logs.All()[0].ContextMap()["frame_timing"].(map[string]interface{})
 	assertEq(t, int32(850), ft["present_wait_elasticity"])
 	assertEq(t, int32(9800), ft["rollback_slack"].(map[string]interface{})["p1_us"])
+
+	// After 1.10.3: an elasticity that was not measured is -1, not 0.
+	report.FrameTiming.PresentWaitElasticity = -1
+	bin, err = proto.Marshal(report)
+	must(t, err)
+	var got3 pb.P2PMatchingReport
+	must(t, proto.Unmarshal(bin, &got3))
+	core, logs = observer.New(zap.InfoLevel)
+	zap.New(core).Info("P2PMatchingReport", p2pMatchingReportFields(&got3)...)
+	ft = logs.All()[0].ContextMap()["frame_timing"].(map[string]interface{})
+	assertEq(t, int32(-1), ft["present_wait_elasticity"])
 }

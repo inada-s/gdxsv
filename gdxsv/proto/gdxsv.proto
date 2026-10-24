@@ -28,7 +28,9 @@ message P2PMatchingReport {
   int32 rollback_count = 24;
   repeated int32 rollback_depth_hist = 25; // [d]: rollbacks of d frames; the last bucket: d or more
   int32 rollback_max_us = 26;
-  int32 late_frames_1 = 27; // Present intervals over 1 frame period
+  // Present intervals over 1 frame period. Not sent after 1.10.3: an interval a little over the period is normal, so
+  // it counted about half of all Presents.
+  int32 late_frames_1 = 27;
   int32 late_frames_1_5 = 28; // over 1.5 periods
   int32 late_frames_2 = 29; // over 2 periods
   int32 dropped_frames = 30;
@@ -38,7 +40,9 @@ message P2PMatchingReport {
   TimingStats input_read_interval = 34; // between local pad samples
   TimingStats input_send_interval = 35;
   TimingStats present_interval = 36;
-  TimingStats rollback_frame_time = 40; // per rollback: its time / the frames it re-ran
+  // Per rollback: its time / the frames it re-ran. The time includes the state load and the saves of the re-run
+  // frames. After 1.10.3 it leaves out the rollback_wait (threaded rendering on); 1.10.3 and older include it.
+  TimingStats rollback_frame_time = 40;
   FrameTiming frame_timing = 41;
   // Present intervals by the deepest rollback since the previous Present, as rollback_depth_hist.
   repeated int32 present_depth_hist = 42;
@@ -46,13 +50,21 @@ message P2PMatchingReport {
   repeated int32 dropped_depth_hist = 44; // dropped_frames by depth
   // Presents with display statistics (DXGI frame statistics; DX11 only, 0 elsewhere).
   int32 display_stats_presents = 45;
-  // Of those: vsyncs that repeated the last image because the next Present came late, by the deepest rollback
-  // before that Present (buckets as rollback_depth_hist). Counts what was really shown; use it before
-  // late_present_depth_hist, which misses lateness that a non-blocking Present hides.
+  // 1.10.3 only, do not use: vsyncs past one per frame, so on a display over 60 Hz it counted every ordinary
+  // repeat (about 1.4 per frame at 144 Hz). Replaced by display_late_depth_hist.
   repeated int32 display_miss_depth_hist = 46;
   // Presents that DWM composed (windowed and not in independent flip; DXGI statistics all 0): their statistics do not show
   // the repeated vsyncs, so they are left out of display_stats_presents and display_miss_depth_hist.
   int32 display_composed_presents = 47;
+  // Of display_stats_presents: images that stayed on screen over 1.5 frame periods, timed by the vsyncs they were
+  // shown at; each counts its periods past the first, rounded. By the deepest rollback before the Present that
+  // replaced the image (buckets as rollback_depth_hist). It does not depend on the display's refresh rate. Counts
+  // what was really shown; use it before late_present_depth_hist, which misses lateness that a non-blocking Present
+  // hides.
+  repeated int32 display_late_depth_hist = 48;
+  // The display's vsync period measured from the same statistics, in nanoseconds (0: none). Tells a 59.94 Hz display
+  // (16683333) from a 60 Hz one (16666667), which RenderSettings.refresh_rate cannot.
+  int32 display_refresh_period_ns = 49;
   reserved 37 to 39;
   reserved "rollback_budget", "budget_exhausted_frames", "budget_exhausted_depth_hist";
 }
@@ -70,9 +82,11 @@ message FrameTiming {
   TimingStats queue_wait = 9; // threaded rendering on: a full render queue
   // How much of the Present wait later work absorbs, per mille: minus the slope of the next frame's
   // present_wait on this frame's rollback work (0: none, a GPU or swap wait; 1000: all, a vsync wait).
+  // -1: not measured (no Present wait on this thread, or fewer than 16 frames with a rollback). Up to 1.10.3 that
+  // case sent 0 too, so a 0 from 1.10.3 can mean either.
   int32 present_wait_elasticity = 10;
   // period - (busy - rollback work - present_wait * elasticity): the time a rollback could use. Uses the
-  // elasticity measured so far in the session (0 before the first rollbacks).
+  // elasticity measured so far in the session (0 while it is not measured).
   TimingStats rollback_slack = 11;
 }
 
@@ -103,6 +117,9 @@ message RenderSettings {
   bool threaded_rendering = 1;
   bool vsync = 2;
   int32 renderer = 3; // pvr.rend
+  // The refresh rate flycast uses (settings.display.refreshRate): the desktop mode's, with 59 Hz read as 60 and
+  // anything under 60 as 60. Tells a display over 60 Hz; display_refresh_period_ns tells 59.94 Hz from 60 Hz.
+  float refresh_rate = 4;
 }
 
 message P2PMatching {
