@@ -254,6 +254,11 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		RemotePeers:       []*pb.RemotePeerReport{{PeerId: 1, RecvLoss: 4, PingMedianMs: 52, Route: "peer:2"}},
 		TimesyncFrames:    []int32{300, 1800},
 		PresentInterval:   &pb.TimingStats{Count: 5400, MeanUs: 16683, P99Us: 17100, OffPeriod: 3},
+		RollbackFrameTime: &pb.TimingStats{Count: 154, MeanUs: 3900, P50Us: 3700, P99Us: 6100, MaxUs: 7400},
+		FrameTiming: &pb.FrameTiming{PeriodUs: 16683, OverPeriod: 12, OverPeriodDepthHist: []int32{0, 1, 2, 9},
+			Work:         &pb.TimingStats{Count: 5400, P50Us: 6100, P99Us: 15200, MaxUs: 21000},
+			RollbackRoom: &pb.TimingStats{Count: 5400, P1Us: -800, P5Us: 4200, P50Us: 9500},
+			RenderWait:   &pb.TimingStats{Count: 5380, P50Us: 900, MaxUs: 30500}},
 	}
 	// Through the wire format, as the handler gets it.
 	bin, err := proto.Marshal(report)
@@ -275,7 +280,20 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	assertEq(t, int32(16683), present["mean_us"])
 	assertEq(t, int32(17100), present["p99_us"])
 	assertEq(t, int32(3), present["off_period"])
+	assertEq(t, map[string]interface{}{"count": int32(154), "mean_us": int32(3900), "min_us": int32(0), "p1_us": int32(0),
+		"p5_us": int32(0), "p50_us": int32(3700), "p99_us": int32(6100), "max_us": int32(7400), "off_period": int32(0)},
+		f["rollback_frame_time"])
+	ft := f["frame_timing"].(map[string]interface{})
+	assertEq(t, int32(16683), ft["period_us"])
+	assertEq(t, int32(12), ft["over_period"])
+	assertEq(t, []interface{}{int32(0), int32(1), int32(2), int32(9)}, ft["over_period_depth_hist"])
+	assertEq(t, int32(15200), ft["work"].(map[string]interface{})["p99_us"])
+	assertEq(t, int32(-800), ft["rollback_room"].(map[string]interface{})["p1_us"])
+	assertEq(t, int32(30500), ft["render_wait"].(map[string]interface{})["max_us"])
+	// A wait this client did not have (threaded rendering on: no Present wait): not logged.
+	_, ok := ft["present_wait"]
+	assertEq(t, false, ok)
 	// Not sent (an older client): not logged.
-	_, ok := f["rollback_budget"]
+	_, ok = f["socket_read_gap"]
 	assertEq(t, false, ok)
 }

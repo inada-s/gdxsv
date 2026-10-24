@@ -38,11 +38,27 @@ message P2PMatchingReport {
   TimingStats input_read_interval = 34; // between local pad samples
   TimingStats input_send_interval = 35;
   TimingStats present_interval = 36;
-  TimingStats rollback_budget = 37; // from a Present to the end of the next limiter sleep
-  int32 budget_exhausted_frames = 38; // frames with rollback_budget <= 0
-  repeated int32 budget_exhausted_depth_hist = 39; // rollback depth in those frames, as rollback_depth_hist
+  TimingStats rollback_frame_time = 40; // per rollback: its time / the frames it re-ran
+  FrameTiming frame_timing = 41;
+  reserved 37 to 39;
+  reserved "rollback_budget", "budget_exhausted_frames", "budget_exhausted_depth_hist";
 }
 
+// Per emulation-thread frame: from a frame limiter wake to the next limiter wait (busy = the frame minus the
+// limiter sleep). Times in microseconds. A wait is counted in the frames that had one: count = those frames.
+message FrameTiming {
+  int32 period_us = 1; // the limiter's frame period
+  TimingStats work = 2; // busy - the waits below: emulation, rollback and render
+  TimingStats rollback_room = 3; // period - (busy - rollback work): the time a rollback could use
+  int32 over_period = 4; // frames with busy > period
+  repeated int32 over_period_depth_hist = 5; // the deepest rollback of those frames, as rollback_depth_hist
+  TimingStats present_wait = 6; // threaded rendering off: time in Present (vsync, frame latency, GPU, driver)
+  TimingStats render_wait = 7; // threaded rendering on: the render thread rendering this frame, after its last Present
+  TimingStats rollback_wait = 8; // threaded rendering on: a rollback waiting for the render thread to release VRAM
+  TimingStats queue_wait = 9; // threaded rendering on: a full render queue
+}
+
+// Percentiles may be estimated from histogram buckets; count, mean, min, max and off_period are exact.
 message TimingStats {
   int32 count = 1;
   int32 mean_us = 2;
@@ -52,6 +68,7 @@ message TimingStats {
   int32 p99_us = 6;
   int32 max_us = 7;
   int32 off_period = 8; // intervals outside +-2 ms of the frame period
+  int32 p50_us = 9;
 }
 
 message RemotePeerReport {
