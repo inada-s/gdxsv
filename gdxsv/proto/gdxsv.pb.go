@@ -149,7 +149,7 @@ type P2PMatchingReport struct {
 	// before that Present (buckets as rollback_depth_hist). Counts what was really shown; use it before
 	// late_present_depth_hist, which misses lateness that a non-blocking Present hides.
 	DisplayMissDepthHist []int32 `protobuf:"varint,46,rep,packed,name=display_miss_depth_hist,json=displayMissDepthHist,proto3" json:"display_miss_depth_hist,omitempty"`
-	// Presents that DWM composed (windowed, not on top or not in independent flip): their statistics do not show
+	// Presents that DWM composed (windowed and not in independent flip; DXGI statistics all 0): their statistics do not show
 	// the repeated vsyncs, so they are left out of display_stats_presents and display_miss_depth_hist.
 	DisplayComposedPresents int32 `protobuf:"varint,47,opt,name=display_composed_presents,json=displayComposedPresents,proto3" json:"display_composed_presents,omitempty"`
 }

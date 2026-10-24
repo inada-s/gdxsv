@@ -50,7 +50,7 @@ message P2PMatchingReport {
   // before that Present (buckets as rollback_depth_hist). Counts what was really shown; use it before
   // late_present_depth_hist, which misses lateness that a non-blocking Present hides.
   repeated int32 display_miss_depth_hist = 46;
-  // Presents that DWM composed (windowed, not on top or not in independent flip): their statistics do not show
+  // Presents that DWM composed (windowed and not in independent flip; DXGI statistics all 0): their statistics do not show
   // the repeated vsyncs, so they are left out of display_stats_presents and display_miss_depth_hist.
   int32 display_composed_presents = 47;
   reserved 37 to 39;
