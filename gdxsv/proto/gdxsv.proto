@@ -38,7 +38,7 @@ message P2PMatchingReport {
   TimingStats input_read_interval = 34; // between local pad samples
   TimingStats input_send_interval = 35;
   TimingStats present_interval = 36;
-  TimingStats rollback_budget = 37; // from a Present to the end of the next limiter sleep
+  TimingStats rollback_budget = 37; // per frame limiter cycle: period - (cycle - Present blocking on that thread - limiter sleep)
   int32 budget_exhausted_frames = 38; // frames with rollback_budget <= 0
   repeated int32 budget_exhausted_depth_hist = 39; // rollback depth in those frames, as rollback_depth_hist
   TimingStats rollback_frame_time = 40; // per rollback: its time / the frames it re-ran
