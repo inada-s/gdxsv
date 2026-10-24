@@ -254,6 +254,7 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		RemotePeers:       []*pb.RemotePeerReport{{PeerId: 1, RecvLoss: 4, PingMedianMs: 52, Route: "peer:2"}},
 		TimesyncFrames:    []int32{300, 1800},
 		PresentInterval:   &pb.TimingStats{Count: 5400, MeanUs: 16683, P99Us: 17100, OffPeriod: 3},
+		RollbackFrameTime: &pb.TimingStats{Count: 154, MeanUs: 3900, P50Us: 3700, P99Us: 6100, MaxUs: 7400},
 	}
 	// Through the wire format, as the handler gets it.
 	bin, err := proto.Marshal(report)
@@ -275,6 +276,9 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	assertEq(t, int32(16683), present["mean_us"])
 	assertEq(t, int32(17100), present["p99_us"])
 	assertEq(t, int32(3), present["off_period"])
+	assertEq(t, map[string]interface{}{"count": int32(154), "mean_us": int32(3900), "min_us": int32(0), "p1_us": int32(0),
+		"p5_us": int32(0), "p50_us": int32(3700), "p99_us": int32(6100), "max_us": int32(7400), "off_period": int32(0)},
+		f["rollback_frame_time"])
 	// Not sent (an older client): not logged.
 	_, ok := f["rollback_budget"]
 	assertEq(t, false, ok)

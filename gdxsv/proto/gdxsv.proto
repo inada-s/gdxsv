@@ -41,8 +41,10 @@ message P2PMatchingReport {
   TimingStats rollback_budget = 37; // from a Present to the end of the next limiter sleep
   int32 budget_exhausted_frames = 38; // frames with rollback_budget <= 0
   repeated int32 budget_exhausted_depth_hist = 39; // rollback depth in those frames, as rollback_depth_hist
+  TimingStats rollback_frame_time = 40; // per rollback: its time / the frames it re-ran
 }
 
+// Percentiles may be estimated from histogram buckets; count, mean, min, max and off_period are exact.
 message TimingStats {
   int32 count = 1;
   int32 mean_us = 2;
@@ -52,6 +54,7 @@ message TimingStats {
   int32 p99_us = 6;
   int32 max_us = 7;
   int32 off_period = 8; // intervals outside +-2 ms of the frame period
+  int32 p50_us = 9;
 }
 
 message RemotePeerReport {

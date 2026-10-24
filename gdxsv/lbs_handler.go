@@ -1915,6 +1915,7 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		timingStatsField("rollback_budget", r.RollbackBudget),
 		zap.Int32("budget_exhausted_frames", r.BudgetExhaustedFrames),
 		zap.Int32s("budget_exhausted_depth_hist", r.BudgetExhaustedDepthHist),
+		timingStatsField("rollback_frame_time", r.RollbackFrameTime),
 	}
 }
 
@@ -1926,6 +1927,7 @@ func (l timingStatsLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
 	e.AddInt32("min_us", l.s.MinUs)
 	e.AddInt32("p1_us", l.s.P1Us)
 	e.AddInt32("p5_us", l.s.P5Us)
+	e.AddInt32("p50_us", l.s.P50Us)
 	e.AddInt32("p99_us", l.s.P99Us)
 	e.AddInt32("max_us", l.s.MaxUs)
 	e.AddInt32("off_period", l.s.OffPeriod)
