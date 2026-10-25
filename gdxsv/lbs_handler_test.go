@@ -257,18 +257,18 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		PresentInterval:   &pb.TimingStats{Count: 5400, MeanUs: 16683, P99Us: 17100, OffPeriod: 3},
 		RollbackFrameTime: &pb.TimingStats{Count: 154, MeanUs: 3900, P50Us: 3700, P99Us: 6100, MaxUs: 7400},
 		FrameTiming: &pb.FrameTiming{PeriodUs: 16683,
-			Work:       &pb.TimingStats{Count: 5400, P50Us: 6100, P99Us: 15200, MaxUs: 21000},
-			RenderWait: &pb.TimingStats{Count: 5380, P50Us: 900, MaxUs: 30500}},
+			Work:      &pb.TimingStats{Count: 5400, P50Us: 6100, P99Us: 15200, MaxUs: 21000},
+			QueueWait: &pb.TimingStats{Count: 12, P50Us: 900, MaxUs: 30500}},
 		PresentDepthHist:        []int32{5200, 120, 30, 4},
 		LatePresentDepthHist:    []int32{3, 0, 1, 3},
 		DroppedDepthHist:        []int32{3, 0, 1, 4},
 		DisplayStatsPresents:    5354,
-		DisplayMissDepthHist:    []int32{2, 0, 1, 5},
 		DisplayComposedPresents: 40,
 		DisplayLateDepthHist:    []int32{1, 0, 1, 4},
 		DisplayRefreshPeriodNs:  16683333,
 	}
-	// The removed fields as 1.10.2 still sends them: rollback_room = 3, over_period = 4, over_period_depth_hist = 5.
+	// The removed fields as 1.10.2 still sends them: rollback_room = 3, over_period = 4, over_period_depth_hist = 5;
+	// and as 1.10.3 does: present_wait = 6, render_wait = 7, rollback_wait = 8, present_wait_elasticity = 10.
 	room, err := proto.Marshal(&pb.TimingStats{Count: 5400, P1Us: -800, P5Us: 4200, P50Us: 9500})
 	must(t, err)
 	var old []byte
@@ -278,6 +278,19 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	old = protowire.AppendVarint(old, 12)
 	old = protowire.AppendTag(old, 5, protowire.BytesType)
 	old = protowire.AppendBytes(old, []byte{0, 1, 2, 9})
+	for _, n := range []protowire.Number{6, 7, 8} {
+		old = protowire.AppendTag(old, n, protowire.BytesType)
+		old = protowire.AppendBytes(old, room)
+	}
+	old = protowire.AppendTag(old, 10, protowire.VarintType)
+	old = protowire.AppendVarint(old, protowire.EncodeZigZag(-1))
+	// The removed report fields as 1.10.3 sends them: late_frames_1 = 27, display_miss_depth_hist = 46.
+	var oldReport []byte
+	oldReport = protowire.AppendTag(oldReport, 27, protowire.VarintType)
+	oldReport = protowire.AppendVarint(oldReport, 2600)
+	oldReport = protowire.AppendTag(oldReport, 46, protowire.BytesType)
+	oldReport = protowire.AppendBytes(oldReport, []byte{2, 0, 1, 5})
+	report.ProtoReflect().SetUnknown(oldReport)
 	report.FrameTiming.ProtoReflect().SetUnknown(old)
 	// Through the wire format, as the handler gets it.
 	bin, err := proto.Marshal(report)
@@ -306,31 +319,32 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	ft := f["frame_timing"].(map[string]interface{})
 	assertEq(t, int32(16683), ft["period_us"])
 	assertEq(t, int32(15200), ft["work"].(map[string]interface{})["p99_us"])
-	assertEq(t, int32(30500), ft["render_wait"].(map[string]interface{})["max_us"])
-	// The removed 1.10.2 fields arrive as unknown fields and are not logged.
+	assertEq(t, int32(30500), ft["queue_wait"].(map[string]interface{})["max_us"])
+	// The removed 1.10.2 and 1.10.3 fields arrive as unknown fields and are not logged.
 	assertEq(t, len(old), len(got.FrameTiming.ProtoReflect().GetUnknown()))
-	for _, k := range []string{"rollback_room", "over_period", "over_period_depth_hist"} {
+	for _, k := range []string{"rollback_room", "over_period", "over_period_depth_hist", "present_wait", "render_wait",
+		"rollback_wait", "present_wait_elasticity"} {
 		_, ok := ft[k]
 		assertEq(t, false, ok)
 	}
-	// A wait this client did not have (threaded rendering on: no Present wait): not logged.
-	_, ok := ft["present_wait"]
-	assertEq(t, false, ok)
+	assertEq(t, len(oldReport), len(got.ProtoReflect().GetUnknown()))
+	for _, k := range []string{"late_frames_1", "display_miss_depth_hist"} {
+		_, ok := f[k]
+		assertEq(t, false, ok)
+	}
 	// Not sent (an older client): not logged.
-	_, ok = f["socket_read_gap"]
+	_, ok := f["socket_read_gap"]
 	assertEq(t, false, ok)
 	assertEq(t, []interface{}{int32(5200), int32(120), int32(30), int32(4)}, f["present_depth_hist"])
 	assertEq(t, []interface{}{int32(3), int32(0), int32(1), int32(3)}, f["late_present_depth_hist"])
 	assertEq(t, []interface{}{int32(3), int32(0), int32(1), int32(4)}, f["dropped_depth_hist"])
 	assertEq(t, int32(5354), f["display_stats_presents"])
-	assertEq(t, []interface{}{int32(2), int32(0), int32(1), int32(5)}, f["display_miss_depth_hist"])
 	assertEq(t, int32(40), f["display_composed_presents"])
 	assertEq(t, []interface{}{int32(1), int32(0), int32(1), int32(4)}, f["display_late_depth_hist"])
 	assertEq(t, int32(16683333), f["display_refresh_period_ns"])
 
-	// A client after 1.10.2: the slack and elasticity.
-	report.FrameTiming = &pb.FrameTiming{PeriodUs: 16683, PresentWaitElasticity: 850,
-		RollbackSlack: &pb.TimingStats{Count: 5400, P1Us: 9800, P50Us: 12100}}
+	// A client after 1.10.2: the slack.
+	report.FrameTiming = &pb.FrameTiming{PeriodUs: 16683, RollbackSlack: &pb.TimingStats{Count: 5400, P1Us: 9800, P50Us: 12100}}
 	bin, err = proto.Marshal(report)
 	must(t, err)
 	var got2 pb.P2PMatchingReport
@@ -338,17 +352,5 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	core, logs = observer.New(zap.InfoLevel)
 	zap.New(core).Info("P2PMatchingReport", p2pMatchingReportFields(&got2)...)
 	ft = logs.All()[0].ContextMap()["frame_timing"].(map[string]interface{})
-	assertEq(t, int32(850), ft["present_wait_elasticity"])
 	assertEq(t, int32(9800), ft["rollback_slack"].(map[string]interface{})["p1_us"])
-
-	// After 1.10.3: an elasticity that was not measured is -1, not 0.
-	report.FrameTiming.PresentWaitElasticity = -1
-	bin, err = proto.Marshal(report)
-	must(t, err)
-	var got3 pb.P2PMatchingReport
-	must(t, proto.Unmarshal(bin, &got3))
-	core, logs = observer.New(zap.InfoLevel)
-	zap.New(core).Info("P2PMatchingReport", p2pMatchingReportFields(&got3)...)
-	ft = logs.All()[0].ContextMap()["frame_timing"].(map[string]interface{})
-	assertEq(t, int32(-1), ft["present_wait_elasticity"])
 }
