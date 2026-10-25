@@ -89,7 +89,7 @@ cd website && npm run build # Production build
 - **SQLite** with WAL mode (`github.com/mattn/go-sqlite3`)
 - Access via `github.com/jmoiron/sqlx`
 - Interface defined in `db.go`, implementation in `db_sqlite.go`
-- Main tables: `account`, `user`, `battle_record`, `m_lobby_setting`, `m_rule`, `m_patch`, `m_ban`
+- Main tables: `account`, `user`, `battle_record`, `m_lobby_setting`, `m_rule`, `m_patch`, `m_ban`, `m_string` (strings shown to players), `m_server_setting` (server settings by key, e.g. `min_flycast_version`)
 
 ### Testing Patterns
 - Standard `testing.T`, no external test frameworks

@@ -170,6 +170,12 @@ CREATE TABLE IF NOT EXISTS m_rule
     stage_no       integer not null,
     PRIMARY KEY (id)
 );
+CREATE TABLE IF NOT EXISTS m_server_setting
+(
+    key   text,
+    value text,
+    PRIMARY KEY (key)
+);
 CREATE TABLE IF NOT EXISTS m_patch
 (
     platform 	text not null,
@@ -799,6 +805,12 @@ func (db SQLiteDB) GetKillCountRanking(team byte) ([]*RankingRecord, error) {
 func (db SQLiteDB) GetString(key string) (string, error) {
 	var value string
 	err := db.QueryRowx(`SELECT value FROM m_string WHERE key = ? LIMIT 1`, key).Scan(&value)
+	return value, err
+}
+
+func (db SQLiteDB) GetServerSetting(key string) (string, error) {
+	var value string
+	err := db.QueryRowx(`SELECT value FROM m_server_setting WHERE key = ? LIMIT 1`, key).Scan(&value)
 	return value, err
 }
 

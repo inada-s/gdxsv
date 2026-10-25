@@ -293,6 +293,32 @@ func isBannedFlycastVersion(userVersion string) bool {
 	return bannedFlycastVersions[userVersion]
 }
 
+// minFlycastVersion is the minimum flycast version a client must have: m_server_setting min_flycast_version
+// ("v1.10.3" or "gdxsv-1.10.3"), read at each check so that a change in the master data applies at once.
+// requiredFlycastVersion when the row is missing or does not hold a version.
+func minFlycastVersion() string {
+	v, err := getDB().GetServerSetting("min_flycast_version")
+	if err != nil {
+		if err != sql.ErrNoRows {
+			logger.Warn("failed to get min_flycast_version", zap.Error(err))
+		}
+		return requiredFlycastVersion
+	}
+	if strings.HasPrefix(v, "gdxsv-") {
+		v = "v" + strings.TrimPrefix(v, "gdxsv-")
+	}
+	if !semver.IsValid(v) {
+		logger.Warn("invalid min_flycast_version", zap.String("value", v))
+		return requiredFlycastVersion
+	}
+	return v
+}
+
+// flycastNeedsUpdate: the client sent its flycast version, and it is too old or banned.
+func flycastNeedsUpdate(userVersion string) bool {
+	return userVersion != "" && (isOldFlycastVersion(userVersion, minFlycastVersion()) || isBannedFlycastVersion(userVersion))
+}
+
 var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 	loginType := m.Reader().Read8()
 
@@ -310,8 +336,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 
 	switch loginType {
 	case 0:
-		v := p.PlatformInfo["flycast"]
-		if v != "" && (isOldFlycastVersion(v, requiredFlycastVersion) || isBannedFlycastVersion(v)) {
+		if flycastNeedsUpdate(p.PlatformInfo["flycast"]) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return
@@ -361,8 +386,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 			WriteString("<LF=5><BODY><CENTER>UNSUPPORTED LOGIN TYPE<END>").Msg())
 	case 2:
-		v := p.PlatformInfo["flycast"]
-		if v != "" && (isOldFlycastVersion(v, requiredFlycastVersion) || isBannedFlycastVersion(v)) {
+		if flycastNeedsUpdate(p.PlatformInfo["flycast"]) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return
@@ -371,8 +395,7 @@ var _ = register(lbsLoginType, func(p *LbsPeer, m *LbsMessage) {
 		// Go to account registration flow.
 		p.SendMessage(NewServerQuestion(lbsUserInfo1))
 	case 3:
-		v := p.PlatformInfo["flycast"]
-		if v != "" && (isOldFlycastVersion(v, requiredFlycastVersion) || isBannedFlycastVersion(v)) {
+		if flycastNeedsUpdate(p.PlatformInfo["flycast"]) {
 			p.SendMessage(NewServerNotice(lbsShutDown).Writer().
 				WriteString("<LF=5><BODY><CENTER>PLEASE UPDATE Flycast<END>").Msg())
 			return

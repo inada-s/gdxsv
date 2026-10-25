@@ -304,6 +304,9 @@ type DB interface {
 	// GetString returns a string that corresponds to the key.
 	GetString(key string) (value string, err error)
 
+	// GetServerSetting returns the server setting value of the key (m_server_setting).
+	GetServerSetting(key string) (value string, err error)
+
 	// IsBannedEndpoint returns true if the endpoint is banned.
 	IsBannedEndpoint(ip, machineID string) (banned bool, err error)
 
