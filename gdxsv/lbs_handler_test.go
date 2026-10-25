@@ -132,6 +132,43 @@ func Test_isOldFlycastVersion(t *testing.T) {
 	requiredFlycastVersion = backup
 }
 
+func Test_minFlycastVersion(t *testing.T) {
+	db := getDB().(SQLiteDB)
+	set := func(value string) {
+		_, err := db.Exec(`INSERT OR REPLACE INTO m_server_setting (key, value) VALUES ('min_flycast_version', ?)`, value)
+		must(t, err)
+	}
+	defer func() {
+		_, err := db.Exec(`DELETE FROM m_server_setting WHERE key = 'min_flycast_version'`)
+		must(t, err)
+	}()
+
+	// No row: the built-in default.
+	assertEq(t, requiredFlycastVersion, minFlycastVersion())
+
+	set("v1.10.3")
+	assertEq(t, "v1.10.3", minFlycastVersion())
+	assertEq(t, true, flycastNeedsUpdate("gdxsv-1.10.2"))
+	assertEq(t, true, flycastNeedsUpdate("gdxsv-1.10.3-dev.4+abcdef12"))
+	assertEq(t, false, flycastNeedsUpdate("gdxsv-1.10.3"))
+	assertEq(t, false, flycastNeedsUpdate("gdxsv-1.11.0"))
+	// A client that does not send its version is not checked.
+	assertEq(t, false, flycastNeedsUpdate(""))
+
+	// The client's own spelling.
+	set("gdxsv-1.10.4")
+	assertEq(t, "v1.10.4", minFlycastVersion())
+	assertEq(t, true, flycastNeedsUpdate("gdxsv-1.10.3"))
+
+	// Not a version: the built-in default.
+	set("latest")
+	assertEq(t, requiredFlycastVersion, minFlycastVersion())
+
+	// Banned versions stay banned whatever the minimum.
+	set("v1.0.0")
+	assertEq(t, true, flycastNeedsUpdate("v1.7.0"))
+}
+
 func TestLbs_P2PMatchingReport(t *testing.T) {
 	lbs := NewLbs()
 	defer lbs.Quit()

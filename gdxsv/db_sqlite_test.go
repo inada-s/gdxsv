@@ -418,7 +418,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	db := newFreshTestDB(t)
 	must(t, db.Init())
 
-	expectedTables := []string{"account", "user", "battle_record", "m_string", "m_ban", "m_lobby_setting", "m_rule", "m_patch"}
+	expectedTables := []string{"account", "user", "battle_record", "m_string", "m_ban", "m_lobby_setting", "m_rule", "m_server_setting",
+		"m_patch"}
 	initial := schemaSnapshot(t, db)
 	assertEq(t, len(expectedTables), len(initial))
 	for _, name := range expectedTables {
@@ -438,6 +439,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	must(t, db.UpdateUser(u))
 	must(t, db.AddBattleRecord(&BattleRecord{BattleCode: "mig", UserID: u.UserID, Players: 4, Team: 1}))
 	_, err = db.Exec(`INSERT INTO m_string (key, value) VALUES ('k', 'v')`)
+	must(t, err)
+	_, err = db.Exec(`INSERT INTO m_server_setting (key, value) VALUES ('s', 'w')`)
 	must(t, err)
 	_, err = db.Exec(`INSERT INTO m_ban (key, until, created) VALUES ('b', ?, ?)`, time.Now(), time.Now())
 	must(t, err)
@@ -476,6 +479,10 @@ func TestMigrateIdempotent(t *testing.T) {
 			v, err := db.GetString("k")
 			must(t, err)
 			assertEq(t, "v", v)
+
+			v, err = db.GetServerSetting("s")
+			must(t, err)
+			assertEq(t, "w", v)
 
 			ls, err := db.GetLobbySetting("p", "d", 1)
 			must(t, err)

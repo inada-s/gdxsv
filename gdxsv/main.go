@@ -30,7 +30,7 @@ var (
 	gdxsvVersion  string
 	gdxsvRevision string
 
-	// Minimum required flycast version.
+	// Minimum required flycast version, when m_server_setting has no min_flycast_version (minFlycastVersion).
 	requiredFlycastVersion = "v1.6.2"
 
 	// Released but broken flycast versions.
