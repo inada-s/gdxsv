@@ -1902,7 +1902,6 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		zap.Int32("rollback_count", r.RollbackCount),
 		zap.Int32s("rollback_depth_hist", r.RollbackDepthHist),
 		zap.Int32("rollback_max_us", r.RollbackMaxUs),
-		zap.Int32("late_frames_1", r.LateFrames_1),
 		zap.Int32("late_frames_1_5", r.LateFrames_1_5),
 		zap.Int32("late_frames_2", r.LateFrames_2),
 		zap.Int32("dropped_frames", r.DroppedFrames),
@@ -1918,7 +1917,6 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		zap.Int32s("late_present_depth_hist", r.LatePresentDepthHist),
 		zap.Int32s("dropped_depth_hist", r.DroppedDepthHist),
 		zap.Int32("display_stats_presents", r.DisplayStatsPresents),
-		zap.Int32s("display_miss_depth_hist", r.DisplayMissDepthHist),
 		zap.Int32("display_composed_presents", r.DisplayComposedPresents),
 		zap.Int32s("display_late_depth_hist", r.DisplayLateDepthHist),
 		zap.Int32("display_refresh_period_ns", r.DisplayRefreshPeriodNs),
@@ -1930,11 +1928,7 @@ type frameTimingLog struct{ s *proto.FrameTiming }
 func (l frameTimingLog) MarshalLogObject(e zapcore.ObjectEncoder) error {
 	e.AddInt32("period_us", l.s.PeriodUs)
 	addTimingStats(e, "work", l.s.Work)
-	e.AddInt32("present_wait_elasticity", l.s.PresentWaitElasticity)
 	addTimingStats(e, "rollback_slack", l.s.RollbackSlack)
-	addTimingStats(e, "present_wait", l.s.PresentWait)
-	addTimingStats(e, "render_wait", l.s.RenderWait)
-	addTimingStats(e, "rollback_wait", l.s.RollbackWait)
 	addTimingStats(e, "queue_wait", l.s.QueueWait)
 	return nil
 }
