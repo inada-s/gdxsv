@@ -303,6 +303,7 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 		DisplayComposedPresents: 40,
 		DisplayLateDepthHist:    []int32{1, 0, 1, 4},
 		DisplayRefreshPeriodNs:  16683333,
+		CfgRollbackBudget:       1.25,
 	}
 	// The removed fields as 1.10.2 still sends them: rollback_room = 3, over_period = 4, over_period_depth_hist = 5;
 	// and as 1.10.3 does: present_wait = 6, render_wait = 7, rollback_wait = 8, present_wait_elasticity = 10.
@@ -379,6 +380,7 @@ func Test_p2pMatchingReportFields(t *testing.T) {
 	assertEq(t, int32(40), f["display_composed_presents"])
 	assertEq(t, []interface{}{int32(1), int32(0), int32(1), int32(4)}, f["display_late_depth_hist"])
 	assertEq(t, int32(16683333), f["display_refresh_period_ns"])
+	assertEq(t, float32(1.25), f["cfg_rollback_budget"])
 
 	// A client after 1.10.2: the slack.
 	report.FrameTiming = &pb.FrameTiming{PeriodUs: 16683, RollbackSlack: &pb.TimingStats{Count: 5400, P1Us: 9800, P50Us: 12100}}

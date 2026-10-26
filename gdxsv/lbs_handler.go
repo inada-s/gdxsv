@@ -1943,6 +1943,7 @@ func p2pMatchingReportFields(r *proto.P2PMatchingReport) []zap.Field {
 		zap.Int32("display_composed_presents", r.DisplayComposedPresents),
 		zap.Int32s("display_late_depth_hist", r.DisplayLateDepthHist),
 		zap.Int32("display_refresh_period_ns", r.DisplayRefreshPeriodNs),
+		zap.Float32("cfg_rollback_budget", r.CfgRollbackBudget),
 	}
 }
 
