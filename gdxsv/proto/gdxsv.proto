@@ -59,6 +59,9 @@ message P2PMatchingReport {
   // The display's vsync period measured from the same statistics, in nanoseconds (0: none). Tells a 59.94 Hz display
   // (16683333) from a 60 Hz one (16666667), which RenderSettings.refresh_rate cannot.
   int32 display_refresh_period_ns = 49;
+  // emu.cfg gdxsv:RollbackBudget at the battle start, as saved (the delay uses it clamped to 0 to 1.5): frames of the
+  // one-way latency left to rollback rather than input delay
+  float cfg_rollback_budget = 50;
   reserved 27, 37 to 39, 46;
   reserved "late_frames_1", "rollback_budget", "budget_exhausted_frames", "budget_exhausted_depth_hist",
       "display_miss_depth_hist";
