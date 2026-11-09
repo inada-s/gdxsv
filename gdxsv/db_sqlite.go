@@ -426,12 +426,23 @@ WHERE
 	return nil
 }
 
+const maxUsersPerAccount = 3
+
+var errUserLimit = errors.New("account already has the maximum number of users")
+
 func (db SQLiteDB) RegisterUser(loginKey string) (*DBUser, error) {
 	userID := genUserID()
 	now := time.Now()
-	_, err := db.Exec(`INSERT INTO user (user_id, login_key, created) VALUES (?, ?, ?)`, userID, loginKey, now)
+	res, err := db.Exec(`INSERT INTO user (user_id, login_key, created)
+		SELECT ?, ?, ? WHERE (SELECT COUNT(*) FROM user WHERE login_key = ?) < ?`,
+		userID, loginKey, now, loginKey, maxUsersPerAccount)
 	if err != nil {
 		return nil, err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return nil, err
+	} else if n == 0 {
+		return nil, errUserLimit
 	}
 	u := &DBUser{
 		LoginKey: loginKey,
