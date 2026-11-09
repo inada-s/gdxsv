@@ -518,6 +518,11 @@ var _ = register(lbsUserRegist, func(p *LbsPeer, m *LbsMessage) {
 		p.conn.Close()
 		return
 	}
+	if u.LoginKey != account.LoginKey {
+		p.logger.Warn("refused a user of another account", zap.String("user_id", userID), zap.String("login_key", account.LoginKey))
+		p.conn.Close()
+		return
+	}
 
 	err = getDB().LoginUser(u)
 	if err != nil {
@@ -544,9 +549,21 @@ var _ = register(lbsUserRegist, func(p *LbsPeer, m *LbsMessage) {
 var _ = register(lbsUserDecide, func(p *LbsPeer, m *LbsMessage) {
 	userID := m.Reader().ReadString()
 
+	account, err := getDB().GetAccountBySessionID(p.SessionID)
+	if err != nil {
+		p.logger.Error("failed to get account", zap.Error(err))
+		p.conn.Close()
+		return
+	}
+
 	u, err := getDB().GetUser(userID)
 	if err != nil {
 		p.logger.Error("failed to get user", zap.String("user_id", userID), zap.Error(err))
+		p.conn.Close()
+		return
+	}
+	if u.LoginKey != account.LoginKey {
+		p.logger.Warn("refused a user of another account", zap.String("user_id", userID), zap.String("login_key", account.LoginKey))
 		p.conn.Close()
 		return
 	}
