@@ -24,7 +24,7 @@ func WebhookPostSimpleText(text string) {
 		return
 	}
 
-	res, err := http.Post(conf.WebhookUrl, "application/x-www-form-urlencoded", bytes.NewBuffer(body))
+	res, err := http.Post(string(conf.WebhookUrl), "application/x-www-form-urlencoded", bytes.NewBuffer(body))
 	if err != nil {
 		logger.Warn("http.Post", zap.Error(err))
 		return

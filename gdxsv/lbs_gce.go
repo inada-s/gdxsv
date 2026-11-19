@@ -266,7 +266,7 @@ func GoGceAllocRole(region, role string) bool {
 			Region:          region,
 			Role:            role,
 			LobbyPublicAddr: conf.LobbyPublicAddr,
-			RelaySecret:     conf.RelaySecret,
+			RelaySecret:     string(conf.RelaySecret),
 		})
 		if err != nil {
 			logger.Error("gce alloc failed", zap.String("role", role), zap.String("region", region), zap.Error(err))

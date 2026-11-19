@@ -85,7 +85,7 @@ func mainRelay() {
 	lastConnected := time.Now()
 	for {
 		status := RelayStatus{Region: conf.RelayRegion, PublicAddr: conf.RelayPublicAddr, PublicAddr6: conf.RelayPublicAddr6,
-			Secret: conf.RelaySecret}
+			Secret: string(conf.RelaySecret)}
 		err := relay.DialAndSyncWithLbs(conf.LobbyPublicAddr, status, &lastConnected)
 		if err == ErrRelayShutdown {
 			logger.Info("relay shutdown requested by lbs")
