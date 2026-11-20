@@ -120,7 +120,7 @@ func TestLbsRelay_StatusNeedsSecret(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf.RelaySecret = tt.lbsSecret
+			conf.RelaySecret = Secret(tt.lbsSecret)
 			lbs := &Lbs{relayPeers: map[string]*LbsPeer{}, relayLastNeeded: map[string]time.Time{}}
 			p := &LbsPeer{app: lbs, logger: logger}
 			defaultLbsHandlers[lbsExtRelayStatus](p, status(tt.sentSecret))

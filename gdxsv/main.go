@@ -77,7 +77,7 @@ type Config struct {
 	RelayPublicAddr6 string `env:"GDXSV_RELAY_PUBLIC_ADDR6" envDefault:""`          // [ipv6]:port, same port
 	RelayRegion      string `env:"GDXSV_RELAY_REGION" envDefault:""`                // relay: where it runs
 	RelayRegions     string `env:"GDXSV_RELAY_REGIONS" envDefault:""`               // lbs: comma separated regions it may start relays in
-	RelaySecret      string `env:"GDXSV_RELAY_SECRET" envDefault:""`                // shared by lbs and relays; lbs accepts no relay without it
+	RelaySecret      Secret `env:"GDXSV_RELAY_SECRET" envDefault:""`                // shared by lbs and relays; lbs accepts no relay without it
 	LobbyRegion      string `env:"GDXSV_LOBBY_REGION" envDefault:"asia-northeast1"` // lbs: the GCP region nearest lbs, to pick the live spectator uplink
 
 	SpectatorMaxSubscribers          int `env:"GDXSV_SPECTATOR_MAX_SUBSCRIBERS" envDefault:"4096"`
@@ -87,7 +87,7 @@ type Config struct {
 	GCPKeyPath   string `env:"GDXSV_GCP_KEY_PATH" envDefault:""`      // service account key; default credentials when empty
 	GCEOnDemand  bool   `env:"GDXSV_GCE_ONDEMAND" envDefault:"false"` // lbs: start mcs / relay VMs on GCE (lbs_gce.go)
 	ReplayBucket string `env:"GDXSV_REPLAY_BUCKET" envDefault:""`     // lbs: GCS bucket for /lbs/replay_upload, off when empty
-	WebhookUrl   string `env:"GDXSV_WEBHOOK_URL" envDefault:""`
+	WebhookUrl   Secret `env:"GDXSV_WEBHOOK_URL" envDefault:""`
 
 	DBName string `env:"GDXSV_DB_NAME" envDefault:"gdxsv.db"`
 }
@@ -413,4 +413,18 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+// Secret is kept out of the logged config.
+type Secret string
+
+func (s Secret) String() string {
+	if s == "" {
+		return ""
+	}
+	return "***"
+}
+
+func (s Secret) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
 }
