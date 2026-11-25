@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +172,9 @@ func TestGceAllocCreatesVM(t *testing.T) {
 	if vm.ServiceAccounts[0].Email != "gdxsv-service@proj.iam.gserviceaccount.com" || !vm.Disks[0].Boot || vm.Disks[0].InitializeParams.SourceImage != gceImage {
 		t.Errorf("sa %v disks %+v", vm.ServiceAccounts, vm.Disks[0])
 	}
+	if metadataValue(vm.Metadata, "enable-osconfig") != "TRUE" {
+		t.Errorf("enable-osconfig %q", metadataValue(vm.Metadata, "enable-osconfig"))
+	}
 	script := metadataValue(vm.Metadata, "startup-script")
 	if !strings.Contains(script, "readonly VERSION=latest") || !strings.Contains(script, "gdxsv -prodlog -cprof=1 mcs") || strings.Contains(script, "__") {
 		t.Errorf("script %s", script)
@@ -187,17 +191,43 @@ func TestGceAllocRelay(t *testing.T) {
 		t.Fatal(err)
 	}
 	nic := vm.NetworkInterfaces[0]
-	if vm.Name != "gdxsv-relay-asia-east2-latest" || vm.MachineType != "zones/asia-east2-a/machineTypes/e2-micro" || vm.Tags.Items[0] != "gdxsv-relay" {
+	if vm.Name != "gdxsv-relay-asia-east2-latest-u2404" || vm.MachineType != "zones/asia-east2-a/machineTypes/e2-micro" || vm.Tags.Items[0] != "gdxsv-relay" {
 		t.Errorf("vm %s %s %v", vm.Name, vm.MachineType, vm.Tags.Items)
+	}
+	if vm.Disks[0].InitializeParams.SourceImage != gceRelayImage {
+		t.Errorf("image %s", vm.Disks[0].InitializeParams.SourceImage)
+	}
+	if metadataValue(vm.Metadata, "enable-osconfig") != "FALSE" {
+		t.Errorf("enable-osconfig %q", metadataValue(vm.Metadata, "enable-osconfig"))
 	}
 	if nic.Network != "global/networks/gdxsv-relay" || nic.Subnetwork != "regions/asia-east2/subnetworks/gdxsv-relay-asia-east2" || nic.StackType != "IPV4_IPV6" || len(nic.Ipv6AccessConfigs) != 1 {
 		t.Errorf("nic %+v", nic)
 	}
 	script := metadataValue(vm.Metadata, "startup-script")
-	for _, want := range []string{"GDXSV_RELAY_SECRET=0123456789abcdef_relay", "GDXSV_LOBBY_PUBLIC_ADDR=lbs.gdxsv.net:9876", "GDXSV_RELAY_REGION=${ZONE%-*}", "gdxsv -prodlog relay"} {
+	for _, want := range []string{
+		"GDXSV_RELAY_SECRET=0123456789abcdef_relay", "GDXSV_LOBBY_PUBLIC_ADDR=lbs.gdxsv.net:9876", "GDXSV_RELAY_REGION=${ZONE%-*}", "gdxsv -prodlog relay",
+		"readonly VERSION=latest", "apt-daily-upgrade.timer", "unattended-upgrades.service", "esm-cache.service", "snap refresh --hold", "shutdown now",
+	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("script lacks %q", want)
 		}
+	}
+	// No package is installed at boot, and nothing is left unreplaced.
+	for _, unwanted := range []string{"snap install", "apt-get install", "jq", "__"} {
+		if strings.Contains(script, unwanted) {
+			t.Errorf("script has %q", unwanted)
+		}
+	}
+
+	// A relay VM made from an older image, named without the image tag, is not started again.
+	resetGceState()
+	f = &gceFake{instances: []*compute.Instance{fakeInstance("asia-east2-a", "gdxsv-relay-asia-east2-latest", "TERMINATED")}}
+	vm, err = gceAlloc(context.Background(), f, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vm.Name != "gdxsv-relay-asia-east2-latest-u2404" || slices.ContainsFunc(f.calls, func(c string) bool { return strings.HasPrefix(c, "start ") }) {
+		t.Errorf("vm %s calls %v", vm.Name, f.calls)
 	}
 
 	p.RelaySecret = "short"

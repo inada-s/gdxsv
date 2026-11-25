@@ -21,8 +21,10 @@ import (
 // region that accepts it. A VM that stayed stopped for gceUnusedVMLifetime is deleted.
 //
 // role "mcs" (battle server): e2-medium in the default network.
-// role "relay" (GGPO relay): e2-micro in the dual-stack gceRelayNetwork, so it gets an
-// external IPv6 address; it needs GDXSV_RELAY_SECRET, written into its startup script.
+// role "relay" (GGPO relay): e2-micro from gceRelayImage in the dual-stack gceRelayNetwork,
+// so it gets an external IPv6 address; it needs GDXSV_RELAY_SECRET, written into its startup
+// script. Its startup script turns off package updates, which otherwise download in the first
+// minutes after each boot, while the relay already forwards a match.
 //
 // The VMs run as gdxsv-service@<project>.iam.gserviceaccount.com, download the latest
 // gdxsv release and connect back to GDXSV_LOBBY_PUBLIC_ADDR.
@@ -31,9 +33,14 @@ const (
 	gceVersion          = "latest"
 	gceRelayNetwork     = "gdxsv-relay"
 	gceImage            = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts"
+	gceRelayImage       = "projects/ubuntu-os-cloud/global/images/family/ubuntu-minimal-2404-lts-amd64"
 	gceAllocInterval    = 30 * time.Second
 	gceCleanupInterval  = time.Hour
 	gceUnusedVMLifetime = 5 * 24 * time.Hour
+
+	// gceRelayImageTag ends the relay VM's name, so a VM made from an older image is not
+	// started again; gceRemoveUnusedVMs deletes it once it stays unused.
+	gceRelayImageTag = "u2404"
 )
 
 var (
@@ -287,7 +294,11 @@ type gceAllocParams struct {
 }
 
 func gceVMName(role, region string) string {
-	return "gdxsv-" + role + "-" + region + "-" + strings.ReplaceAll(gceVersion, ".", "-")
+	name := "gdxsv-" + role + "-" + region + "-" + strings.ReplaceAll(gceVersion, ".", "-")
+	if role == "relay" {
+		name += "-" + gceRelayImageTag
+	}
+	return name
 }
 
 func gceServiceAccount(project string) string {
@@ -314,10 +325,16 @@ func gceAlloc(ctx context.Context, api gceAPI, p gceAllocParams) (*compute.Insta
 
 	name := gceVMName(p.Role, p.Region)
 	startupScript := gceStartupScript(p)
+	// The OS Config agent's inventory refreshes the apt package lists, tens of MB, a few
+	// minutes after each boot. A relay is forwarding a match by then, so it goes without.
+	osconfig := "TRUE"
+	if p.Role == "relay" {
+		osconfig = "FALSE"
+	}
 	metadata := &compute.Metadata{Items: []*compute.MetadataItems{
 		{Key: "startup-script", Value: &startupScript},
-		{Key: "enable-osconfig", Value: strPtr("TRUE")},
-		{Key: "enable-guest-attributes", Value: strPtr("TRUE")},
+		{Key: "enable-osconfig", Value: &osconfig},
+		{Key: "enable-guest-attributes", Value: &osconfig},
 	}}
 	scheduling := &compute.Scheduling{
 		OnHostMaintenance: "MIGRATE",
@@ -375,9 +392,10 @@ func gceAlloc(ctx context.Context, api gceAPI, p gceAllocParams) (*compute.Insta
 	return nil, fmt.Errorf("failed to allocate vm in %s: %w", p.Region, lastErr)
 }
 
-// gceNewInstance is the VM of the role: the ubuntu image, the role's machine type, tags,
-// network and the gdxsv service account.
+// gceNewInstance is the VM of the role: the role's image, machine type, tags, network and
+// the gdxsv service account.
 func gceNewInstance(p gceAllocParams, name, zone string, metadata *compute.Metadata, scheduling *compute.Scheduling) *compute.Instance {
+	image := gceImage
 	machineType := "e2-medium"
 	tags := []string{"gdxsv-mcs", "http-server"}
 	nic := &compute.NetworkInterface{
@@ -385,6 +403,7 @@ func gceNewInstance(p gceAllocParams, name, zone string, metadata *compute.Metad
 		AccessConfigs: []*compute.AccessConfig{{Type: "ONE_TO_ONE_NAT", Name: "External NAT", NetworkTier: "PREMIUM"}},
 	}
 	if p.Role == "relay" {
+		image = gceRelayImage
 		machineType = "e2-micro"
 		tags = []string{"gdxsv-relay"}
 		nic = &compute.NetworkInterface{
@@ -402,7 +421,7 @@ func gceNewInstance(p gceAllocParams, name, zone string, metadata *compute.Metad
 		Disks: []*compute.AttachedDisk{{
 			Boot:             true,
 			AutoDelete:       true,
-			InitializeParams: &compute.AttachedDiskInitializeParams{SourceImage: gceImage},
+			InitializeParams: &compute.AttachedDiskInitializeParams{SourceImage: image},
 		}},
 		NetworkInterfaces: []*compute.NetworkInterface{nic},
 		Scheduling:        scheduling,
@@ -448,8 +467,7 @@ func gceRemoveUnusedVMs(ctx context.Context, api gceAPI) {
 	}
 }
 
-func strPtr(s string) *string { return &s }
-func boolPtr(b bool) *bool    { return &b }
+func boolPtr(b bool) *bool { return &b }
 
 // gceStartupScript is the VM's startup script: it downloads the gdxsv release and runs
 // the role, shutting the VM down when the process ends.
@@ -551,36 +569,36 @@ echo "startup-script done"
 const gceRelayStartupScript = `#!/bin/bash
 echo "startup-script"
 
-snap install jq
+# The relay starts forwarding a match within a minute of boot: keep apt, the Ubuntu Pro
+# client and snap from downloading and installing updates meanwhile. esm-cache alone fetches
+# tens of MB of package lists a few minutes after boot.
+systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service \
+  ua-timer.timer update-notifier-download.timer update-notifier-motd.timer
+systemctl stop apt-daily.service apt-daily-upgrade.service
+systemctl mask --now esm-cache.service apt-news.service
+if command -v snap > /dev/null; then
+  snap refresh --hold
+fi
+
+id -u ubuntu > /dev/null 2>&1 || useradd -m -s /bin/bash ubuntu
 
 cat << 'EOF' > /home/ubuntu/launch-relay.sh
 #!/bin/bash -eux
 
-# The lobby stops the relay once no match needs it; stop the VM with it.
-function finish {
-  echo "relay finished" | logger
-  sleep 1
-  sudo /sbin/shutdown now
-}
-trap finish EXIT
-
 readonly VERSION=__VERSION__
+readonly RELEASES=https://github.com/inada-s/gdxsv/releases
 
 if [[ -z $VERSION || $VERSION == "latest" ]]; then
-  readonly TAG_NAME=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.tag_name')
-  readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/latest | jq -r '.assets[].browser_download_url')
+  # The latest release redirects to its tag's page.
+  readonly TAG_NAME=$(basename "$(curl -fsSL -o /dev/null -w '%{url_effective}' $RELEASES/latest)")
 else
   readonly TAG_NAME=$VERSION
-  readonly DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/inada-s/gdxsv/releases/tags/$TAG_NAME | jq -r '.assets[].browser_download_url')
 fi
 
 if [[ ! -d $TAG_NAME/bin ]]; then
   echo "Downloading $TAG_NAME"
   mkdir -p "$TAG_NAME"
-  pushd "$TAG_NAME"
-    wget "$DOWNLOAD_URL"
-    tar xzvf bin.tgz && rm bin.tgz
-  popd
+  curl -fsSL "$RELEASES/download/$TAG_NAME/bin.tgz" | tar xz -C "$TAG_NAME"
 fi
 
 readonly METADATA=http://metadata.google.internal/computeMetadata/v1/instance
@@ -603,8 +621,10 @@ touch /var/log/gdxsv-relay.log
 truncate -s0 /var/log/gdxsv-relay.log
 chown ubuntu:ubuntu /var/log/gdxsv-relay.log
 
+chown ubuntu:ubuntu /home/ubuntu/launch-relay.sh
 chmod +x /home/ubuntu/launch-relay.sh
 
-su ubuntu -c 'cd /home/ubuntu && nohup ./launch-relay.sh &'
+# The lobby stops the relay once no match needs it; stop the VM with it.
+nohup bash -c 'cd /home/ubuntu && runuser -u ubuntu -- ./launch-relay.sh; echo "relay finished" | logger; sleep 1; shutdown now' > /dev/null 2>&1 &
 echo "startup-script done"
 `
