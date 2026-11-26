@@ -130,6 +130,9 @@ message P2PMatching {
   // Set for the one participant, nearest lbs, that streams its confirmed
   // inputs to lbs for live spectators. The others do not.
   bool spectator_uplink = 12;
+  // Each participant's relay_server level (PlatformInfo), by peer_id, set with relays. A client uses a feature with
+  // a peer only if both levels have it. 2: ping-pong packets may go through the relays.
+  repeated int32 relay_levels = 13;
 }
 
 message PlayerAddress {

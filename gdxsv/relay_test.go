@@ -284,3 +284,77 @@ func TestRelay_BothFamilies(t *testing.T) {
 	dst, _ = r.handle(ggpoRelayPacket(0, 1, 3), a6)
 	assertEq(t, b, dst)
 }
+
+// pingPongPacket is a players' ping-pong packet with the relay RTTs (PacketWithRelays in flycast).
+func pingPongPacket(sessionID uint32, from, to uint8) []byte {
+	p := make([]byte, 60)
+	binary.LittleEndian.PutUint32(p[0:], pingPongMagic)
+	binary.LittleEndian.PutUint32(p[4:], sessionID)
+	p[8] = 1 // PING
+	p[9] = from
+	p[10] = to
+	p[11] = 5 // candidate_idx
+	for i := 12; i < len(p); i++ {
+		p[i] = byte(i)
+	}
+	return p
+}
+
+func TestRelay_ForwardPingPong(t *testing.T) {
+	r := NewRelay()
+	r.RegisterSession(100, 1)
+	a := udpAddr("1.2.3.4:5000")
+	b := udpAddr("[2001:db8::1]:6000")
+	r.handle(relayPing(0, 100, 1, 0), a)
+	r.handle(relayPing(3, 100, 1, 0), b)
+
+	for _, size := range []int{pingPongMinSize, 60} {
+		p := pingPongPacket(100, 0, 3)[:size]
+		want := append([]byte(nil), p...)
+		dst, out := r.handle(p, a)
+		assertEq(t, b.String(), dst.String())
+		assertEq(t, want, out)
+	}
+	assertEq(t, uint64(2), r.sessions[100].pingPongs)
+	assertEq(t, uint64(0), r.sessions[100].forwarded)
+	// Forwarding a ping-pong packet does not make it where the sender plays from.
+	assertEq(t, false, r.sessions[100].peers[0].playing)
+}
+
+func TestRelay_ForwardPingPongDropped(t *testing.T) {
+	r := NewRelay()
+	r.RegisterSession(100, 1)
+	r.RegisterSession(200, 2)
+	a := udpAddr("1.2.3.4:5000")
+	b := udpAddr("5.6.7.8:6000")
+	c := udpAddr("9.9.9.9:7000")
+	r.handle(relayPing(0, 100, 1, 0), a)
+	r.handle(relayPing(1, 100, 1, 0), b)
+	r.handle(relayPing(2, 200, 2, 0), c)
+
+	tests := []struct {
+		name string
+		p    []byte
+		from netip.AddrPort
+	}{
+		{"unbound sender", pingPongPacket(100, 0, 1), udpAddr("8.8.8.8:1")},
+		{"other session id", pingPongPacket(200, 0, 1), a},
+		{"posing as another peer", pingPongPacket(100, 1, 0), a},
+		{"to itself", pingPongPacket(100, 0, 0), a},
+		{"to unbound peer", pingPongPacket(100, 0, 2), a},
+		{"to out of range", pingPongPacket(100, 0, relayMaxPeers), a},
+		{"to other session's peer", pingPongPacket(200, 2, 0), c},
+		{"short", pingPongPacket(100, 0, 1)[:pingPongMinSize-1], a},
+		{"long", append(pingPongPacket(100, 0, 1), make([]byte, pingPongMaxSize)...), a},
+		{"bad magic", func() []byte { p := pingPongPacket(100, 0, 1); p[0] ^= 1; return p }(), a},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dst, _ := r.handle(tt.p, tt.from)
+			if dst.IsValid() {
+				t.Fatalf("expected drop, sent to %v", dst)
+			}
+		})
+	}
+	assertEq(t, uint64(0), r.sessions[100].pingPongs)
+}
