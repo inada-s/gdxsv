@@ -29,6 +29,14 @@ import (
 //	uint16 relay_magic, uint8 relay_to_endpoint, uint8 org_type
 //
 // The relay restores the original type and sends the packet to relay_to_endpoint of the sender's session.
+//
+// Before the match, a player that reaches no other directly still sends its RTTs to the others through the relay
+// (ping test packets of type pingTestTypeRtts), unchanged:
+//
+//	uint32 magic, uint32 session_id, uint8 type, uint8 from_peer_id, uint8 to_peer_id, ...
+//
+// It goes to to_peer_id of the sender's session, only if session_id and from_peer_id are the sender's own. Pings
+// and pongs (types 1, 2) are dropped: an older client would take the relay for the peer.
 const (
 	relayPingMagic   = 0x594c4552 // "RELY"
 	relayPingSize    = 28
@@ -41,6 +49,10 @@ const (
 	ggpoHeaderSize   = 12
 	ggpoMinType      = 1 // SyncRequest
 	ggpoMaxType      = 8 // AppData
+	pingTestMagic    = 2205246188
+	pingTestTypeRtts = 3
+	pingTestMinSize  = 44  // the header and the RTT matrix
+	pingTestMaxSize  = 256 // what the players read
 	relayIdleTimeout = 2 * time.Minute
 	relayMaxLifetime = 3 * time.Hour
 )
@@ -223,7 +235,8 @@ type relaySession struct {
 	peers      [relayMaxPeers]relayPeer
 	created    time.Time
 	lastActive time.Time
-	forwarded  uint64
+	forwarded  uint64 // game packets
+	rtts       uint64 // ping test packets
 }
 
 // relayPeer is a player bound to a session, by up to one address per IP family.
@@ -306,7 +319,7 @@ func (r *Relay) removeSessionLocked(s *relaySession) {
 		}
 	}
 	delete(r.sessions, s.id)
-	logger.Info("relay session removed", zap.Uint32("session_id", s.id), zap.Uint64("forwarded", s.forwarded))
+	logger.Info("relay session removed", zap.Uint32("session_id", s.id), zap.Uint64("forwarded", s.forwarded), zap.Uint64("rtts", s.rtts))
 }
 
 func (r *Relay) RemoveStaleSessions() {
@@ -347,7 +360,32 @@ func (r *Relay) handle(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
 		binary.LittleEndian.Uint16(p[8:]) == ggpoRelayMagic {
 		return r.handleGgpo(p, from)
 	}
+	if pingTestMinSize <= len(p) && len(p) <= pingTestMaxSize && binary.LittleEndian.Uint32(p[0:]) == pingTestMagic {
+		return r.handlePingTest(p, from)
+	}
 	return netip.AddrPort{}, nil
+}
+
+func (r *Relay) handlePingTest(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
+	sessionID := binary.LittleEndian.Uint32(p[4:])
+	typ, fromPeer, to := p[8], p[9], p[10]
+	if typ != pingTestTypeRtts || relayMaxPeers <= to {
+		return netip.AddrPort{}, nil
+	}
+
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	b, ok := r.bindings[from]
+	if !ok || b.session.id != sessionID || fromPeer != b.peer || to == b.peer {
+		return netip.AddrPort{}, nil
+	}
+	dst := b.session.peers[to].active
+	if !dst.IsValid() {
+		return netip.AddrPort{}, nil
+	}
+	b.session.lastActive = r.now()
+	b.session.rtts++
+	return dst, p
 }
 
 func (r *Relay) handlePing(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
