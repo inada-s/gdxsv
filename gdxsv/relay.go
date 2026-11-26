@@ -29,6 +29,13 @@ import (
 //	uint16 relay_magic, uint8 relay_to_endpoint, uint8 org_type
 //
 // The relay restores the original type and sends the packet to relay_to_endpoint of the sender's session.
+//
+// Before the match, the players measure their routes with ping-pong packets. The relay forwards those as they are,
+// so a player that reaches no other directly still exchanges its RTTs with them:
+//
+//	uint32 magic, uint32 session_id, uint8 type, uint8 from_peer_id, uint8 to_peer_id, ...
+//
+// It goes to to_peer_id of the sender's session, only if session_id and from_peer_id are the sender's own.
 const (
 	relayPingMagic   = 0x594c4552 // "RELY"
 	relayPingSize    = 28
@@ -41,6 +48,9 @@ const (
 	ggpoHeaderSize   = 12
 	ggpoMinType      = 1 // SyncRequest
 	ggpoMaxType      = 8 // AppData
+	pingPongMagic    = 2205246188
+	pingPongMinSize  = 44  // the header and the RTT matrix
+	pingPongMaxSize  = 256 // what the players read
 	relayIdleTimeout = 2 * time.Minute
 	relayMaxLifetime = 3 * time.Hour
 )
@@ -223,7 +233,8 @@ type relaySession struct {
 	peers      [relayMaxPeers]relayPeer
 	created    time.Time
 	lastActive time.Time
-	forwarded  uint64
+	forwarded  uint64 // game packets
+	pingPongs  uint64 // ping-pong packets forwarded
 }
 
 // relayPeer is a player bound to a session, by up to one address per IP family.
@@ -306,7 +317,7 @@ func (r *Relay) removeSessionLocked(s *relaySession) {
 		}
 	}
 	delete(r.sessions, s.id)
-	logger.Info("relay session removed", zap.Uint32("session_id", s.id), zap.Uint64("forwarded", s.forwarded))
+	logger.Info("relay session removed", zap.Uint32("session_id", s.id), zap.Uint64("forwarded", s.forwarded), zap.Uint64("ping_pongs", s.pingPongs))
 }
 
 func (r *Relay) RemoveStaleSessions() {
@@ -347,7 +358,33 @@ func (r *Relay) handle(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
 		binary.LittleEndian.Uint16(p[8:]) == ggpoRelayMagic {
 		return r.handleGgpo(p, from)
 	}
+	if pingPongMinSize <= len(p) && len(p) <= pingPongMaxSize && binary.LittleEndian.Uint32(p[0:]) == pingPongMagic {
+		return r.handlePingPong(p, from)
+	}
 	return netip.AddrPort{}, nil
+}
+
+// handlePingPong forwards a players' ping-pong packet unchanged.
+func (r *Relay) handlePingPong(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {
+	sessionID := binary.LittleEndian.Uint32(p[4:])
+	fromPeer, to := p[9], p[10]
+	if relayMaxPeers <= to {
+		return netip.AddrPort{}, nil
+	}
+
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	b, ok := r.bindings[from]
+	if !ok || b.session.id != sessionID || fromPeer != b.peer || to == b.peer {
+		return netip.AddrPort{}, nil
+	}
+	dst := b.session.peers[to].active
+	if !dst.IsValid() {
+		return netip.AddrPort{}, nil
+	}
+	b.session.lastActive = r.now()
+	b.session.pingPongs++
+	return dst, p
 }
 
 func (r *Relay) handlePing(p []byte, from netip.AddrPort) (netip.AddrPort, []byte) {

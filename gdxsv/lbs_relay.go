@@ -122,7 +122,7 @@ func (lbs *Lbs) relayNeeded() bool {
 	users := 0
 	first, mixed := "", false
 	for _, p := range lbs.userPeers {
-		if p.PlatformInfo["relay_server"] != "1" {
+		if relayLevel(p) < 1 {
 			continue
 		}
 		users++
@@ -224,13 +224,26 @@ func sendRelayControl(p *LbsPeer, ctl *RelayControl) {
 	p.SendMessage(NewServerNotice(lbsExtRelayControl).Writer().WriteBytes(body).Msg())
 }
 
-func allSupportRelay(participants []*LbsPeer) bool {
-	for _, p := range participants {
-		if p.PlatformInfo["relay_server"] != "1" {
-			return false
-		}
+// relayLevel is what the client reports as relay_server in its PlatformInfo, 0 if nothing:
+// 1 reads P2PMatching.relays; 2 also takes ping-pong packets through the relays.
+func relayLevel(p *LbsPeer) int {
+	v, err := strconv.Atoi(p.PlatformInfo["relay_server"])
+	if err != nil || v < 0 {
+		return 0
 	}
-	return true
+	return v
+}
+
+// minRelayLevel is the relay level every participant supports.
+func minRelayLevel(participants []*LbsPeer) int {
+	if len(participants) == 0 {
+		return 0
+	}
+	level := relayLevel(participants[0])
+	for _, p := range participants[1:] {
+		level = min(level, relayLevel(p))
+	}
+	return level
 }
 
 // openRelaySession admits the players of a match to the relay and returns what they need to use it.

@@ -6,6 +6,10 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"gdxsv/gdxsv/proto"
+
+	pb "google.golang.org/protobuf/proto"
 )
 
 func latencies(kv ...interface{}) map[string]string {
@@ -151,11 +155,37 @@ func TestLbsRelay_LocalRelaySession(t *testing.T) {
 	assertEq(t, server.GetToken(), relay.sessions[555].token)
 }
 
-func TestLbsRelay_AllSupportRelay(t *testing.T) {
-	yes := &LbsPeer{PlatformInfo: map[string]string{"relay_server": "1"}}
-	no := &LbsPeer{PlatformInfo: map[string]string{}}
-	assertEq(t, true, allSupportRelay([]*LbsPeer{yes, yes}))
-	assertEq(t, false, allSupportRelay([]*LbsPeer{yes, no}))
+func TestLbsRelay_MinRelayLevel(t *testing.T) {
+	peer := func(v string) *LbsPeer {
+		info := map[string]string{}
+		if v != "" {
+			info["relay_server"] = v
+		}
+		return &LbsPeer{PlatformInfo: info}
+	}
+	tests := []struct {
+		name   string
+		levels []string
+		want   int
+	}{
+		{"no participants", nil, 0},
+		{"all 1", []string{"1", "1"}, 1},
+		{"all 2", []string{"2", "2", "2", "2"}, 2},
+		{"2 with 1", []string{"2", "1", "2", "2"}, 1},
+		{"2 with none", []string{"2", "", "2", "2"}, 0},
+		{"future level", []string{"3", "2"}, 2},
+		{"garbage", []string{"2", "x"}, 0},
+		{"negative", []string{"2", "-1"}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ps []*LbsPeer
+			for _, v := range tt.levels {
+				ps = append(ps, peer(v))
+			}
+			assertEq(t, tt.want, minRelayLevel(ps))
+		})
+	}
 }
 
 // A relay registers with a real lobby over TCP, receives a session the lobby opens,
@@ -257,5 +287,45 @@ func TestLbsRelay_Integration(t *testing.T) {
 		assertEq(t, ErrRelayShutdown, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("relay was not shut down")
+	}
+}
+
+// The match tells the players each one's relay level, along with the relays.
+func TestLbsRelay_MatchingRelayLevels(t *testing.T) {
+	tests := []struct {
+		name       string
+		levels     []string
+		wantRelays int
+		wantLevels []int32
+	}{
+		{"all 2", []string{"2", "2", "2", "2"}, 1, []int32{2, 2, 2, 2}},
+		{"2 with 1", []string{"2", "1", "2", "2"}, 1, []int32{2, 1, 2, 2}},
+		{"all 1", []string{"1", "1", "1", "1"}, 1, []int32{1, 1, 1, 1}},
+		{"one without relays", []string{"2", "2", "", "2"}, 0, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			relay := NewRelay()
+			lbs := &Lbs{relayPeers: map[string]*LbsPeer{},
+				localRelay: &relayEndpoint{region: localRelayRegion, publicAddr: "203.0.113.5:9879", register: relay.RegisterSession}}
+			peers := playerInfoTestMatch()
+			for i, p := range peers {
+				p.conn = &PipeConn{}
+				p.PlatformInfo = map[string]string{}
+				if tt.levels[i] != "" {
+					p.PlatformInfo["relay_server"] = tt.levels[i]
+				}
+			}
+			lobby := &LbsLobby{Rule: DefaultRule, app: lbs}
+			msgs, err := lobby.makeP2PMatchingMsg(peers[0].Battle, peers, nil)
+			must(t, err)
+			assertEq(t, 4, len(msgs))
+			for _, msg := range msgs {
+				matching := new(proto.P2PMatching)
+				must(t, pb.Unmarshal(msg.Body, matching))
+				assertEq(t, tt.wantRelays, len(matching.Relays))
+				assertEq(t, tt.wantLevels, matching.RelayLevels)
+			}
+		})
 	}
 }
